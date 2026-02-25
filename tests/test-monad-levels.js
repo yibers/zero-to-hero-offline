@@ -7,7 +7,7 @@ const path = require('path');
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   const p = await ctx.newPage();
   const url = `file:///${path.resolve(__dirname, '..', 'index.html').replace(/\\/g, '/')}`;
-  await p.goto(url, { timeout: 60000 });
+  await p.goto(url);
   await p.evaluate(() => localStorage.clear());
   await p.reload();
   await p.waitForTimeout(300);
@@ -52,34 +52,42 @@ const path = require('path');
   }
 
   // Also test via UI for level 11 to verify full flow
+  // Grant bypass points via evaluate so we can skip to level 11
   console.log('\n--- UI test: bypass to L11 and solve ---');
-  // Seed bypassCount so bypass button is enabled (normally earned by solving levels)
   await p.evaluate(() => {
-    const saved = JSON.parse(localStorage.getItem('zth_progress') || '{}');
-    saved.bypassCount = 10;
-    localStorage.setItem('zth_progress', JSON.stringify(saved));
-    location.reload();
+    bypassCount = 10;
+    saveProgress();
   });
-  await p.waitForTimeout(500);
-  for (let i = 0; i < 10; i++) {
-    await p.locator('button', { hasText: 'Bypass' }).click();
-    await p.waitForTimeout(100);
+  await p.reload();
+  await p.waitForTimeout(300);
+  // Dismiss intro if shown
+  const introBtn = p.locator('button', { hasText: 'OK' });
+  if (await introBtn.isVisible({ timeout: 500 }).catch(() => false)) await introBtn.click();
+  await p.waitForTimeout(200);
+
+  {
+    const bypassBtn = p.locator('button', { hasText: 'Bypass' });
+    for (let i = 0; i < 10; i++) {
+      await bypassBtn.click();
+      await p.waitForTimeout(100);
+    }
+
+    const editor = p.locator('#code-editor');
+    await editor.fill('zeroToHero z = join $ wrap z');
+    await p.waitForTimeout(500);
+    const inferred = await p.locator('#inferred-type').textContent();
+    console.log('Inferred type:', inferred);
+
+    // Call attempt via evaluate to avoid race
+    await p.evaluate(() => attempt());
+    await p.waitForTimeout(800);
+    const status = await p.locator('#status-bar').textContent();
+    console.log('Status:', status);
+    console.log(status.includes('Success') ? 'UI PASS' : 'UI FAIL');
   }
 
-  const editor = p.locator('#code-editor');
-  await editor.fill('zeroToHero z = join $ wrap z');
-  await p.waitForTimeout(500);
-  const inferred = await p.locator('#inferred-type').textContent();
-  console.log('Inferred type:', inferred);
-
-  // Call attempt via evaluate to avoid race
-  await p.evaluate(() => attempt());
-  await p.locator('#status-bar:not(:has-text("Checking"))').waitFor({ timeout: 10000 });
-  const status = await p.locator('#status-bar').textContent();
-  console.log('Status:', status);
-  console.log(status.includes('Success') ? 'UI PASS' : 'UI FAIL');
-
   console.log(allPassed ? '\nAll monad levels PASSED!' : '\nSome levels FAILED!');
+
   await browser.close();
   process.exit(allPassed ? 0 : 1);
 })();

@@ -401,9 +401,31 @@ function tokenizeExpr(code) {
       i = j;
       continue;
     }
-    i++;
+    throw new Error(`Unexpected character '${code[i]}'`);
   }
   return tokens;
+}
+
+// ─── Shared Validation ───
+
+function validateCode(fullCode) {
+  if (fullCode.includes('undefined')) {
+    return 'Using undefined is not allowed.';
+  }
+  if (fullCode.slice(1).includes('zeroToHero')) {
+    return 'Cannot recursively define the function.';
+  }
+  return null;
+}
+
+function normalizeTypeError(msg) {
+  if (msg.includes('Unknown identifier')) {
+    return 'Your definition contains function(s) that are not in the available functions.';
+  }
+  if (msg.includes('Cannot apply') || msg.includes('Type mismatch')) {
+    return 'Your definition is not well-typed.';
+  }
+  return msg;
 }
 
 // ─── Live Type Inference (runs on every keystroke) ───
@@ -415,12 +437,9 @@ function liveInfer(levelData, code) {
     return { valid: false, typeSig: null, error: null };
   }
 
-  if (fullCode.includes('undefined')) {
-    return { valid: false, typeSig: null, error: 'Using undefined is not allowed' };
-  }
-
-  if (fullCode.slice(1).includes('zeroToHero')) {
-    return { valid: false, typeSig: null, error: 'Cannot recursively define the function' };
+  const validationError = validateCode(fullCode);
+  if (validationError) {
+    return { valid: false, typeSig: null, error: validationError };
   }
 
   const env = {};
@@ -477,13 +496,7 @@ function liveInfer(levelData, code) {
 
     return { valid: true, typeSig: sigStr, error: null };
   } catch (e) {
-    let msg = e.message;
-    if (msg.includes('Unknown identifier')) {
-      msg = 'Your definition contains function(s) that are not in the available functions.';
-    } else if (msg.includes('Cannot apply') || msg.includes('Type mismatch')) {
-      msg = 'Your definition is not well-typed.';
-    }
-    return { valid: false, typeSig: null, error: msg };
+    return { valid: false, typeSig: null, error: normalizeTypeError(e.message) };
   }
 }
 
@@ -494,6 +507,11 @@ function typeCheck(levelData, code) {
   const fullCode = code.trim();
   if (!fullCode || fullCode === 'undefined') {
     return { ok: false, msg: 'You did not make any changes.' };
+  }
+
+  const validationError = validateCode(fullCode);
+  if (validationError) {
+    return { ok: false, msg: validationError };
   }
 
   // Build environment: the available functions + the lhs parameters
@@ -509,7 +527,6 @@ function typeCheck(levelData, code) {
 
   // Parse the LHS to get parameter names and their types from the target signature
   const lhsParts = levelData.lhs.replace('=', '').trim().split(/\s+/);
-  const funcName = lhsParts[0]; // "zeroToHero"
   const paramNames = lhsParts.slice(1);
 
   const targetType = parseType(levelData.target);
@@ -567,17 +584,10 @@ function typeCheck(levelData, code) {
       return { ok: false, msg: `Type mismatch:\n  Expected: ${expected}\n  Got:      ${inferred}` };
     }
 
-    // Verify no skolem variable was unified with a different skolem
-    // (i.e., the solution is properly parametric)
-    for (const [k, v] of Object.entries(subst)) {
-      const resolved = applySubst(subst, v);
-      // Check resolved doesn't have free type vars that map to wrong skolems
-    }
-
     return { ok: true, msg: 'Level complete! Your solution type-checks correctly.' };
 
   } catch (e) {
-    return { ok: false, msg: `Error: ${e.message}` };
+    return { ok: false, msg: normalizeTypeError(e.message) };
   }
 }
 
@@ -696,7 +706,8 @@ function inferExpr(code, env, paramTypes) {
         }
       }
       const expr = parseExprFull();
-      if (peek() === ')') next();
+      if (peek() !== ')') throw new Error('Expected closing parenthesis');
+      next();
       return expr;
     }
     if (typeof t === 'object' && t.type === 'ident') {
@@ -710,9 +721,8 @@ function inferExpr(code, env, paramTypes) {
       next();
       return freshVar();
     }
-    if (typeof t === 'string' && t !== ')' && t !== '$' && t !== '.' && t !== '<$>' && t !== '<*>' && t !== '>>=') {
-      next();
-      return freshVar();
+    if (typeof t === 'object' && t.type === 'infix') {
+      throw new Error(`Backtick infix syntax is not supported: \`${t.name}\``);
     }
     return null;
   }
@@ -740,7 +750,13 @@ function inferExpr(code, env, paramTypes) {
     return applyFuncType(afterLeft, right);
   }
 
-  return parseExprFull();
+  const result = parseExprFull();
+  if (pos < tokens.length) {
+    const remaining = tokens[pos];
+    const desc = typeof remaining === 'object' ? (remaining.name || remaining.type) : String(remaining);
+    throw new Error(`Unexpected trailing token: ${desc}`);
+  }
+  return result;
 }
 
 
@@ -766,7 +782,7 @@ try {
     completedLevels = new Set(parsed.completed || []);
     optimalLevels = new Set(parsed.optimal || []);
     editorContents = parsed.editorContents || {};
-    currentLevel = parsed.currentLevel || 0;
+    currentLevel = Math.max(0, Math.min(parsed.currentLevel || 0, LEVELS.length - 1));
     bypassCount = parsed.bypassCount || 0;
     showIntro = parsed.showIntro !== false;
   }
@@ -856,9 +872,9 @@ function render() {
         </ul>
         <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
           See their paper:
-          <a href="https://arxiv.org/abs/2405.12699" target="_blank" style="color:#93c5fd">GeckoGraph: A Visual Language for Polymorphic Types</a> (2024).
+          <a href="https://arxiv.org/abs/2405.12699" target="_blank" rel="noopener noreferrer" style="color:#93c5fd">GeckoGraph: A Visual Language for Polymorphic Types</a> (2024).
           The original game is at
-          <a href="https://zerotohero.fly.dev" target="_blank" style="color:#93c5fd">zerotohero.fly.dev</a>.
+          <a href="https://zerotohero.fly.dev" target="_blank" rel="noopener noreferrer" style="color:#93c5fd">zerotohero.fly.dev</a>.
         </p>
         <p style="font-size:14px;line-height:1.7;margin:0 0 6px">
           <strong>What&rsquo;s different in this version:</strong>
@@ -921,7 +937,7 @@ function render() {
           <div class="editor-wrap">
             <div class="editor-container">
               <div class="line-numbers" id="line-numbers">1</div>
-              <textarea class="editor code" id="code-editor" spellcheck="false">${getEditorContent()}</textarea>
+              <textarea class="editor code" id="code-editor" spellcheck="false"></textarea>
             </div>
           </div>
 
@@ -951,6 +967,7 @@ function render() {
   // Wire up editor
   const editor = document.getElementById('code-editor');
   if (editor) {
+    editor.value = getEditorContent();
     editor.addEventListener('input', onEditorInput);
     editor.addEventListener('scroll', () => {
       const lineNums = document.getElementById('line-numbers');
@@ -998,7 +1015,7 @@ function onEditorInput(e) {
   updateLineNumbers();
   // Debounce live type inference (100ms, matching the original)
   clearTimeout(liveCheckTimer);
-  liveCheckTimer = setTimeout(() => { runLiveCheck(); saveProgress(); }, 100);
+  liveCheckTimer = setTimeout(runLiveCheck, 100);
 }
 
 function updateLineNumbers() {
@@ -1192,8 +1209,9 @@ window.attempt = function() {
       statusBar.className = 'status-bar success';
       statusBar.textContent = 'Status: Success!';
       statusOutput.textContent = result.msg;
+      const wasCompleted = completedLevels.has(currentLevel);
       completedLevels.add(currentLevel);
-      bypassCount++;
+      if (!wasCompleted) bypassCount++;
       lastUserSolution = code;
       const bestLen = level.best.replace(/\s+/g, '').length;
       if (code.replace(/\s+/g, '').length <= bestLen) optimalLevels.add(currentLevel);
@@ -1277,16 +1295,19 @@ window.prevLevel = function() {
 };
 
 window.bypass = function() {
-  if (bypassCount === 0) return;
+  if (bypassCount <= 0) return;
+  bypassCount--;
   if (currentLevel === LEVELS.length - 1) {
     showComplete = true;
-    render();
   } else {
     currentLevel++;
-    saveProgress();
-    render();
   }
+  saveProgress();
+  render();
 };
+
+// Save progress on editor blur and page unload instead of every keystroke
+window.addEventListener('beforeunload', saveProgress);
 
 // Initial render
 render();

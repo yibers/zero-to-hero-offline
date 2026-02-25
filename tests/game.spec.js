@@ -193,4 +193,88 @@ test.describe('Zero to Hero', () => {
     const toImplement = page.locator('.code-block').first();
     await expect(toImplement).toContainText('\u2192');
   });
+
+  test('rejects expression with unexpected characters', async ({ page }) => {
+    const editor = page.locator('#code-editor');
+    await editor.fill('zeroToHero z = f z !!!');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
+  });
+
+  test('rejects unbalanced parentheses (missing closing)', async ({ page }) => {
+    const editor = page.locator('#code-editor');
+    await editor.fill('zeroToHero z = (f z');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
+  });
+
+  test('rejects trailing tokens after valid expression', async ({ page }) => {
+    const editor = page.locator('#code-editor');
+    await editor.fill('zeroToHero z = f z)');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
+  });
+
+  test('rejects undefined used inside expression', async ({ page }) => {
+    const editor = page.locator('#code-editor');
+    await editor.fill('zeroToHero z = f undefined');
+    await page.waitForTimeout(200);
+    await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
+    await expect(page.locator('#syntax-hint')).toContainText('undefined is not allowed');
+  });
+
+  test('Attempt rejects undefined inside expression', async ({ page }) => {
+    const editor = page.locator('#code-editor');
+    await editor.fill('zeroToHero z = f undefined');
+    await page.waitForTimeout(200);
+    await page.locator('button', { hasText: 'Attempt' }).click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('#status-bar')).toContainText('Failed');
+  });
+
+  test('bypass button decrements count', async ({ page }) => {
+    // Solve level 1 to earn 1 bypass point
+    const editor = page.locator('#code-editor');
+    await editor.fill('zeroToHero z = f z');
+    await page.locator('button', { hasText: 'Attempt' }).click();
+    await page.waitForTimeout(300);
+    await page.locator('button', { hasText: 'Next level' }).click();
+    await page.waitForTimeout(200);
+
+    // Should have 1 bypass point — use it
+    const bypassBtn = page.locator('button', { hasText: 'Bypass' });
+    await expect(bypassBtn).toContainText('1');
+    await bypassBtn.click();
+    await page.waitForTimeout(200);
+
+    // Bypass count should now be 0 and button disabled
+    const bypassBtn2 = page.locator('button', { hasText: 'Bypass' });
+    await expect(bypassBtn2).toContainText('0');
+    await expect(bypassBtn2).toBeDisabled();
+  });
+
+  test('re-solving completed level does not grant additional bypass points', async ({ page }) => {
+    // Solve level 1
+    const editor = page.locator('#code-editor');
+    await editor.fill('zeroToHero z = f z');
+    await page.locator('button', { hasText: 'Attempt' }).click();
+    await page.waitForTimeout(300);
+
+    // Should have 1 bypass point
+    await expect(page.locator('button', { hasText: 'Bypass' })).toContainText('1');
+
+    // Go to L2 then back to L1
+    await page.locator('button', { hasText: 'Next level' }).click();
+    await page.waitForTimeout(200);
+    await page.locator('button', { hasText: 'Prev' }).click();
+    await page.waitForTimeout(200);
+
+    // Re-solve level 1
+    await page.locator('#code-editor').fill('zeroToHero z = f z');
+    await page.locator('button', { hasText: 'Attempt' }).click();
+    await page.waitForTimeout(300);
+
+    // Should still have 1 bypass point, not 2
+    await expect(page.locator('button', { hasText: 'Bypass' })).toContainText('1');
+  });
 });
