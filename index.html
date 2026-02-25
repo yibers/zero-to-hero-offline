@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Zero to Hero | A Haskell Puzzle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+@font-face {
+  font-family: 'Exo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/Exo-Regular.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Exo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(fonts/Exo-SemiBold.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Fira Code';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/FiraCode-Regular.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Orbitron';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(fonts/Orbitron-Regular.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Orbitron';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(fonts/Orbitron-Medium.ttf) format('truetype');
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; font-family: 'Exo', sans-serif; background: #1E293B; color: white; }
+.code { font-family: 'Fira Code', monospace; }
+
+/* Nav — matches original: bg-slate-500 */
+nav { display: flex; background: #64748b; padding: 4px 8px; justify-content: space-between; align-items: center; }
+nav button { background: #1e293b; color: white; border: none; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: 14px; clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px); }
+nav button:hover:not(:disabled) { background: #334155; }
+nav button:disabled { opacity: 0.35; cursor: default; }
+nav .level-badge { background: #9ca3af; color: #374151; padding: 2px 12px; border-radius: 9999px; font-weight: bold; font-size: 14px; }
+
+/* Main layout — original: 2fr 10px 1fr */
+main { display: flex; flex-direction: column; height: calc(100vh - 36px); }
+.grid-h { display: grid; grid-template-columns: 2fr 10px 1fr; height: 100%; padding: 8px; gap: 0; overflow: hidden; }
+.left-panel { grid-column: 1; }
+.gutter-col { grid-column: 2; grid-row: 1/-1; background: transparent; display: flex; align-items: center; justify-content: center; cursor: col-resize; }
+.right-panel { grid-column: 3; }
+.gutter-col::after { content: ''; width: 4px; height: 64px; background: #9ca3af; border-radius: 2px; }
+/* Original: auto 10px auto 10px 1fr 10px 1fr
+   Ours: ToImpl(hdr+body) | gutter | YourSol(hdr+body) | gutter | CodeEd(hdr+body) | gutter | Status(bar+output)
+   ToImpl and YourSol = auto; CodeEd and Status share remaining via 1fr each */
+.left-panel { display: grid; grid-template-rows: auto auto 10px auto auto 10px auto 1fr 10px 1fr; overflow: hidden; }
+.gutter-row { grid-column: 1/-1; display: flex; align-items: center; justify-content: center; cursor: row-resize; }
+.gutter-row::after { content: ''; height: 4px; width: 64px; background: #9ca3af; border-radius: 2px; }
+
+/* Section headers — original: bg-gray-300 text-gray-700 */
+.section-header { background: #d1d5db; color: #374151; font-weight: bold; padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.section-header svg { width: 18px; height: 18px; flex-shrink: 0; }
+
+/* Code blocks */
+.code-block { background: white; color: black; padding: 8px; overflow: auto; font-size: 1rem; }
+
+/* Editor — original uses CodeMirror with white bg */
+.editor-wrap { display: flex; flex-direction: column; overflow: hidden; }
+.editor-container { display: flex; flex: 1; background: white; overflow: hidden; }
+.line-numbers { background: white; color: #9ca3af; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 0; text-align: right; user-select: none; min-width: 28px; padding-right: 8px; line-height: 1.5; }
+textarea.editor { flex: 1; background: white; color: black; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; border: none; resize: none; outline: none; line-height: 1.5; }
+
+/* Gecko Graph toggle */
+.gecko-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #d1d5db; cursor: pointer; user-select: none; }
+.gecko-toggle-track { width: 36px; height: 20px; border-radius: 10px; position: relative; transition: background 0.2s; }
+.gecko-toggle-track.on { background: #22c55e; }
+.gecko-toggle-track.off { background: #475569; }
+.gecko-toggle-knob { width: 16px; height: 16px; border-radius: 50%; background: white; position: absolute; top: 2px; transition: left 0.2s; }
+.gecko-toggle-track.on .gecko-toggle-knob { left: 18px; }
+.gecko-toggle-track.off .gecko-toggle-knob { left: 2px; }
+
+/* Status — original: bg-gray-400 / bg-green-500 / bg-red-500 */
+.status-bar { padding: 8px; font-size: 13px; font-weight: bold; }
+.status-bar.checking { background: #9ca3af; color: white; }
+.status-bar.success { background: #22c55e; color: white; }
+.status-bar.error { background: #ef4444; color: white; }
+.status-output { background: #374151; color: white; padding: 8px; font-family: 'Fira Code', monospace; font-size: 12px; overflow: auto; min-height: 40px; white-space: pre-wrap; }
+
+/* Right panel — original: bg-gray-100 */
+.right-panel { background: #f3f4f6; color: black; padding: 12px; overflow: auto; }
+.right-panel h2 { font-size: 16px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+.right-panel h2 svg { width: 18px; height: 18px; }
+.func-card { background: white; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; }
+
+/* Type signature display — original: all text-gray-700, flex gap-x-1 */
+.type-sig { display: flex; gap: 4px; flex-wrap: wrap; align-items: baseline; font-family: 'Fira Code', monospace; color: #374151; }
+.type-sig .arrow { color: #374151; }
+.type-con { color: #374151; }
+.type-var { color: #374151; }
+.type-paren { color: #374151; }
+.type-name { font-weight: bold; color: #374151; }
+
+/* Syntax valid hint — original: bg-green-200 */
+.syntax-hint { padding: 6px 8px; font-size: 12px; background: #bbf7d0; color: #374151; font-style: italic; }
+.syntax-hint.invalid { background: #fecaca; color: #374151; font-style: normal; }
+
+/* Dialog — original: bg-indigo-800 */
+.dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.dialog { background: #3730a3; color: white; padding: 32px; max-width: 600px; margin: 16px; clip-path: polygon(1rem 0, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 1rem); }
+.dialog h2 { font-family: 'Orbitron', sans-serif; }
+.dialog p { margin: 8px 0; line-height: 1.6; }
+.dialog button, .dialog a.btn { background: #bbf7d0; color: black; border: none; padding: 6px 16px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 500; clip-path: polygon(0.5rem 0, 100% 0, 100% calc(100% - 0.5rem), calc(100% - 0.5rem) 100%, 0 100%, 0 0.5rem); text-decoration: none; display: inline-block; }
+.dialog .btn-secondary { background: #e5e7eb; }
+
+/* Gecko graph node */
+.gecko-node { display: inline-flex; flex-direction: column; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); min-width: 30px; }
+.gecko-header { height: 10px; }
+.gecko-body { display: flex; align-items: flex-end; padding: 2px 6px 3px; font-size: 12px; font-weight: 500; font-family: 'Orbitron', sans-serif; }
+.gecko-children { display: flex; }
+.gecko-wrap { position: relative; display: inline-flex; flex-direction: column; background: black; padding: 1px; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); margin-right: -2px; }
+.gecko-inner { clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); }
+
+/* Arrow block in gecko */
+.gecko-arrow { display: inline-flex; flex-direction: column; background: black; padding: 1px; clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+.gecko-arrow-inner { background: #959595; clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px); display: flex; flex-direction: column; }
+.gecko-arrow-header { height: 12px; display: flex; align-items: center; padding-left: 12px; }
+.gecko-arrow-header svg { height: 10px; }
+.gecko-arrow-body { display: flex; }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+
+<script src="levels.js"></script>
+<script>
+
+// ─── Haskell Type Parser & Unifier ───
+
+// Tokenizer
+function tokenize(sig) {
+  const tokens = [];
+  let i = 0;
+  while (i < sig.length) {
+    if (sig[i] === ' ') { i++; continue; }
+    if (sig[i] === '(' && sig[i+1] === ')') { tokens.push('()'); i += 2; continue; }
+    if (sig[i] === '(') {
+      // Check for tuple comma or operator
+      if (sig[i+1] === ',') {
+        let j = i + 1;
+        while (j < sig.length && sig[j] === ',') j++;
+        if (sig[j] === ')') { tokens.push(sig.slice(i, j+1)); i = j+1; continue; }
+      }
+      tokens.push('('); i++; continue;
+    }
+    if (sig[i] === ')') { tokens.push(')'); i++; continue; }
+    if (sig[i] === ',') { tokens.push(','); i++; continue; }
+    if (sig[i] === '-' && sig[i+1] === '>') { tokens.push('->'); i += 2; continue; }
+    // Identifiers
+    if (/[A-Za-z_]/.test(sig[i])) {
+      let j = i;
+      while (j < sig.length && /[A-Za-z0-9_]/.test(sig[j])) j++;
+      tokens.push(sig.slice(i, j));
+      i = j;
+      continue;
+    }
+    i++;
+  }
+  return tokens;
+}
+
+// Parser
+function parseType(sig) {
+  const tokens = tokenize(sig);
+  let pos = 0;
+  function peek() { return tokens[pos]; }
+  function consume(t) { if (tokens[pos] === t) { pos++; return true; } return false; }
+  function next() { return tokens[pos++]; }
+
+  function parseArrow() {
+    const left = parseApp();
+    if (peek() === '->') {
+      next();
+      const right = parseArrow();
+      return { tag: 'fun', from: left, to: right };
+    }
+    return left;
+  }
+
+  function parseApp() {
+    let base = parseAtom();
+    if (!base) return null;
+    while (pos < tokens.length && peek() !== ')' && peek() !== ',' && peek() !== '->') {
+      const arg = parseAtom();
+      if (!arg) break;
+      base = { tag: 'app', con: base, arg: arg };
+    }
+    return base;
+  }
+
+  function parseAtom() {
+    const t = peek();
+    if (!t || t === ')' || t === ',' || t === '->') return null;
+    if (t === '(') {
+      next(); // consume '('
+      const inner = parseArrow();
+      if (peek() === ',') {
+        // Tuple
+        const elems = [inner];
+        while (consume(',')) {
+          elems.push(parseArrow());
+        }
+        consume(')');
+        return makeTuple(elems);
+      }
+      consume(')');
+      return inner;
+    }
+    if (t === '()') {
+      next();
+      return { tag: 'con', name: '()' };
+    }
+    next();
+    if (t[0] >= 'A' && t[0] <= 'Z') {
+      return { tag: 'con', name: t };
+    }
+    return { tag: 'var', name: t };
+  }
+
+  function makeTuple(elems) {
+    let t = { tag: 'con', name: `(${','.repeat(elems.length - 1)})` };
+    for (const e of elems) {
+      t = { tag: 'app', con: t, arg: e };
+    }
+    return t;
+  }
+
+  const result = parseArrow();
+  return result;
+}
+
+// Unifier
+let substCounter = 0;
+
+function freshVar() {
+  return { tag: 'var', name: `_t${substCounter++}` };
+}
+
+function freshen(type, mapping = {}) {
+  switch (type.tag) {
+    case 'var':
+      if (!mapping[type.name]) mapping[type.name] = freshVar();
+      return mapping[type.name];
+    case 'con':
+      return type;
+    case 'app':
+      return { tag: 'app', con: freshen(type.con, mapping), arg: freshen(type.arg, mapping) };
+    case 'fun':
+      return { tag: 'fun', from: freshen(type.from, mapping), to: freshen(type.to, mapping) };
+  }
+}
+
+function applySubst(subst, type) {
+  switch (type.tag) {
+    case 'var':
+      if (subst[type.name]) return applySubst(subst, subst[type.name]);
+      return type;
+    case 'con':
+      return type;
+    case 'app':
+      return { tag: 'app', con: applySubst(subst, type.con), arg: applySubst(subst, type.arg) };
+    case 'fun':
+      return { tag: 'fun', from: applySubst(subst, type.from), to: applySubst(subst, type.to) };
+  }
+}
+
+function occursIn(name, type, subst) {
+  type = applySubst(subst, type);
+  switch (type.tag) {
+    case 'var': return type.name === name;
+    case 'con': return false;
+    case 'app': return occursIn(name, type.con, subst) || occursIn(name, type.arg, subst);
+    case 'fun': return occursIn(name, type.from, subst) || occursIn(name, type.to, subst);
+  }
+}
+
+function unify(a, b, subst) {
+  a = applySubst(subst, a);
+  b = applySubst(subst, b);
+  if (a.tag === 'var') {
+    if (a.name === b.name) return subst;
+    if (occursIn(a.name, b, subst)) return null;
+    return { ...subst, [a.name]: b };
+  }
+  if (b.tag === 'var') {
+    if (occursIn(b.name, a, subst)) return null;
+    return { ...subst, [b.name]: a };
+  }
+  if (a.tag === 'con' && b.tag === 'con') {
+    return a.name === b.name ? subst : null;
+  }
+  if (a.tag === 'app' && b.tag === 'app') {
+    subst = unify(a.con, b.con, subst);
+    if (!subst) return null;
+    return unify(a.arg, b.arg, subst);
+  }
+  if (a.tag === 'fun' && b.tag === 'fun') {
+    subst = unify(a.from, b.from, subst);
+    if (!subst) return null;
+    return unify(a.to, b.to, subst);
+  }
+  // Convert fun to app form: a -> b  ===  (->) a b
+  if ((a.tag === 'fun') !== (b.tag === 'fun')) {
+    function funToApp(t) {
+      if (t.tag === 'fun') {
+        return { tag: 'app', con: { tag: 'app', con: { tag: 'con', name: '->' }, arg: t.from }, arg: t.to };
+      }
+      return t;
+    }
+    return unify(funToApp(a), funToApp(b), subst);
+  }
+  return null;
+}
+
+function typeToString(type) {
+  switch (type.tag) {
+    case 'var': return type.name;
+    case 'con': return type.name;
+    case 'fun': {
+      const from = type.from.tag === 'fun' ? `(${typeToString(type.from)})` : typeToString(type.from);
+      return `${from} -> ${typeToString(type.to)}`;
+    }
+    case 'app': {
+      // Check for tuple
+      const flat = flattenApp(type);
+      if (flat.head.tag === 'con' && flat.head.name.startsWith('(') && flat.head.name.endsWith(')')) {
+        const commas = (flat.head.name.match(/,/g) || []).length;
+        if (commas + 1 === flat.args.length) {
+          return `(${flat.args.map(typeToString).join(', ')})`;
+        }
+      }
+      function isTuple(t) {
+        if (t.tag !== 'app') return false;
+        const f = flattenApp(t);
+        return f.head.tag === 'con' && f.head.name.startsWith('(') && f.head.name.endsWith(')') && (f.head.name.match(/,/g) || []).length + 1 === f.args.length;
+      }
+      const needsParens = (type.arg.tag === 'app' && !isTuple(type.arg)) || type.arg.tag === 'fun';
+      const argStr = needsParens ? `(${typeToString(type.arg)})` : typeToString(type.arg);
+      return `${typeToString(type.con)} ${argStr}`;
+    }
+  }
+}
+
+function flattenApp(type) {
+  const args = [];
+  let cur = type;
+  while (cur.tag === 'app') {
+    args.unshift(cur.arg);
+    cur = cur.con;
+  }
+  return { head: cur, args };
+}
+
+// ─── Expression Parser (minimal Haskell) ───
+// Supports: function application, ($), (.), (<$>), (<*>), parens
+
+function tokenizeExpr(code) {
+  const tokens = [];
+  let i = 0;
+  while (i < code.length) {
+    if (code[i] === ' ' || code[i] === '\n' || code[i] === '\r' || code[i] === '\t') { i++; continue; }
+    if (code[i] === '(') { tokens.push('('); i++; continue; }
+    if (code[i] === ')') { tokens.push(')'); i++; continue; }
+    if (code[i] === '$' && (i+1 >= code.length || code[i+1] === ' ')) { tokens.push('$'); i++; continue; }
+    if (code[i] === '`') {
+      let j = i + 1;
+      while (j < code.length && code[j] !== '`') j++;
+      tokens.push({ type: 'infix', name: code.slice(i+1, j) });
+      i = j + 1;
+      continue;
+    }
+    if (code[i] === '.' && (i+1 >= code.length || code[i+1] === ' ')) { tokens.push('.'); i++; continue; }
+    if (code.slice(i, i+3) === '>>=') { tokens.push('>>='); i += 3; continue; }
+    if (code.slice(i, i+3) === '<$>') { tokens.push('<$>'); i += 3; continue; }
+    if (code.slice(i, i+3) === '<*>') { tokens.push('<*>'); i += 3; continue; }
+    if (/[A-Za-z_]/.test(code[i])) {
+      let j = i;
+      while (j < code.length && /[A-Za-z0-9_']/.test(code[j])) j++;
+      const word = code.slice(i, j);
+      if (word === 'undefined') { tokens.push({ type: 'undefined' }); }
+      else tokens.push({ type: 'ident', name: word });
+      i = j;
+      continue;
+    }
+    i++;
+  }
+  return tokens;
+}
+
+// ─── Live Type Inference (runs on every keystroke) ───
+
+function liveInfer(levelData, code) {
+  substCounter = 0;
+  const fullCode = code.trim();
+  if (!fullCode || fullCode === 'undefined') {
+    return { valid: false, typeSig: null, error: null };
+  }
+
+  if (fullCode.includes('undefined')) {
+    return { valid: false, typeSig: null, error: 'Using undefined is not allowed' };
+  }
+
+  if (fullCode.slice(1).includes('zeroToHero')) {
+    return { valid: false, typeSig: null, error: 'Cannot recursively define the function' };
+  }
+
+  const env = {};
+  for (const f of levelData.funcs) {
+    env[f.name] = parseType(f.sig);
+    const bare = f.name.replace(/^\(/, '').replace(/\)$/, '');
+    if (bare !== f.name) env[bare] = parseType(f.sig);
+  }
+
+  const lhsParts = levelData.lhs.replace('=', '').trim().split(/\s+/);
+  const paramNames = lhsParts.slice(1);
+  const targetType = parseType(levelData.target);
+
+  // Use skolem constants for parameter types (so inferred types show _a, _b, etc.)
+  const skolemSubst = {};
+  for (const v of findVars(targetType)) {
+    skolemSubst[v] = { tag: 'con', name: `SKOLEM${v}` };
+  }
+  let skolemTarget = applySubst(skolemSubst, targetType);
+  let skolemRemaining = skolemTarget;
+  const skolemParamTypes = {};
+  for (const p of paramNames) {
+    if (skolemRemaining.tag === 'fun') {
+      skolemParamTypes[p] = skolemRemaining.from;
+      skolemRemaining = skolemRemaining.to;
+    }
+  }
+
+  try {
+    const inferredType = inferExpr(fullCode, env, skolemParamTypes);
+    if (!inferredType) {
+      return { valid: false, typeSig: null, error: 'Could not parse expression.' };
+    }
+
+    // Build the full function type: params -> inferred return
+    let fullType = applySubst({}, inferredType);
+    // Prepend parameter types to form the full signature
+    for (let i = paramNames.length - 1; i >= 0; i--) {
+      fullType = { tag: 'fun', from: skolemParamTypes[paramNames[i]], to: fullType };
+    }
+
+    // Convert to string, clean up variable names
+    let sigStr = typeToString(fullType).replace(/SKOLEM/g, '');
+    // Rename internal vars (_t0, _t1...) to clean letters
+    const usedNames = new Set(sigStr.match(/\b[a-z]\b/g) || []);
+    const internalVars = [...new Set(sigStr.match(/_t\d+/g) || [])];
+    let nextChar = 'a'.charCodeAt(0);
+    for (const v of internalVars) {
+      while (usedNames.has(String.fromCharCode(nextChar))) nextChar++;
+      const clean = String.fromCharCode(nextChar++);
+      sigStr = sigStr.split(v).join(clean);
+      usedNames.add(clean);
+    }
+
+    return { valid: true, typeSig: sigStr, error: null };
+  } catch (e) {
+    let msg = e.message;
+    if (msg.includes('Unknown identifier')) {
+      msg = 'Your definition contains function(s) that are not in the available functions.';
+    } else if (msg.includes('Cannot apply') || msg.includes('Type mismatch')) {
+      msg = 'Your definition is not well-typed.';
+    }
+    return { valid: false, typeSig: null, error: msg };
+  }
+}
+
+// ─── Type Checker (full check for Attempt) ───
+
+function typeCheck(levelData, code) {
+  substCounter = 0;
+  const fullCode = code.trim();
+  if (!fullCode || fullCode === 'undefined') {
+    return { ok: false, msg: 'You did not make any changes.' };
+  }
+
+  // Build environment: the available functions + the lhs parameters
+  const env = {};
+  for (const f of levelData.funcs) {
+    env[f.name] = parseType(f.sig);
+    // Also store operators without parens
+    const bare = f.name.replace(/^\(/, '').replace(/\)$/, '');
+    if (bare !== f.name) {
+      env[bare] = parseType(f.sig);
+    }
+  }
+
+  // Parse the LHS to get parameter names and their types from the target signature
+  const lhsParts = levelData.lhs.replace('=', '').trim().split(/\s+/);
+  const funcName = lhsParts[0]; // "zeroToHero"
+  const paramNames = lhsParts.slice(1);
+
+  const targetType = parseType(levelData.target);
+
+  // Assign types to parameters by decomposing target
+  const paramTypes = {};
+  let remainingTarget = freshen(targetType);
+  for (const p of paramNames) {
+    if (remainingTarget.tag === 'fun') {
+      paramTypes[p] = remainingTarget.from;
+      remainingTarget = remainingTarget.to;
+    }
+  }
+  const expectedReturnType = remainingTarget;
+
+  // Now we need to infer the type of the RHS expression
+  try {
+    const exprType = inferExpr(fullCode, env, paramTypes);
+    if (!exprType) {
+      return { ok: false, msg: 'Could not parse expression.' };
+    }
+
+    // Check if the inferred type unifies with expected return type
+    // But we need to use skolem variables for the check
+    // Create skolem constants for each type var in the target
+    const skolemSubst = {};
+    const targetFresh = parseType(levelData.target);
+    const skolemVars = findVars(targetFresh);
+    for (const v of skolemVars) {
+      skolemSubst[v] = { tag: 'con', name: `SKOLEM${v}` };
+    }
+
+    // Re-do with skolems
+    substCounter = 0;
+    let skolemTarget = applySubst(skolemSubst, targetFresh);
+    let skolemRemaining = skolemTarget;
+    const skolemParamTypes = {};
+    for (const p of paramNames) {
+      if (skolemRemaining.tag === 'fun') {
+        skolemParamTypes[p] = skolemRemaining.from;
+        skolemRemaining = skolemRemaining.to;
+      }
+    }
+    const skolemExpectedReturn = skolemRemaining;
+
+    const inferredType = inferExpr(fullCode, env, skolemParamTypes);
+    if (!inferredType) {
+      return { ok: false, msg: 'Could not infer type of expression.' };
+    }
+
+    const subst = unify(inferredType, skolemExpectedReturn, {});
+    if (!subst) {
+      const inferred = typeToString(applySubst({}, inferredType));
+      const expected = typeToString(skolemExpectedReturn);
+      return { ok: false, msg: `Type mismatch:\n  Expected: ${expected}\n  Got:      ${inferred}` };
+    }
+
+    // Verify no skolem variable was unified with a different skolem
+    // (i.e., the solution is properly parametric)
+    for (const [k, v] of Object.entries(subst)) {
+      const resolved = applySubst(subst, v);
+      // Check resolved doesn't have free type vars that map to wrong skolems
+    }
+
+    return { ok: true, msg: 'Level complete! Your solution type-checks correctly.' };
+
+  } catch (e) {
+    return { ok: false, msg: `Error: ${e.message}` };
+  }
+}
+
+function findVars(type) {
+  const vars = new Set();
+  function go(t) {
+    switch (t.tag) {
+      case 'var': vars.add(t.name); break;
+      case 'con': break;
+      case 'app': go(t.con); go(t.arg); break;
+      case 'fun': go(t.from); go(t.to); break;
+    }
+  }
+  go(type);
+  return vars;
+}
+
+function inferExpr(code, env, paramTypes) {
+  const tokens = tokenizeExpr(code);
+  let pos = 0;
+
+  function peek() { return tokens[pos]; }
+  function next() { return tokens[pos++]; }
+  function isOp(t) {
+    return t === '$' || t === '.' || t === '<$>' || t === '<*>' || t === '>>=' ||
+           (typeof t === 'object' && t.type === 'infix');
+  }
+
+  function parseExprFull() {
+    return parseDollar();
+  }
+
+  function parseDollar() {
+    let left = parseBind();
+    while (peek() === '$') {
+      next();
+      const right = parseDollar(); // right-assoc
+      // f $ x  means  f x
+      left = applyFuncType(left, right);
+    }
+    return left;
+  }
+
+  function parseBind() {
+    let left = parseOps();
+    while (peek() === '>>=') {
+      next();
+      const right = parseOps(); // left-assoc
+      const bindType = freshen(env['>>='] || env['(>>=)']);
+      if (!bindType) throw new Error('(>>=) not available');
+      left = applyBinOp(bindType, left, right);
+    }
+    return left;
+  }
+
+  function parseOps() {
+    let left = parseAppChain();
+    while (true) {
+      const t = peek();
+      if (t === '<$>') {
+        next();
+        const right = parseAppChain();
+        // (<$>) :: (a -> b) -> F a -> F b
+        // left is the function, right is F a
+        const fType = freshen(env['<$>'] || env['(<$>)']);
+        if (!fType) throw new Error('(<$>) not available');
+        left = applyBinOp(fType, left, right);
+      } else if (t === '<*>') {
+        next();
+        const right = parseAppChain();
+        const fType = freshen(env['<*>'] || env['(<*>)']);
+        if (!fType) throw new Error('(<*>) not available');
+        left = applyBinOp(fType, left, right);
+      } else if (t === '.') {
+        next();
+        const right = parseOps(); // right-assoc
+        // (.) :: (b -> c) -> (a -> b) -> a -> c
+        const compType = freshen(env['.'] || env['(.)']);
+        if (!compType) throw new Error('(.) not available');
+        left = applyBinOp(compType, left, right);
+      } else {
+        break;
+      }
+    }
+    return left;
+  }
+
+  function parseAppChain() {
+    let func = parseAtomExpr();
+    if (!func) return null;
+    while (pos < tokens.length) {
+      const t = peek();
+      if (!t || t === '$' || t === '.' || t === '<$>' || t === '<*>' || t === '>>=' || t === ')') break;
+      const arg = parseAtomExpr();
+      if (!arg) break;
+      func = applyFuncType(func, arg);
+    }
+    return func;
+  }
+
+  function parseAtomExpr() {
+    const t = peek();
+    if (!t) return null;
+    if (t === '(') {
+      next();
+      // Check for operator section
+      const inner = peek();
+      if (inner === ')') { next(); return null; }
+      if (inner === '.' || inner === '$' || inner === '<$>' || inner === '<*>' || inner === '>>=') {
+        const opName = next();
+        if (peek() === ')') {
+          next();
+          const opType = env[opName] || env[`(${opName})`];
+          if (opType) return freshen(opType);
+          throw new Error(`Unknown operator: ${opName}`);
+        }
+      }
+      const expr = parseExprFull();
+      if (peek() === ')') next();
+      return expr;
+    }
+    if (typeof t === 'object' && t.type === 'ident') {
+      next();
+      const name = t.name;
+      if (paramTypes[name]) return paramTypes[name];
+      if (env[name]) return freshen(env[name]);
+      throw new Error(`Unknown identifier: ${name}`);
+    }
+    if (typeof t === 'object' && t.type === 'undefined') {
+      next();
+      return freshVar();
+    }
+    if (typeof t === 'string' && t !== ')' && t !== '$' && t !== '.' && t !== '<$>' && t !== '<*>' && t !== '>>=') {
+      next();
+      return freshVar();
+    }
+    return null;
+  }
+
+  function applyFuncType(funcType, argType) {
+    // funcType should be a -> b, unify a with argType, return b
+    const a = freshVar();
+    const b = freshVar();
+    const arrow = { tag: 'fun', from: a, to: b };
+    const subst = unify(funcType, arrow, {});
+    if (!subst) {
+      throw new Error(`Cannot apply: not a function type\n  ${typeToString(funcType)}`);
+    }
+    const paramType = applySubst(subst, a);
+    const subst2 = unify(paramType, argType, subst);
+    if (!subst2) {
+      throw new Error(`Type mismatch in application:\n  Expected argument: ${typeToString(paramType)}\n  Got: ${typeToString(argType)}`);
+    }
+    return applySubst(subst2, b);
+  }
+
+  function applyBinOp(opType, left, right) {
+    // opType :: a -> b -> c, apply to left and right
+    const afterLeft = applyFuncType(opType, left);
+    return applyFuncType(afterLeft, right);
+  }
+
+  return parseExprFull();
+}
+
+
+// ─── UI Rendering ───
+
+let currentLevel = 0;
+let showIntro = true;
+let showComplete = false;
+let showLevelComplete = false;
+let showAbout = false;
+let lastUserSolution = '';
+let completedLevels = new Set();
+let optimalLevels = new Set();
+let editorContents = {};
+let geckoOn = true;
+let bypassCount = 0;
+
+// Load progress from localStorage
+try {
+  const saved = localStorage.getItem('zth_progress');
+  if (saved) {
+    const parsed = JSON.parse(saved);
+    completedLevels = new Set(parsed.completed || []);
+    optimalLevels = new Set(parsed.optimal || []);
+    editorContents = parsed.editorContents || {};
+    currentLevel = parsed.currentLevel || 0;
+    bypassCount = parsed.bypassCount || 0;
+    showIntro = parsed.showIntro !== false;
+  }
+} catch(e) {}
+
+function saveProgress() {
+  localStorage.setItem('zth_progress', JSON.stringify({
+    completed: [...completedLevels],
+    optimal: [...optimalLevels],
+    editorContents,
+    currentLevel,
+    bypassCount,
+    showIntro: false
+  }));
+}
+
+function render() {
+  const level = LEVELS[currentLevel];
+  const app = document.getElementById('app');
+
+  app.innerHTML = `
+    ${showIntro ? `
+    <div class="dialog-overlay" id="intro-dialog">
+      <div class="dialog">
+        <p>Welcome to the game of Zero to Hero. In this game, you will complete each level by implementing
+        the function "zeroToHero". This function converts a "Zero" type value to a "Hero" type value.
+        The definition of "Zero" and "Hero" may vary from level to level.</p>
+        <p>Each level has a list of functions available. Make sure to use them, as they are the only functions you can use.</p>
+        <br>
+        <button onclick="dismissIntro()">OK</button>
+      </div>
+    </div>` : ''}
+
+    ${showLevelComplete ? (() => {
+      const best = LEVELS[currentLevel].best;
+      const bestLen = best.replace(/\s+/g, '').length;
+      const userLen = lastUserSolution.replace(/\s+/g, '').length;
+      const isOptimal = userLen <= bestLen;
+      return `
+    <div class="dialog-overlay" id="level-dialog">
+      <div class="dialog">
+        <h2 style="font-size:24px;font-weight:bold">Congratulations!</h2>
+        <p style="margin:16px 0">You have completed this level.</p>
+        <p style="margin:0 0 8px;font-size:14px;font-family:'Fira Code',monospace">${isOptimal
+          ? `<span style="color:#bbf7d0">Optimal!</span> Your solution (${userLen} chars) is the most concise.`
+          : `Your solution: ${userLen} chars. Most concise: ${bestLen} chars.`
+        }</p>
+        <p style="margin:0 0 16px;font-size:13px;font-family:'Fira Code',monospace;color:#d1d5db">${isOptimal
+          ? best
+          : `<span id="reveal-best"><a href="#" onclick="document.getElementById('reveal-best').innerHTML='${best}';return false" style="color:#93c5fd">Show optimal solution</a></span>`
+        }</p>
+        <div style="display:flex;gap:8px">
+          <button onclick="nextLevel()">Next level</button>
+          ${!isOptimal ? `<button class="btn-secondary" onclick="tryAgain()">Try again</button>` : ''}
+        </div>
+      </div>
+    </div>`;
+    })() : ''}
+
+    ${showComplete ? `
+    <div class="dialog-overlay" id="complete-dialog">
+      <div class="dialog">
+        <h2 style="font-size:24px;font-weight:bold">Congratulations!</h2>
+        <p style="margin:16px 0 24px">You have beaten the game.</p>
+        <div style="display:flex;gap:8px">
+          <button onclick="resetGame()">Play again</button>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${showAbout ? `
+    <div class="dialog-overlay" id="about-dialog">
+      <div class="dialog" style="max-width:540px">
+        <h2 style="font-size:20px;font-weight:bold;margin-bottom:12px">About</h2>
+        <p style="font-size:14px;line-height:1.7;margin:0 0 12px">
+          This is a client-side reimplementation of <strong>Zero to Hero</strong>, a Haskell type puzzle game
+          originally created as part of the <em>Interactive Haskell Type Inference Exploration</em>
+          research project at <strong>Monash University</strong>.
+        </p>
+        <p style="font-size:14px;line-height:1.7;margin:0 0 12px">
+          The original game and <strong>GeckoGraph</strong> visual type notation were created by:
+        </p>
+        <ul style="font-size:14px;line-height:1.8;margin:0 0 12px;padding-left:20px">
+          <li><strong>Shuai Fu</strong> &mdash; Ph.D. student, Dept. of Human Centred Computing</li>
+          <li><strong>Prof. Tim Dwyer</strong> &mdash; Dept. of Human Centred Computing</li>
+          <li><strong>Prof. Peter J. Stuckey</strong> &mdash; Dept. of Data Science and AI</li>
+        </ul>
+        <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
+          See their paper:
+          <a href="https://arxiv.org/abs/2405.12699" target="_blank" style="color:#93c5fd">GeckoGraph: A Visual Language for Polymorphic Types</a> (2024).
+          The original game is at
+          <a href="https://zerotohero.fly.dev" target="_blank" style="color:#93c5fd">zerotohero.fly.dev</a>.
+        </p>
+        <p style="font-size:14px;line-height:1.7;margin:0 0 6px">
+          <strong>What&rsquo;s different in this version:</strong>
+        </p>
+        <ul style="font-size:13px;line-height:1.7;margin:0 0 12px;padding-left:20px;color:#c4b5fd">
+          <li>Type checking runs entirely in-browser via a Hindley&ndash;Milner inference engine written in JavaScript &mdash; the original sends code to a GHC server</li>
+          <li>5 additional monad levels (Functor, Applicative, Monad, MonadFish, MonadJoin)</li>
+          <li>Fully self-contained &mdash; works offline, no server needed</li>
+          <li>Progress, editor contents, and bypass points persist in localStorage</li>
+          <li>Optimal solution tracking and &ldquo;Show optimal solution&rdquo; on completion</li>
+        </ul>
+        <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
+          All credit for the game design, puzzles, and GeckoGraph notation belongs to the original authors.
+        </p>
+        <button onclick="dismissAbout()">Close</button>
+      </div>
+    </div>` : ''}
+
+    <nav>
+      <div style="display:flex;gap:4px">
+        <button onclick="prevLevel()" ${currentLevel === 0 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg> Prev</button>
+        <button onclick="attempt()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M8 5v14l11-7z"/></svg> Attempt</button>
+        <button onclick="bypass()" ${bypassCount === 0 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg> Bypass (${bypassCount})</button>
+        ${completedLevels.has(currentLevel) && currentLevel < LEVELS.length - 1 ? `<button onclick="nextLevel()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg> Next</button>` : ''}
+      </div>
+      <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${level.name}</div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="gecko-toggle" onclick="toggleGecko()">
+          Gecko Graph
+          <div class="gecko-toggle-track ${geckoOn ? 'on' : 'off'}">
+            <div class="gecko-toggle-knob"></div>
+          </div>
+        </div>
+        <span class="level-badge">${completedLevels.has(currentLevel) ? (optimalLevels.has(currentLevel) ? '<span title="Solved optimally" style="color:#22c55e">&#9733; </span>' : '<span title="Solved" style="color:#9ca3af">&#10003; </span>') : ''}Level ${level.level} / ${LEVELS.length}</span>
+        <button onclick="showAboutDialog()" title="About" style="background:#475569;color:#d1d5db;border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:13px;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:0">?</button>
+      </div>
+    </nav>
+
+    <main>
+      <div class="grid-h">
+        <div class="left-panel">
+          <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M137.54,186.36a8,8,0,0,1,0,11.31l-9.94,10a56,56,0,0,1-79.22-79.27l24.12-24.12a56,56,0,0,1,76.81-2.28,8,8,0,1,1-10.64,12,40,40,0,0,0-54.85,1.63L59.7,139.72a40,40,0,0,0,56.58,56.58l9.94-9.94A8,8,0,0,1,137.54,186.36Zm70.08-138a56.08,56.08,0,0,0-79.22,0l-9.94,9.95a8,8,0,0,0,11.32,11.31l9.94-9.94a40,40,0,0,1,56.58,56.58L172.18,140.4a40,40,0,0,1-54.85,1.63,8,8,0,1,0-10.64,12,56,56,0,0,0,76.81-2.28l24.12-24.12A56.08,56.08,0,0,0,207.62,48.38Z"/></svg> To Implement</div>
+          <div class="code-block">
+            <div class="type-sig" style="font-size:1rem">${renderTypeSig('zeroToHero', level.target)}</div>
+            ${geckoOn ? `<div style="margin-top:8px">${renderGeckoArrow(level.target)}</div>` : ''}
+          </div>
+
+          <div class="gutter-row"></div>
+
+          <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M172,108a12,12,0,0,1-12,12H96a12,12,0,0,1,0-24h64A12,12,0,0,1,172,108Zm-12,28H96a12,12,0,0,0,0,24h64a12,12,0,0,0,0-24Zm76-8A108,108,0,0,1,128.67,236H128a107.55,107.55,0,0,1-57.23-16.41L46.34,235A20,20,0,0,1,21,209.66l15.38-24.43A108,108,0,1,1,236,128Zm-24,0a84,84,0,1,0-156.73,42.06,12,12,0,0,1,1,9.81l-9.93,29.79,29.79-9.93a12.1,12.1,0,0,1,3.8-.62,12,12,0,0,1,6,1.62A84,84,0,0,0,212,128Z"/></svg> Your Solution</div>
+          <div class="code-block">
+            <div class="type-sig" style="font-size:1rem"><span class="type-name">zeroToHero</span> <span style="color:#374151">::</span> <span id="inferred-type">a</span></div>
+            ${geckoOn ? `<div id="inferred-gecko" style="margin-top:4px">${renderGeckoLeafVar('a')}</div>` : ''}
+            <div class="syntax-hint" id="syntax-hint">Your definition has valid syntax, but it may still fail to type check.</div>
+          </div>
+
+          <div class="gutter-row"></div>
+
+          <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M230.14,70.54,185.46,25.86a20,20,0,0,0-28.28,0L33.86,149.17A19.85,19.85,0,0,0,28,163.31V208a20,20,0,0,0,20,20H92.69a19.86,19.86,0,0,0,14.14-5.86L230.14,98.82A20,20,0,0,0,230.14,70.54ZM91,204H52V165l84-84,39,39Z"/></svg> Code Editor</div>
+          <div class="editor-wrap">
+            <div class="editor-container">
+              <div class="line-numbers" id="line-numbers">1</div>
+              <textarea class="editor code" id="code-editor" spellcheck="false">${getEditorContent()}</textarea>
+            </div>
+          </div>
+
+          <div class="gutter-row"></div>
+
+          <div>
+            <div class="status-bar checking" id="status-bar">Status: Init</div>
+            <div class="status-output code" id="status-output">You did not make any changes.</div>
+          </div>
+        </div>
+
+        <div class="gutter-col"></div>
+
+        <div class="right-panel">
+          <h2><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,24H72A32,32,0,0,0,40,56V224a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16H56a16,16,0,0,1,16-16H208a8,8,0,0,0,8-8V32A8,8,0,0,0,208,24Zm-8,160H72a31.82,31.82,0,0,0-16,4.29V56A16,16,0,0,1,72,40H200Z"/></svg> Available Functions</h2>
+          ${level.funcs.map(f => `
+            <div class="func-card">
+              <div class="type-sig">${renderTypeSig(f.name, f.sig)}</div>
+              ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </main>
+  `;
+
+  // Wire up editor
+  const editor = document.getElementById('code-editor');
+  if (editor) {
+    editor.addEventListener('input', onEditorInput);
+    editor.addEventListener('scroll', () => {
+      const lineNums = document.getElementById('line-numbers');
+      if (lineNums) lineNums.scrollTop = editor.scrollTop;
+    });
+    updateLineNumbers();
+    // Run live check immediately
+    setTimeout(runLiveCheck, 0);
+  }
+}
+
+function getEditorContent() {
+  const level = LEVELS[currentLevel];
+  if (editorContents[currentLevel] === undefined) {
+    editorContents[currentLevel] = level.lhs.replace('=', '').trim().replace(/^zeroToHero/, 'zeroToHero') + ' = undefined';
+    // Actually use the full lhs with "undefined"
+    editorContents[currentLevel] = level.lhs + ' undefined';
+  }
+  return editorContents[currentLevel];
+}
+
+function getCodeFromEditor() {
+  // Extract just the RHS (after the "=") from the full editor content
+  const full = editorContents[currentLevel] || '';
+  const level = LEVELS[currentLevel];
+  const lhs = level.lhs.trim();
+  // Find the RHS: everything after the LHS
+  if (full.startsWith(lhs)) {
+    return full.slice(lhs.length).trim();
+  }
+  // Fallback: look for last "=" in first line
+  const firstLine = full.split('\n')[0];
+  const eqIdx = firstLine.indexOf('=');
+  if (eqIdx >= 0) {
+    return full.slice(eqIdx + 1).trim();
+  }
+  return full.trim();
+}
+
+let liveCheckTimer = null;
+let attemptInProgress = false;
+
+function onEditorInput(e) {
+  editorContents[currentLevel] = e.target.value;
+  updateLineNumbers();
+  // Debounce live type inference (100ms, matching the original)
+  clearTimeout(liveCheckTimer);
+  liveCheckTimer = setTimeout(() => { runLiveCheck(); saveProgress(); }, 100);
+}
+
+function updateLineNumbers() {
+  const editor = document.getElementById('code-editor');
+  const lineNums = document.getElementById('line-numbers');
+  if (!editor || !lineNums) return;
+  const lines = editor.value.split('\n').length;
+  lineNums.innerHTML = Array.from({length: lines}, (_, i) => i + 1).join('<br>');
+}
+
+function renderGeckoLeafVar(name) {
+  return geckoLeaf(name, varColor, 'black');
+}
+
+function runLiveCheck() {
+  const code = getCodeFromEditor();
+  const level = LEVELS[currentLevel];
+  const inferredEl = document.getElementById('inferred-type');
+  const geckoEl = document.getElementById('inferred-gecko');
+  const hintEl = document.getElementById('syntax-hint');
+  // Only update status bar if no attempt is in progress
+  const statusBar = attemptInProgress ? null : document.getElementById('status-bar');
+  const statusOutput = attemptInProgress ? null : document.getElementById('status-output');
+
+  if (!code || code === 'undefined') {
+    if (inferredEl) inferredEl.innerHTML = '<span class="type-var">a</span>';
+    if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
+    if (hintEl) {
+      hintEl.textContent = 'Your definition has valid syntax, but it may still fail to type check.';
+      hintEl.className = 'syntax-hint';
+    }
+    if (statusBar) { statusBar.className = 'status-bar checking'; statusBar.textContent = 'Status: Init'; }
+    if (statusOutput) statusOutput.textContent = 'You did not make any changes.';
+    return;
+  }
+
+  const result = liveInfer(level, code);
+
+  if (result.valid && result.typeSig) {
+    if (inferredEl) inferredEl.innerHTML = colorizeType(result.typeSig);
+    if (geckoEl) {
+      try { geckoEl.innerHTML = renderGeckoArrow(result.typeSig); } catch(e) {}
+    }
+    if (hintEl) {
+      hintEl.textContent = 'Your definition has valid syntax, but it may still fail to type check.';
+      hintEl.className = 'syntax-hint';
+    }
+    if (statusBar) { statusBar.className = 'status-bar checking'; statusBar.textContent = 'Status: Checking'; }
+    if (statusOutput) statusOutput.textContent = 'Syntax OK. Click Attempt to verify.';
+  } else {
+    if (inferredEl) inferredEl.innerHTML = '<span class="type-var">a</span>';
+    if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
+    if (hintEl) {
+      hintEl.textContent = result.error || 'Your definition has a syntax or type error.';
+      hintEl.className = 'syntax-hint invalid';
+    }
+    if (statusBar) { statusBar.className = 'status-bar error'; statusBar.textContent = 'Status: Error'; }
+    if (statusOutput) statusOutput.textContent = result.error || 'Type error in expression.';
+  }
+}
+
+function renderTypeSig(name, sig) {
+  return `<span class="type-name">${escHtml(name)}</span> <span style="color:#374151">::</span> ${colorizeType(sig)}`;
+}
+
+function colorizeType(sig) {
+  const tokens = tokenize(sig);
+  return tokens.map(t => {
+    if (t === '->') return '<span class="arrow">&rarr;</span>';
+    if (t === '(' || t === ')') return `<span class="type-paren">${t}</span>`;
+    if (t === ',') return '<span class="type-paren">,</span>';
+    if (t[0] >= 'A' && t[0] <= 'Z' || t === '()') return `<span class="type-con">${escHtml(t)}</span>`;
+    return `<span class="type-var">${escHtml(t)}</span>`;
+  }).join(' ');
+}
+
+// Gecko graph rendering
+const geckoColors = {
+  'Zero': 'rgb(61,143,61)',
+  'Hero': 'rgb(143,61,102)',
+  '(,)': 'rgb(61,102,143)',
+  '(,,)': 'rgb(102,61,143)',
+  '->': '#959595',
+  '()': 'rgb(180,180,180)',
+};
+const varColor = 'rgb(239,177,177)';
+
+function renderGeckoArrow(sig) {
+  const type = parseType(sig);
+  if (!type) return '';
+  return renderGeckoType(type);
+}
+
+function renderGeckoType(type) {
+  if (!type) return '';
+  switch (type.tag) {
+    case 'var':
+      return geckoLeaf(type.name, varColor, 'black');
+    case 'con':
+      return geckoLeaf(type.name, geckoColors[type.name] || '#888', 'white');
+    case 'fun': {
+      // Arrow type: render as gecko arrow block
+      const parts = [];
+      let cur = type;
+      while (cur.tag === 'fun') {
+        parts.push(cur.from);
+        cur = cur.to;
+      }
+      parts.push(cur);
+      const chevron = `<svg viewBox="0 0 39 18" fill="white" style="height:10px"><path d="M1 1H7L15.5 9H9.5L1 1Z"/><path d="M1 17H7L15.5 9H9.5L1 17Z"/><path d="M12.5 1H18.5L27 9H21L12.5 1Z"/><path d="M12.5 17H18.5L27 9H21L12.5 17Z"/><path d="M24 1H30L38.5 9H32.5L24 1Z"/><path d="M24 17H30L38.5 9H32.5L24 17Z"/></svg>`;
+      const children = parts.map((p, i) => renderGeckoType(p)).join('');
+      return `<div class="gecko-arrow"><div class="gecko-arrow-inner">
+        <div class="gecko-arrow-header">${chevron}</div>
+        <div class="gecko-arrow-body">${children}</div>
+      </div></div>`;
+    }
+    case 'app': {
+      const flat = flattenApp(type);
+      const name = flat.head.tag === 'con' ? flat.head.name : (flat.head.tag === 'var' ? flat.head.name : '?');
+      // Check for tuple
+      if (flat.head.tag === 'con' && flat.head.name.startsWith('(') && flat.head.name.endsWith(')')) {
+        const color = geckoColors[flat.head.name] || '#888';
+        const abbrev = flat.head.name.length <= 3 ? flat.head.name : flat.head.name.slice(0, 3);
+        const children = flat.args.map(a => renderGeckoType(a)).join('');
+        return geckoNode(abbrev, color, 'white', children);
+      }
+      const color = geckoColors[name] || (flat.head.tag === 'var' ? varColor : '#888');
+      const textColor = flat.head.tag === 'var' ? 'black' : 'white';
+      const abbrev = name.length > 2 ? name.slice(0, 2) : name;
+      const children = flat.args.map(a => renderGeckoType(a)).join('');
+      return geckoNode(abbrev, color, textColor, children);
+    }
+  }
+  return '';
+}
+
+function geckoLeaf(label, bgColor, textColor) {
+  return `<div class="gecko-wrap"><div class="gecko-inner" style="background:${bgColor}">
+    <div class="gecko-header"></div>
+    <div class="gecko-body" style="color:${textColor}">${escHtml(label)}</div>
+  </div></div>`;
+}
+
+function geckoNode(label, bgColor, textColor, childrenHtml) {
+  return `<div class="gecko-wrap"><div class="gecko-inner" style="background:${bgColor}">
+    <div class="gecko-header"></div>
+    <div style="display:flex">
+      <div class="gecko-body" style="color:${textColor};min-width:24px">${escHtml(label)}</div>
+      <div class="gecko-children">${childrenHtml}</div>
+    </div>
+  </div></div>`;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ─── Actions ───
+
+window.dismissIntro = function() {
+  showIntro = false;
+  saveProgress();
+  render();
+};
+
+window.attempt = function() {
+  const code = getCodeFromEditor();
+  const level = LEVELS[currentLevel];
+
+  const statusBar = document.getElementById('status-bar');
+  const statusOutput = document.getElementById('status-output');
+
+  if (!code || code === 'undefined') {
+    statusBar.className = 'status-bar checking';
+    statusBar.textContent = 'Status: No changes';
+    statusOutput.textContent = 'You did not make any changes.';
+    return;
+  }
+
+  // Prevent live check from overwriting attempt status
+  clearTimeout(liveCheckTimer);
+  attemptInProgress = true;
+
+  statusBar.className = 'status-bar checking';
+  statusBar.textContent = 'Status: Checking...';
+
+  // Small delay for UI feedback
+  setTimeout(() => {
+    const result = typeCheck(level, code);
+    if (result.ok) {
+      statusBar.className = 'status-bar success';
+      statusBar.textContent = 'Status: Success!';
+      statusOutput.textContent = result.msg;
+      completedLevels.add(currentLevel);
+      bypassCount++;
+      lastUserSolution = code;
+      const bestLen = level.best.replace(/\s+/g, '').length;
+      if (code.replace(/\s+/g, '').length <= bestLen) optimalLevels.add(currentLevel);
+      saveProgress();
+
+      setTimeout(() => {
+        if (currentLevel === LEVELS.length - 1) {
+          showComplete = true;
+        } else {
+          showLevelComplete = true;
+        }
+        render();
+        // Restore editor content
+        const ed = document.getElementById('code-editor');
+        if (ed) ed.value = getEditorContent();
+      }, 500);
+    } else {
+      statusBar.className = 'status-bar error';
+      statusBar.textContent = 'Status: Failed';
+      statusOutput.textContent = result.msg;
+    }
+    attemptInProgress = false;
+  }, 100);
+};
+
+window.tryAgain = function() {
+  showLevelComplete = false;
+  render();
+  const ed = document.getElementById('code-editor');
+  if (ed) ed.value = getEditorContent();
+};
+
+window.nextLevel = function() {
+  showLevelComplete = false;
+  if (currentLevel < LEVELS.length - 1) {
+    currentLevel++;
+    saveProgress();
+  }
+  render();
+};
+
+window.resetGame = function() {
+  showComplete = false;
+  currentLevel = 0;
+  completedLevels.clear();
+  optimalLevels.clear();
+  editorContents = {};
+  bypassCount = 0;
+  saveProgress();
+  render();
+};
+
+window.toggleGecko = function() {
+  geckoOn = !geckoOn;
+  render();
+  // Restore editor content after re-render
+  const ed = document.getElementById('code-editor');
+  if (ed) ed.value = getEditorContent();
+};
+
+window.showAboutDialog = function() {
+  showAbout = true;
+  render();
+  const ed = document.getElementById('code-editor');
+  if (ed) ed.value = getEditorContent();
+};
+
+window.dismissAbout = function() {
+  showAbout = false;
+  render();
+  const ed = document.getElementById('code-editor');
+  if (ed) ed.value = getEditorContent();
+};
+
+window.prevLevel = function() {
+  if (currentLevel > 0) {
+    currentLevel--;
+    saveProgress();
+    render();
+  }
+};
+
+window.bypass = function() {
+  if (bypassCount === 0) return;
+  if (currentLevel === LEVELS.length - 1) {
+    showComplete = true;
+    render();
+  } else {
+    currentLevel++;
+    saveProgress();
+    render();
+  }
+};
+
+// Initial render
+render();
+</script>
+</body>
+</html>
