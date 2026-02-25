@@ -77,7 +77,30 @@ main { display: flex; flex-direction: column; height: calc(100vh - 36px); }
 .editor-wrap { display: flex; flex-direction: column; overflow: hidden; }
 .editor-container { display: flex; flex: 1; background: white; overflow: hidden; }
 .line-numbers { background: white; color: #9ca3af; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 0; text-align: right; user-select: none; min-width: 28px; padding-right: 8px; line-height: 1.5; }
-textarea.editor { flex: 1; background: white; color: black; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; border: none; resize: none; outline: none; line-height: 1.5; }
+textarea.editor { width: 100%; height: 100%; background: transparent; color: transparent; caret-color: black; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; border: none; resize: none; outline: none; line-height: 1.5; position: relative; z-index: 1; }
+textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
+.editor-area { flex: 1; position: relative; overflow: hidden; }
+.editor-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; line-height: 1.5; white-space: pre-wrap; overflow: hidden; z-index: 0; }
+.token-lhs { color: #6b7280; }
+.token-func { background: #dbeafe; border-radius: 3px; color: #1e40af; font-weight: 600; box-shadow: 3px 0 0 #dbeafe, -3px 0 0 #dbeafe; }
+.token-param { background: #d1fae5; border-radius: 3px; color: #065f46; box-shadow: 3px 0 0 #d1fae5, -3px 0 0 #d1fae5; }
+.token-undef { color: #94a3b8; font-style: italic; }
+.token-paren { color: #374151; }
+
+/* Editor token gecko blocks */
+.editor-tokens { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-end;
+                  padding: 6px 8px; background: white; border-top: 1px solid #e5e7eb; }
+.editor-token { border-radius: 4px; padding: 3px 6px; text-align: center; }
+.editor-token .token-label { font-weight: 600; font-family: 'Fira Code', monospace; font-size: 12px; }
+.editor-token-func { background: #dbeafe; }
+.editor-token-func .token-label { color: #1e40af; }
+.editor-token-param { background: #d1fae5; }
+.editor-token-param .token-label { color: #065f46; }
+.editor-token-op { background: #f3f4f6; }
+.editor-token-op .token-label { color: #374151; }
+.editor-slot-label { font-size: 9px; font-weight: 600; font-family: 'Fira Code', monospace; line-height: 1; margin-bottom: 1px; }
+.editor-slot-param { color: #065f46; }
+.editor-slot-func { color: #1e40af; }
 
 /* Gecko Graph toggle */
 .gecko-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #d1d5db; cursor: pointer; user-select: none; }
@@ -99,7 +122,11 @@ textarea.editor { flex: 1; background: white; color: black; font-family: 'Fira C
 .right-panel { background: #f3f4f6; color: black; padding: 12px; overflow: auto; }
 .right-panel h2 { font-size: 16px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .right-panel h2 svg { width: 18px; height: 18px; }
-.func-card { background: white; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; }
+.func-card { background: white; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; cursor: grab; }
+.func-card.dragging { opacity: 0.4; cursor: grabbing; }
+.editor-wrap.drag-over { outline: 2px solid #60a5fa; }
+.editor-wrap.drag-over textarea { cursor: copy; }
+.drop-caret { position: fixed; width: 2px; background: #3b82f6; pointer-events: none; z-index: 10000; }
 
 /* Type signature display — original: all text-gray-700, flex gap-x-1 */
 .type-sig { display: flex; gap: 4px; flex-wrap: wrap; align-items: baseline; font-family: 'Fira Code', monospace; color: #374151; }
@@ -256,6 +283,7 @@ function freshVar() {
 }
 
 function freshen(type, mapping = {}) {
+  if (!type) return null;
   switch (type.tag) {
     case 'var':
       if (!mapping[type.name]) mapping[type.name] = freshVar();
@@ -424,6 +452,14 @@ function normalizeTypeError(msg) {
   }
   if (msg.includes('Cannot apply') || msg.includes('Type mismatch')) {
     return 'Your definition is not well-typed.';
+  }
+  if (msg.includes('Cannot read properties of null') || msg.includes('Cannot read properties of undefined') ||
+      msg.includes("can't access property") || msg.includes('null is not an object') ||
+      msg.includes('Incomplete expression')) {
+    return 'Incomplete expression.';
+  }
+  if (msg.includes('not available')) {
+    return 'Your definition contains function(s) that are not available for this level.';
   }
   return msg;
 }
@@ -926,7 +962,7 @@ function render() {
 
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M172,108a12,12,0,0,1-12,12H96a12,12,0,0,1,0-24h64A12,12,0,0,1,172,108Zm-12,28H96a12,12,0,0,0,0,24h64a12,12,0,0,0,0-24Zm76-8A108,108,0,0,1,128.67,236H128a107.55,107.55,0,0,1-57.23-16.41L46.34,235A20,20,0,0,1,21,209.66l15.38-24.43A108,108,0,1,1,236,128Zm-24,0a84,84,0,1,0-156.73,42.06,12,12,0,0,1,1,9.81l-9.93,29.79,29.79-9.93a12.1,12.1,0,0,1,3.8-.62,12,12,0,0,1,6,1.62A84,84,0,0,0,212,128Z"/></svg> Your Solution</div>
           <div class="code-block">
-            <div class="type-sig" style="font-size:1rem"><span class="type-name">zeroToHero</span> <span style="color:#374151">::</span> <span id="inferred-type">a</span></div>
+            <div class="type-sig" id="inferred-type" style="font-size:1rem">${renderTypeSig('zeroToHero', 'a')}</div>
             ${geckoOn ? `<div id="inferred-gecko" style="margin-top:4px">${renderGeckoLeafVar('a')}</div>` : ''}
             <div class="syntax-hint" id="syntax-hint">Your definition has valid syntax, but it may still fail to type check.</div>
           </div>
@@ -937,8 +973,12 @@ function render() {
           <div class="editor-wrap">
             <div class="editor-container">
               <div class="line-numbers" id="line-numbers">1</div>
-              <textarea class="editor code" id="code-editor" spellcheck="false"></textarea>
+              <div class="editor-area">
+                <div class="editor-overlay" id="editor-overlay"></div>
+                <textarea class="editor code" id="code-editor" spellcheck="false"></textarea>
+              </div>
             </div>
+            ${geckoOn ? `<div id="editor-tokens" class="editor-tokens"></div>` : ''}
           </div>
 
           <div class="gutter-row"></div>
@@ -954,11 +994,21 @@ function render() {
         <div class="right-panel">
           <h2><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,24H72A32,32,0,0,0,40,56V224a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16H56a16,16,0,0,1,16-16H208a8,8,0,0,0,8-8V32A8,8,0,0,0,208,24Zm-8,160H72a31.82,31.82,0,0,0-16,4.29V56A16,16,0,0,1,72,40H200Z"/></svg> Available Functions</h2>
           ${level.funcs.map(f => `
-            <div class="func-card">
+            <div class="func-card" draggable="true" data-func-name="${f.name}">
               <div class="type-sig">${renderTypeSig(f.name, f.sig)}</div>
               ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
             </div>
           `).join('')}
+          <h2 style="margin-top:12px"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208ZM76,88a12,12,0,1,1,12,12A12,12,0,0,1,76,88Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,128Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,168Zm88-80H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Z"/></svg> Available Parameters</h2>
+          ${(() => {
+            const parts = level.lhs.split('=')[0].trim().split(/\s+/);
+            const params = parts.slice(1);
+            return params.map(p => `
+              <div class="func-card" draggable="true" data-func-name="${p}">
+                <div class="type-sig"><span class="type-name">${p}</span></div>
+              </div>
+            `).join('');
+          })()}
         </div>
       </div>
     </main>
@@ -969,14 +1019,293 @@ function render() {
   if (editor) {
     editor.value = getEditorContent();
     editor.addEventListener('input', onEditorInput);
+    // Protect LHS from editing
+    const lhsPrefix = LEVELS[currentLevel].lhs.trim() + ' ';
+    const lhsLen = lhsPrefix.length;
+    editor.addEventListener('keydown', e => {
+      const { selectionStart: s, selectionEnd: end } = editor;
+      // Prevent backspace into LHS
+      if (e.key === 'Backspace' && s === end && s <= lhsLen) { e.preventDefault(); return; }
+      // Prevent delete at end of LHS when nothing selected
+      if (e.key === 'Delete' && s === end && s < lhsLen) { e.preventDefault(); return; }
+      // Prevent selection that starts in LHS from being typed over
+      if (s < lhsLen && end > s && !e.ctrlKey && !e.metaKey && !e.altKey &&
+          e.key.length === 1) {
+        e.preventDefault();
+        editor.setRangeText(e.key, lhsLen, end, 'end');
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+      // Clamp Home key to after LHS
+      if (e.key === 'Home' && !e.ctrlKey) {
+        e.preventDefault();
+        editor.setSelectionRange(lhsLen, e.shiftKey ? end : lhsLen);
+        return;
+      }
+      // Prevent Ctrl+A from selecting LHS — select only RHS
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        editor.setSelectionRange(lhsLen, editor.value.length);
+        return;
+      }
+    });
+    // Prevent mouse clicks from placing cursor in LHS
+    editor.addEventListener('mouseup', () => {
+      if (editor.selectionStart < lhsLen) {
+        editor.setSelectionRange(Math.max(lhsLen, editor.selectionEnd), editor.selectionEnd);
+      }
+    });
     editor.addEventListener('scroll', () => {
       const lineNums = document.getElementById('line-numbers');
       if (lineNums) lineNums.scrollTop = editor.scrollTop;
+      const overlay = document.getElementById('editor-overlay');
+      if (overlay) overlay.scrollTop = editor.scrollTop;
     });
     updateLineNumbers();
+    updateEditorOverlay();
     // Run live check immediately
     setTimeout(runLiveCheck, 0);
+
+    // Drop-caret helpers (monospace grid calculation)
+    const editorWrap = editor.closest('.editor-wrap');
+    let charW = null;
+    function getCharW() {
+      if (charW) return charW;
+      const span = document.createElement('span');
+      const s = getComputedStyle(editor);
+      span.style.font = s.font;
+      span.style.position = 'absolute';
+      span.style.visibility = 'hidden';
+      span.style.whiteSpace = 'pre';
+      span.textContent = 'MMMMMMMMMM';
+      document.body.appendChild(span);
+      charW = span.offsetWidth / 10;
+      span.remove();
+      return charW;
+    }
+    function snapToTokenBoundary(text, pos) {
+      if (pos <= 0 || pos >= text.length) return pos;
+      const isIdent = c => /[a-zA-Z0-9_']/.test(c);
+      const isOp = c => /[!@#$%^&*\-+=<>?/|~:.\\]/.test(c);
+      const before = text[pos - 1], after = text[pos];
+      let start = pos, end = pos;
+      if (isIdent(before) && isIdent(after)) {
+        while (start > 0 && isIdent(text[start - 1])) start--;
+        while (end < text.length && isIdent(text[end])) end++;
+      } else if (isOp(before) && isOp(after)) {
+        while (start > 0 && isOp(text[start - 1])) start--;
+        while (end < text.length && isOp(text[end])) end++;
+      } else {
+        return pos;
+      }
+      return (pos - start <= end - pos) ? start : end;
+    }
+    function caretPosFromPoint(cx, cy) {
+      const rect = editor.getBoundingClientRect();
+      const s = getComputedStyle(editor);
+      const lh = parseFloat(s.lineHeight);
+      const x = cx - rect.left - parseFloat(s.paddingLeft) + editor.scrollLeft;
+      const y = cy - rect.top - parseFloat(s.paddingTop) + editor.scrollTop;
+      const row = Math.max(0, Math.floor(y / lh));
+      const col = Math.max(0, Math.round(x / getCharW()));
+      const lines = editor.value.split('\n');
+      let pos = 0;
+      for (let i = 0; i < Math.min(row, lines.length); i++) pos += lines[i].length + 1;
+      pos += row < lines.length ? Math.min(col, lines[row].length) : lines[lines.length - 1].length;
+      return snapToTokenBoundary(editor.value, Math.min(pos, editor.value.length));
+    }
+    function showDropCaret(pos) {
+      const s = getComputedStyle(editor);
+      const lh = parseFloat(s.lineHeight);
+      const before = editor.value.substring(0, pos);
+      const bLines = before.split('\n');
+      const row = bLines.length - 1;
+      const col = bLines[row].length;
+      const eRect = editor.getBoundingClientRect();
+      const caretX = eRect.left + parseFloat(s.paddingLeft) + col * getCharW() - editor.scrollLeft;
+      const caretY = eRect.top + parseFloat(s.paddingTop) + row * lh - editor.scrollTop;
+      let caret = document.getElementById('drop-caret');
+      if (!caret) {
+        caret = document.createElement('div');
+        caret.id = 'drop-caret';
+        caret.className = 'drop-caret';
+        document.body.appendChild(caret);
+      }
+      caret.style.left = caretX + 'px';
+      caret.style.top = caretY + 'px';
+      caret.style.height = lh + 'px';
+    }
+    function removeDropCaret() {
+      const c = document.getElementById('drop-caret');
+      if (c) c.remove();
+    }
+
+    // Drop handling on editor
+    function minDropPos() {
+      const eq = editor.value.indexOf('=');
+      return eq >= 0 ? eq + 1 : 0;
+    }
+    editor.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      if (editorWrap) editorWrap.classList.add('drag-over');
+      const pos = Math.max(caretPosFromPoint(e.clientX, e.clientY), minDropPos());
+      editor._dropPos = pos;
+      showDropCaret(pos);
+    });
+    editor.addEventListener('dragleave', () => {
+      if (editorWrap) editorWrap.classList.remove('drag-over');
+      removeDropCaret();
+    });
+    editor.addEventListener('drop', e => {
+      e.preventDefault();
+      if (editorWrap) editorWrap.classList.remove('drag-over');
+      removeDropCaret();
+      const fname = e.dataTransfer.getData('text/plain').replace(/^\(/, '').replace(/\)$/, '');
+      if (!fname) return;
+      editor.focus();
+      // Remove "undefined" from RHS if present
+      const rhsStart = minDropPos();
+      const rhs = editor.value.slice(rhsStart).trim();
+      if (rhs === 'undefined') {
+        const undStart = editor.value.indexOf('undefined', rhsStart);
+        editor.setRangeText('', undStart, undStart + 'undefined'.length, 'end');
+      }
+      // Determine what to insert and where
+      const text = editor.value;
+      const rhsAfterClean = text.slice(rhsStart).trim();
+      const isFunc = LEVELS[currentLevel].funcs.some(f => f.name.replace(/^\(/, '').replace(/\)$/, '') === fname);
+      let insert, pos;
+      if (!rhsAfterClean) {
+        // Empty RHS — insert at end with leading space
+        pos = text.length;
+        insert = (pos > 0 && text[pos - 1] !== ' ') ? ' ' + fname : fname;
+      } else if (isFunc) {
+        // Function dropped — use drop caret position if available
+        pos = Math.max(editor._dropPos ?? rhsStart, rhsStart);
+        insert = fname + ' $ ';
+      } else {
+        // Parameter — use drop caret position if available
+        pos = Math.max(editor._dropPos ?? text.length, rhsStart);
+        insert = (pos > 0 && text[pos - 1] !== ' ') ? ' ' + fname : fname;
+      }
+      editor.setRangeText(insert, pos, pos, 'end');
+      editorContents[currentLevel] = editor.value;
+      updateLineNumbers();
+      updateEditorOverlay();
+      clearTimeout(liveCheckTimer);
+      liveCheckTimer = setTimeout(runLiveCheck, 100);
+    });
+
+    // Custom drag-out: auto-select token under cursor, drag to remove
+    function getTokenRange(text, pos) {
+      const isIdent = c => /[a-zA-Z0-9_']/.test(c);
+      const isOp = c => /[!@#$%^&*\-+=<>?/|~:.\\]/.test(c);
+      let idx = pos;
+      if (idx >= text.length || /\s/.test(text[idx])) idx = pos - 1;
+      if (idx < 0 || /\s/.test(text[idx])) return null;
+      let start = idx, end = idx + 1;
+      if (isIdent(text[idx])) {
+        while (start > 0 && isIdent(text[start - 1])) start--;
+        while (end < text.length && isIdent(text[end])) end++;
+      } else if (isOp(text[idx])) {
+        while (start > 0 && isOp(text[start - 1])) start--;
+        while (end < text.length && isOp(text[end])) end++;
+      }
+      return { start, end };
+    }
+    let dragOutState = null;
+    editor.addEventListener('mousedown', e => {
+      if (e.button !== 0 || !e.altKey) return;
+      const pos = caretPosFromPoint(e.clientX, e.clientY);
+      const text = editor.value;
+      const range = getTokenRange(text, pos);
+      if (!range || range.start < minDropPos()) return;
+      e.preventDefault();
+      editor.focus();
+      editor.setSelectionRange(range.start, range.end);
+      dragOutState = {
+        range, token: text.slice(range.start, range.end),
+        startX: e.clientX, startY: e.clientY,
+        dragging: false, origPos: pos
+      };
+    });
+    if (dragOutCleanup) dragOutCleanup();
+    const onDragOutMove = e => {
+      if (!dragOutState) return;
+      const dx = e.clientX - dragOutState.startX;
+      const dy = e.clientY - dragOutState.startY;
+      if (!dragOutState.dragging && dx * dx + dy * dy > 25) {
+        dragOutState.dragging = true;
+        const ghost = document.createElement('div');
+        ghost.id = 'drag-out-ghost';
+        ghost.textContent = dragOutState.token;
+        ghost.style.cssText = 'position:fixed;padding:4px 8px;background:#3b82f6;color:white;border-radius:4px;font-family:"Fira Code",monospace;font-size:13px;pointer-events:none;z-index:10000;white-space:nowrap;';
+        document.body.appendChild(ghost);
+      }
+      if (dragOutState.dragging) {
+        const ghost = document.getElementById('drag-out-ghost');
+        if (ghost) {
+          ghost.style.left = (e.clientX + 12) + 'px';
+          ghost.style.top = (e.clientY - 12) + 'px';
+        }
+      }
+    };
+    const onDragOutUp = e => {
+      if (!dragOutState) return;
+      const ghost = document.getElementById('drag-out-ghost');
+      if (ghost) ghost.remove();
+      if (dragOutState.dragging) {
+        const rect = editor.getBoundingClientRect();
+        const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
+                       e.clientY >= rect.top && e.clientY <= rect.bottom;
+        if (!inside) {
+          let { start, end } = dragOutState.range;
+          const text = editor.value;
+          if (start > 0 && text[start - 1] === ' ') start--;
+          else if (end < text.length && text[end] === ' ') end++;
+          editor.focus();
+          editor.setRangeText('', start, end, 'end');
+          // Restore "undefined" if RHS is now empty
+          const rhsStart = minDropPos();
+          const rhs = editor.value.slice(rhsStart).trim();
+          if (!rhs) {
+            const insertAt = editor.value.length;
+            editor.setRangeText(' undefined', insertAt, insertAt, 'end');
+          }
+          editorContents[currentLevel] = editor.value;
+          updateLineNumbers();
+          updateEditorOverlay();
+          clearTimeout(liveCheckTimer);
+          liveCheckTimer = setTimeout(runLiveCheck, 100);
+        } else {
+          editor.setSelectionRange(dragOutState.origPos, dragOutState.origPos);
+        }
+      } else {
+        editor.setSelectionRange(dragOutState.origPos, dragOutState.origPos);
+      }
+      dragOutState = null;
+    };
+    document.addEventListener('mousemove', onDragOutMove);
+    document.addEventListener('mouseup', onDragOutUp);
+    dragOutCleanup = () => {
+      document.removeEventListener('mousemove', onDragOutMove);
+      document.removeEventListener('mouseup', onDragOutUp);
+    };
   }
+
+  // Drag events on func-cards
+  document.querySelectorAll('.func-card[draggable]').forEach(card => {
+    card.addEventListener('dragstart', e => {
+      e.dataTransfer.setData('text/plain', card.dataset.funcName);
+      card.classList.add('dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+      const c = document.getElementById('drop-caret');
+      if (c) c.remove();
+    });
+  });
 }
 
 function getEditorContent() {
@@ -1009,13 +1338,383 @@ function getCodeFromEditor() {
 
 let liveCheckTimer = null;
 let attemptInProgress = false;
+let dragOutCleanup = null;
 
 function onEditorInput(e) {
-  editorContents[currentLevel] = e.target.value;
+  const editor = e.target;
+  const level = LEVELS[currentLevel];
+  const lhs = level.lhs.trim();
+  const minPos = lhs.length + 1; // lhs + space
+
+  // If LHS was damaged, restore it
+  if (!editor.value.startsWith(lhs + ' ')) {
+    // Try to salvage the RHS: everything after the first '=' or after the damaged prefix
+    let rhs = '';
+    const eqIdx = editor.value.indexOf('=');
+    if (eqIdx >= 0) {
+      rhs = editor.value.slice(eqIdx + 1).trimStart();
+    }
+    editor.value = lhs + ' ' + rhs;
+    const newPos = Math.max(minPos, editor.value.length);
+    editor.setSelectionRange(newPos, newPos);
+  }
+
+  editorContents[currentLevel] = editor.value;
   updateLineNumbers();
+  updateEditorOverlay();
   // Debounce live type inference (100ms, matching the original)
   clearTimeout(liveCheckTimer);
   liveCheckTimer = setTimeout(runLiveCheck, 100);
+}
+
+let _overlayCache = { level: -1 };
+function updateEditorOverlay() {
+  const overlay = document.getElementById('editor-overlay');
+  const editor = document.getElementById('code-editor');
+  if (!overlay || !editor) return;
+  const text = editor.value;
+
+  // Cache per-level derived data (only recomputed on level change)
+  if (_overlayCache.level !== currentLevel) {
+    const level = LEVELS[currentLevel];
+    const lhs = level.lhs.trim();
+    const paramList = lhs.split('=')[0].trim().split(/\s+/).slice(1);
+    const funcSigMap = {};
+    for (const f of level.funcs) {
+      const bare = f.name.replace(/^\(/, '').replace(/\)$/,'');
+      funcSigMap[bare] = f.sig;
+    }
+    const paramTypeMap = {};
+    const targetType = parseType(level.target);
+    let remaining = targetType;
+    for (const p of paramList) {
+      if (remaining && remaining.tag === 'fun') {
+        paramTypeMap[p] = remaining.from;
+        remaining = remaining.to;
+      }
+    }
+    _overlayCache = {
+      level: currentLevel, lhs,
+      funcNames: new Set(level.funcs.map(f => f.name)),
+      bareFuncs: new Set(level.funcs.map(f => f.name.replace(/^\(/, '').replace(/\)$/, ''))),
+      params: new Set(paramList),
+      funcSigMap, paramTypeMap,
+    };
+  }
+  const { lhs, funcNames, bareFuncs, params, funcSigMap, paramTypeMap } = _overlayCache;
+
+  let html = '';
+  if (text.startsWith(lhs)) {
+    html += `<span class="token-lhs">${escHtml(lhs)}</span>`;
+    const rhs = text.slice(lhs.length);
+    const tokens = rhs.match(/[a-zA-Z_][a-zA-Z0-9_']*|[()[\]{}]|[!@#$%^&*\-+=<>?/|~:.\\]+|\s+|./g) || [];
+    for (const tok of tokens) {
+      if (/^\s+$/.test(tok)) { html += tok; }
+      else if (tok === 'undefined') { html += `<span class="token-undef">${tok}</span>`; }
+      else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += `<span class="token-func">${escHtml(tok)}</span>`; }
+      else if (params.has(tok)) { html += `<span class="token-param">${escHtml(tok)}</span>`; }
+      else if (tok === '(' || tok === ')') { html += `<span class="token-paren">${tok}</span>`; }
+      else { html += escHtml(tok); }
+    }
+  } else {
+    html = escHtml(text);
+  }
+  overlay.innerHTML = html;
+  overlay.scrollTop = editor.scrollTop;
+
+  // Build gecko token blocks below the editor
+  const tokensEl = document.getElementById('editor-tokens');
+  if (!tokensEl) return;
+
+  if (!text.startsWith(lhs)) { tokensEl.innerHTML = ''; return; }
+  const rhs = text.slice(lhs.length);
+
+  // Parse RHS into expression tree and render as nested gecko
+  try {
+    const tree = parseExprTree(rhs);
+    if (tree) {
+      tokensEl.innerHTML = renderExprTreeGecko(tree, funcSigMap, paramTypeMap, bareFuncs, params);
+      return;
+    }
+  } catch (e) { /* fall through to empty */ }
+  tokensEl.innerHTML = '';
+}
+
+// ─── Expression Tree Parser (for nested gecko rendering) ───
+
+function parseExprTree(rhs) {
+  const tokens = (rhs.match(/[a-zA-Z_][a-zA-Z0-9_']*|[()[\]{}]|[!@#$%^&*\-+=<>?/|~:.\\]+|\s+|./g) || [])
+    .filter(t => !/^\s+$/.test(t) && t !== 'undefined');
+  if (tokens.length === 0) return null;
+  let pos = 0;
+
+  function parseDollar() {
+    let left = parseDot();
+    if (pos < tokens.length && tokens[pos] === '$') {
+      pos++;
+      const right = parseDollar(); // right-assoc
+      return { type: 'app', func: left, arg: right };
+    }
+    return left;
+  }
+
+  function parseDot() {
+    let left = parseOps();
+    if (pos < tokens.length && tokens[pos] === '.') {
+      pos++;
+      const right = parseDot(); // right-assoc
+      return { type: 'comp', left, right };
+    }
+    return left;
+  }
+
+  function parseOps() {
+    let left = parseAppChain();
+    while (pos < tokens.length) {
+      const t = tokens[pos];
+      if (t === '<$>' || t === '<*>' || t === '>>=') {
+        const op = t; pos++;
+        const right = parseAppChain();
+        left = { type: 'binop', op, left, right };
+      } else break;
+    }
+    return left;
+  }
+
+  function parseAppChain() {
+    let base = parseAtom();
+    if (!base) return null;
+    while (pos < tokens.length) {
+      const t = tokens[pos];
+      if (!t || t === ')' || t === '$' || t === '.' ||
+          t === '<$>' || t === '<*>' || t === '>>=' ||
+          /^[!@#$%^&*\-+=<>?/|~:.\\]+$/.test(t)) break;
+      const arg = parseAtom();
+      if (!arg) break;
+      base = { type: 'app', func: base, arg: arg };
+    }
+    return base;
+  }
+
+  function parseAtom() {
+    if (pos >= tokens.length) return null;
+    const t = tokens[pos];
+    if (!t || t === ')') return null;
+    if (/^[!@#$%^&*\-+=<>?/|~:.\\]+$/.test(t) && t !== '(' && t !== ')') return null;
+    if (t === '(') {
+      pos++;
+      if (pos < tokens.length && tokens[pos] === ')') { pos++; return null; }
+      const inner = parseDollar();
+      if (pos < tokens.length && tokens[pos] === ')') pos++;
+      return inner;
+    }
+    pos++;
+    return { type: 'leaf', name: t };
+  }
+
+  const result = parseDollar();
+  if (pos !== tokens.length) return null;
+  return result;
+}
+
+// Flatten an application tree to get head function and args list
+function flattenAppTree(tree) {
+  const args = [];
+  let head = tree;
+  while (head && head.type === 'app') {
+    args.unshift(head.arg);
+    head = head.func;
+  }
+  return { head, args };
+}
+
+// Desugar composition: (f . g) applied to args → f(g(args[0])) args[1:]
+function desugarComp(compNode, args) {
+  if (args.length === 0) return null; // unapplied composition
+  let inner = { type: 'app', func: compNode.right, arg: args[0] };
+  let outer = { type: 'app', func: compNode.left, arg: inner };
+  for (let i = 1; i < args.length; i++) {
+    outer = { type: 'app', func: outer, arg: args[i] };
+  }
+  return outer;
+}
+
+// ─── Nested Gecko Renderer ───
+
+const geckoChevron = `<svg viewBox="0 0 39 18" fill="white" style="height:10px"><path d="M1 1H7L15.5 9H9.5L1 1Z"/><path d="M1 17H7L15.5 9H9.5L1 17Z"/><path d="M12.5 1H18.5L27 9H21L12.5 1Z"/><path d="M12.5 17H18.5L27 9H21L12.5 17Z"/><path d="M24 1H30L38.5 9H32.5L24 1Z"/><path d="M24 17H30L38.5 9H32.5L24 17Z"/></svg>`;
+
+function flattenExprChain(tree, funcSigMap, paramTypeMap, bareFuncs, params) {
+  if (!tree) return null;
+
+  // Leaf param: start of chain
+  if (tree.type === 'leaf' && params.has(tree.name) && paramTypeMap[tree.name]) {
+    return [{ type: paramTypeMap[tree.name], label: tree.name, cls: 'editor-slot-param' }];
+  }
+
+  // Function application
+  if (tree.type === 'app') {
+    const { head, args } = flattenAppTree(tree);
+
+    if (head && head.type === 'comp') {
+      const desugared = desugarComp(head, args);
+      if (desugared) return flattenExprChain(desugared, funcSigMap, paramTypeMap, bareFuncs, params);
+    }
+
+    if (head && head.type === 'leaf' && funcSigMap[head.name]) {
+      const funcType = parseType(funcSigMap[head.name]);
+      const parts = [];
+      let cur = funcType;
+      while (cur.tag === 'fun') { parts.push(cur.from); cur = cur.to; }
+      parts.push(cur);
+
+      // Single-arg fully applied — chainable
+      if (args.length === 1 && parts.length === 2) {
+        const inner = flattenExprChain(args[0], funcSigMap, paramTypeMap, bareFuncs, params);
+        if (inner) {
+          return [...inner, { type: parts[1], label: head.name, cls: 'editor-slot-func' }];
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function renderExprTreeGecko(tree, funcSigMap, paramTypeMap, bareFuncs, params) {
+  if (!tree) return '';
+
+  if (tree.type === 'leaf') {
+    if (bareFuncs.has(tree.name) && funcSigMap[tree.name]) {
+      return `<div class="editor-token editor-token-func"><div class="token-label">${escHtml(tree.name)}</div><div style="margin-top:3px">${renderGeckoType(parseType(funcSigMap[tree.name]))}</div></div>`;
+    }
+    if (params.has(tree.name) && paramTypeMap[tree.name]) {
+      return `<div class="editor-token editor-token-param"><div class="token-label">${escHtml(tree.name)}</div><div style="margin-top:3px">${renderGeckoType(paramTypeMap[tree.name])}</div></div>`;
+    }
+    return `<div class="editor-token editor-token-op"><div class="token-label">${escHtml(tree.name)}</div></div>`;
+  }
+
+  if (tree.type === 'app') {
+    const { head, args } = flattenAppTree(tree);
+
+    if (head && head.type === 'comp') {
+      const desugared = desugarComp(head, args);
+      if (desugared) return renderExprTreeGecko(desugared, funcSigMap, paramTypeMap, bareFuncs, params);
+    }
+
+    if (head && head.type === 'leaf' && funcSigMap[head.name]) {
+      // Try to flatten into a merged chain
+      const chain = flattenExprChain(tree, funcSigMap, paramTypeMap, bareFuncs, params);
+      if (chain && chain.length > 1) {
+        const children = chain.map(step => {
+          const gecko = renderGeckoType(step.type);
+          return `<div style="display:inline-flex;flex-direction:column;align-items:center">
+            <div class="editor-slot-label ${step.cls}">${escHtml(step.label)}</div>${gecko}</div>`;
+        }).join('');
+        return `<div class="gecko-arrow"><div class="gecko-arrow-inner">
+          <div class="gecko-arrow-header">${geckoChevron}</div>
+          <div class="gecko-arrow-body">${children}</div>
+        </div></div>`;
+      }
+
+      return renderFuncAppGecko(head.name, funcSigMap[head.name], args, funcSigMap, paramTypeMap, bareFuncs, params, false);
+    }
+
+    let html = renderExprTreeGecko(head, funcSigMap, paramTypeMap, bareFuncs, params);
+    for (const a of args) html += renderExprTreeGecko(a, funcSigMap, paramTypeMap, bareFuncs, params);
+    return html;
+  }
+
+  if (tree.type === 'comp') {
+    return renderExprTreeGecko(tree.left, funcSigMap, paramTypeMap, bareFuncs, params) +
+      `<div class="editor-token editor-token-op"><div class="token-label">.</div></div>` +
+      renderExprTreeGecko(tree.right, funcSigMap, paramTypeMap, bareFuncs, params);
+  }
+
+  if (tree.type === 'binop') {
+    return renderExprTreeGecko(tree.left, funcSigMap, paramTypeMap, bareFuncs, params) +
+      `<div class="editor-token editor-token-op"><div class="token-label">${escHtml(tree.op)}</div></div>` +
+      renderExprTreeGecko(tree.right, funcSigMap, paramTypeMap, bareFuncs, params);
+  }
+
+  return '';
+}
+
+function renderFuncAppGecko(funcName, funcSig, args, funcSigMap, paramTypeMap, bareFuncs, params, nested) {
+  const funcType = parseType(funcSig);
+  // Decompose arrow into parts: [input1, input2, ..., result]
+  const parts = [];
+  let cur = funcType;
+  while (cur.tag === 'fun') {
+    parts.push(cur.from);
+    cur = cur.to;
+  }
+  parts.push(cur); // result type
+
+  const fullyApplied = args.length >= parts.length - 1;
+
+  if (fullyApplied) {
+    // All slots filled — render as nested gecko node wrapping arg slots
+    const argsGecko = args.map((a, i) => renderArgSlot(a, parts[i], funcSigMap, paramTypeMap, bareFuncs, params)).join('');
+    const abbrev = funcName.length > 2 ? funcName.slice(0, 2) : funcName;
+    const nodeHtml = geckoNode(abbrev, '#93c5fd', '#1e40af', argsGecko);
+    if (nested) return nodeHtml;
+    return `<div class="editor-token editor-token-func"><div class="token-label">${escHtml(funcName)}</div><div style="margin-top:3px">${nodeHtml}</div></div>`;
+  }
+
+  // Partially applied — show arrow with filled and unfilled slots
+  const children = parts.map((part, i) => {
+    if (i < args.length) {
+      return renderArgSlot(args[i], part, funcSigMap, paramTypeMap, bareFuncs, params);
+    }
+    return renderGeckoType(part);
+  }).join('');
+
+  const arrowHtml = `<div class="gecko-arrow"><div class="gecko-arrow-inner">
+    <div class="gecko-arrow-header">${geckoChevron}</div>
+    <div class="gecko-arrow-body">${children}</div>
+  </div></div>`;
+
+  if (nested) {
+    return `<div style="display:inline-flex;flex-direction:column;align-items:center">
+      <div class="editor-slot-label editor-slot-func">${escHtml(funcName)}</div>${arrowHtml}</div>`;
+  }
+  return `<div class="editor-token editor-token-func"><div class="token-label">${escHtml(funcName)}</div><div style="margin-top:3px">${arrowHtml}</div></div>`;
+}
+
+function renderArgSlot(argTree, slotType, funcSigMap, paramTypeMap, bareFuncs, params) {
+  if (!argTree) return renderGeckoType(slotType);
+
+  if (argTree.type === 'leaf') {
+    if (params.has(argTree.name) && paramTypeMap[argTree.name]) {
+      // Param — show type block with name label
+      const gecko = renderGeckoType(paramTypeMap[argTree.name]);
+      return `<div style="display:inline-flex;flex-direction:column;align-items:center">
+        <div class="editor-slot-label editor-slot-param">${escHtml(argTree.name)}</div>${gecko}</div>`;
+    }
+    if (bareFuncs.has(argTree.name) && funcSigMap[argTree.name]) {
+      // Unapplied function as argument — show its full arrow
+      return `<div style="display:inline-flex;flex-direction:column;align-items:center">
+        <div class="editor-slot-label editor-slot-func">${escHtml(argTree.name)}</div>${renderGeckoType(parseType(funcSigMap[argTree.name]))}</div>`;
+    }
+    return renderGeckoType(slotType);
+  }
+
+  if (argTree.type === 'app') {
+    const { head, args } = flattenAppTree(argTree);
+
+    // Handle composition as head
+    if (head && head.type === 'comp') {
+      const desugared = desugarComp(head, args);
+      if (desugared) return renderArgSlot(desugared, slotType, funcSigMap, paramTypeMap, bareFuncs, params);
+    }
+
+    if (head && head.type === 'leaf' && funcSigMap[head.name]) {
+      return renderFuncAppGecko(head.name, funcSigMap[head.name], args, funcSigMap, paramTypeMap, bareFuncs, params, true);
+    }
+  }
+
+  // Fallback: render slot type
+  return renderGeckoType(slotType);
 }
 
 function updateLineNumbers() {
@@ -1041,7 +1740,7 @@ function runLiveCheck() {
   const statusOutput = attemptInProgress ? null : document.getElementById('status-output');
 
   if (!code || code === 'undefined') {
-    if (inferredEl) inferredEl.innerHTML = '<span class="type-var">a</span>';
+    if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', 'a');
     if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
     if (hintEl) {
       hintEl.textContent = 'Your definition has valid syntax, but it may still fail to type check.';
@@ -1055,7 +1754,7 @@ function runLiveCheck() {
   const result = liveInfer(level, code);
 
   if (result.valid && result.typeSig) {
-    if (inferredEl) inferredEl.innerHTML = colorizeType(result.typeSig);
+    if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', result.typeSig);
     if (geckoEl) {
       try { geckoEl.innerHTML = renderGeckoArrow(result.typeSig); } catch(e) {}
     }
@@ -1066,7 +1765,7 @@ function runLiveCheck() {
     if (statusBar) { statusBar.className = 'status-bar checking'; statusBar.textContent = 'Status: Checking'; }
     if (statusOutput) statusOutput.textContent = 'Syntax OK. Click Attempt to verify.';
   } else {
-    if (inferredEl) inferredEl.innerHTML = '<span class="type-var">a</span>';
+    if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', 'a');
     if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
     if (hintEl) {
       hintEl.textContent = result.error || 'Your definition has a syntax or type error.';

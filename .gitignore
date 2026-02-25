@@ -5,3 +5,4 @@ screenshots/
 .claude/
 review/
 scripts/
+*.stackdump
