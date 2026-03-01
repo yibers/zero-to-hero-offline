@@ -111,6 +111,12 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-toggle-track.on .gecko-toggle-knob { left: 18px; }
 .gecko-toggle-track.off .gecko-toggle-knob { left: 2px; }
 
+/* Icon mode */
+.icon-sym { display:inline-flex; align-items:center; vertical-align:baseline; line-height:1; }
+.icon-sym svg { display:block; fill:currentColor; }
+.gecko-body .icon-sym svg { height:12px; width:12px; }
+.editor-slot-label .icon-sym svg { height:9px; width:9px; }
+
 /* Status — original: bg-gray-400 / bg-green-500 / bg-red-500 */
 .status-bar { padding: 8px; font-size: 13px; font-weight: bold; }
 .status-bar.checking { background: #9ca3af; color: white; }
@@ -808,6 +814,7 @@ let completedLevels = new Set();
 let optimalLevels = new Set();
 let editorContents = {};
 let geckoOn = true;
+let iconMode = false;
 let bypassCount = 0;
 
 // Load progress from localStorage
@@ -820,6 +827,7 @@ try {
     editorContents = parsed.editorContents || {};
     currentLevel = Math.max(0, Math.min(parsed.currentLevel || 0, LEVELS.length - 1));
     bypassCount = parsed.bypassCount || 0;
+    iconMode = parsed.iconMode === true;
     showIntro = parsed.showIntro !== false;
   }
 } catch(e) {}
@@ -831,6 +839,7 @@ function saveProgress() {
     editorContents,
     currentLevel,
     bypassCount,
+    iconMode,
     showIntro: false
   }));
 }
@@ -944,6 +953,12 @@ function render() {
             <div class="gecko-toggle-knob"></div>
           </div>
         </div>
+        <div class="gecko-toggle" onclick="toggleIconMode()">
+          Icons
+          <div class="gecko-toggle-track ${iconMode ? 'on' : 'off'}">
+            <div class="gecko-toggle-knob"></div>
+          </div>
+        </div>
         <span class="level-badge">${completedLevels.has(currentLevel) ? (optimalLevels.has(currentLevel) ? '<span title="Solved optimally" style="color:#22c55e">&#9733; </span>' : '<span title="Solved" style="color:#9ca3af">&#10003; </span>') : ''}Level ${level.level} / ${LEVELS.length}</span>
         <button onclick="showAboutDialog()" title="About" style="background:#475569;color:#d1d5db;border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:13px;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:0">?</button>
       </div>
@@ -1005,7 +1020,7 @@ function render() {
             const params = parts.slice(1);
             return params.map(p => `
               <div class="func-card" draggable="true" data-func-name="${p}">
-                <div class="type-sig"><span class="type-name">${p}</span></div>
+                <div class="type-sig"><span class="type-name">${symbolDisplay(p, escHtml(p))}</span></div>
               </div>
             `).join('');
           })()}
@@ -1024,28 +1039,127 @@ function render() {
     const lhsLen = lhsPrefix.length;
     editor.addEventListener('keydown', e => {
       const { selectionStart: s, selectionEnd: end } = editor;
+      const text = editor.value;
+      // Ctrl/Meta key held
+      if (e.ctrlKey || e.metaKey) {
+        // Prevent Ctrl+A from selecting LHS — select only RHS
+        if (e.code === 'KeyA') {
+          e.preventDefault();
+          editor.setSelectionRange(lhsLen, editor.value.length);
+          return;
+        }
+        // Ctrl+Backspace: delete previous word but stop at LHS boundary
+        // Let Meta+Backspace (macOS Cmd+Backspace) fall through to native behavior
+        if (e.key === 'Backspace' && !e.metaKey && s === end && s > lhsLen) {
+          e.preventDefault();
+          // Find word boundary backwards (mimic browser Ctrl+Backspace)
+          let wordStart = s;
+          while (wordStart > lhsLen && text[wordStart - 1] === ' ') wordStart--;
+          while (wordStart > lhsLen && text[wordStart - 1] !== ' ') wordStart--;
+          wordStart = Math.max(wordStart, lhsLen);
+          editor.setSelectionRange(wordStart, s);
+          document.execCommand('insertText', false, '');
+          return;
+        }
+        if (e.key === 'Backspace' && !e.metaKey && s <= lhsLen) { e.preventDefault(); return; }
+        return;
+      }
+      // Token-level Backspace (no selection): delete entire token before cursor
+      if (e.key === 'Backspace' && s === end && s > lhsLen) {
+        e.preventDefault();
+        // Find the token ending at or before cursor
+        let delEnd = s;
+        // If cursor is right at a punctuation char (parens, brackets — neither
+        // ident nor op nor whitespace), target it directly instead of skipping
+        // backwards past any preceding space into the previous token.
+        const _c = delEnd < text.length ? text[delEnd] : null;
+        const _isPunc = _c && !/\s/.test(_c) && !/[a-zA-Z0-9_']/.test(_c) && !/[!@#$%^&*\-+=<>?/|~:.\\]/.test(_c);
+        if (!_isPunc) {
+          // Skip whitespace backwards
+          while (delEnd > lhsLen && text[delEnd - 1] === ' ') delEnd--;
+        }
+        const range = getTokenRange(text, delEnd);
+        if (range && range.start >= lhsLen) {
+          let removeStart = range.start;
+          let removeEnd = range.end;
+          const hasBefore = removeStart > lhsLen && text[removeStart - 1] === ' ';
+          const hasAfter = removeEnd < text.length && text[removeEnd] === ' ';
+          // Remove one adjacent space, but not both (keep one if token is between other tokens)
+          if (hasBefore && hasAfter) {
+            removeStart--; // remove leading space only
+          } else if (hasAfter) {
+            removeEnd++; // remove trailing space
+          } else if (hasBefore) {
+            removeStart--; // remove leading space
+          }
+          removeStart = Math.max(removeStart, lhsLen);
+          editor.setSelectionRange(removeStart, removeEnd);
+          document.execCommand('insertText', false, '');
+        }
+        return;
+      }
       // Prevent backspace into LHS
       if (e.key === 'Backspace' && s === end && s <= lhsLen) { e.preventDefault(); return; }
+      // Token-level Delete (no selection): delete entire token after cursor
+      if (e.key === 'Delete' && s === end && s >= lhsLen) {
+        e.preventDefault();
+        let delStart = s;
+        // Skip whitespace forward
+        while (delStart < text.length && text[delStart] === ' ') delStart++;
+        if (delStart >= text.length) return;
+        const range = getTokenRange(text, delStart);
+        if (range) {
+          let removeEnd = range.end;
+          if (removeEnd < text.length && text[removeEnd] === ' ') removeEnd++;
+          editor.setSelectionRange(s, removeEnd);
+          document.execCommand('insertText', false, '');
+        }
+        return;
+      }
       // Prevent delete at end of LHS when nothing selected
       if (e.key === 'Delete' && s === end && s < lhsLen) { e.preventDefault(); return; }
+      // Token-level ArrowLeft (no selection): jump to start of previous token
+      if (e.key === 'ArrowLeft' && s === end && !e.shiftKey && s > lhsLen) {
+        e.preventDefault();
+        let target = s;
+        // Skip whitespace backwards
+        while (target > lhsLen && text[target - 1] === ' ') target--;
+        // Find token at this position and jump to its start
+        const range = getTokenRange(text, target);
+        if (range && range.start >= lhsLen) {
+          editor.setSelectionRange(range.start, range.start);
+        } else {
+          editor.setSelectionRange(lhsLen, lhsLen);
+        }
+        return;
+      }
+      // Token-level ArrowRight (no selection): jump to end of next token
+      if (e.key === 'ArrowRight' && s === end && !e.shiftKey && s < text.length) {
+        e.preventDefault();
+        let target = s;
+        // Skip whitespace forward
+        while (target < text.length && text[target] === ' ') target++;
+        // Find token at this position and jump to its end
+        const range = getTokenRange(text, target);
+        if (range) {
+          editor.setSelectionRange(range.end, range.end);
+        } else {
+          editor.setSelectionRange(text.length, text.length);
+        }
+        return;
+      }
       // Prevent selection that starts in LHS from being typed over
-      if (s < lhsLen && end > s && !e.ctrlKey && !e.metaKey && !e.altKey &&
+      if (s < lhsLen && end > s && !e.altKey &&
           e.key.length === 1) {
         e.preventDefault();
-        editor.setRangeText(e.key, lhsLen, end, 'end');
-        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        editor.setSelectionRange(lhsLen, end);
+        document.execCommand('insertText', false, e.key);
         return;
       }
       // Clamp Home key to after LHS
-      if (e.key === 'Home' && !e.ctrlKey) {
+      if (e.key === 'Home') {
         e.preventDefault();
         editor.setSelectionRange(lhsLen, e.shiftKey ? end : lhsLen);
-        return;
-      }
-      // Prevent Ctrl+A from selecting LHS — select only RHS
-      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
-        e.preventDefault();
-        editor.setSelectionRange(lhsLen, editor.value.length);
         return;
       }
     });
@@ -1164,32 +1278,27 @@ function render() {
       const fname = e.dataTransfer.getData('text/plain').replace(/^\(/, '').replace(/\)$/, '');
       if (!fname) return;
       editor.focus();
-      // Remove "undefined" from RHS if present
+      // Remove "undefined" and any surrounding whitespace from RHS
       const rhsStart = minDropPos();
       const rhs = editor.value.slice(rhsStart).trim();
       if (rhs === 'undefined') {
-        const undStart = editor.value.indexOf('undefined', rhsStart);
-        editor.setRangeText('', undStart, undStart + 'undefined'.length, 'end');
+        // Remove everything after = (whitespace + "undefined")
+        const removeFrom = rhsStart;
+        const removeTo = editor.value.length;
+        editor.setSelectionRange(removeFrom, removeTo);
+        document.execCommand('insertText', false, '');
       }
-      // Determine what to insert and where
+      // Re-read text after potential removal, clamp pos into valid range
       const text = editor.value;
-      const rhsAfterClean = text.slice(rhsStart).trim();
-      const isFunc = LEVELS[currentLevel].funcs.some(f => f.name.replace(/^\(/, '').replace(/\)$/, '') === fname);
-      let insert, pos;
-      if (!rhsAfterClean) {
-        // Empty RHS — insert at end with leading space
-        pos = text.length;
-        insert = (pos > 0 && text[pos - 1] !== ' ') ? ' ' + fname : fname;
-      } else if (isFunc) {
-        // Function dropped — use drop caret position if available
-        pos = Math.max(editor._dropPos ?? rhsStart, rhsStart);
-        insert = fname + ' $ ';
-      } else {
-        // Parameter — use drop caret position if available
-        pos = Math.max(editor._dropPos ?? text.length, rhsStart);
-        insert = (pos > 0 && text[pos - 1] !== ' ') ? ' ' + fname : fname;
-      }
-      editor.setRangeText(insert, pos, pos, 'end');
+      let pos = Math.max(editor._dropPos ?? text.length, rhsStart);
+      pos = Math.min(pos, text.length);
+      // Skip over existing whitespace so we don't double-space
+      while (pos < text.length && text[pos] === ' ') pos++;
+      const needSpace = pos > 0 && text[pos - 1] !== ' ';
+      const needTrail = pos < text.length && text[pos] !== ' ';
+      const insert = (needSpace ? ' ' : '') + fname + (needTrail ? ' ' : '');
+      editor.setSelectionRange(pos, pos);
+      document.execCommand('insertText', false, insert);
       editorContents[currentLevel] = editor.value;
       updateLineNumbers();
       updateEditorOverlay();
@@ -1216,7 +1325,7 @@ function render() {
     }
     let dragOutState = null;
     editor.addEventListener('mousedown', e => {
-      if (e.button !== 0 || !e.altKey) return;
+      if (e.button !== 0) return;
       const pos = caretPosFromPoint(e.clientX, e.clientY);
       const text = editor.value;
       const range = getTokenRange(text, pos);
@@ -1249,37 +1358,82 @@ function render() {
           ghost.style.left = (e.clientX + 12) + 'px';
           ghost.style.top = (e.clientY - 12) + 'px';
         }
+        // Show drop caret when hovering over editor
+        const rect = editor.getBoundingClientRect();
+        const overEditor = e.clientX >= rect.left && e.clientX <= rect.right &&
+                           e.clientY >= rect.top && e.clientY <= rect.bottom;
+        if (overEditor) {
+          let pos = caretPosFromPoint(e.clientX, e.clientY);
+          pos = snapToTokenBoundary(editor.value, pos);
+          pos = Math.max(pos, minDropPos());
+          showDropCaret(pos);
+        } else {
+          removeDropCaret();
+        }
       }
     };
     const onDragOutUp = e => {
       if (!dragOutState) return;
       const ghost = document.getElementById('drag-out-ghost');
       if (ghost) ghost.remove();
+      removeDropCaret();
       if (dragOutState.dragging) {
         const rect = editor.getBoundingClientRect();
         const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
                        e.clientY >= rect.top && e.clientY <= rect.bottom;
-        if (!inside) {
-          let { start, end } = dragOutState.range;
-          const text = editor.value;
-          if (start > 0 && text[start - 1] === ' ') start--;
-          else if (end < text.length && text[end] === ' ') end++;
+        // Remove token from original position
+        let { start, end } = dragOutState.range;
+        const text = editor.value;
+        if (start > 0 && text[start - 1] === ' ') start--;
+        else if (end < text.length && text[end] === ' ') end++;
+        const token = dragOutState.token;
+
+        if (inside) {
+          // Rearrange: compute drop position, adjust for removal offset
+          let dropTarget = caretPosFromPoint(e.clientX, e.clientY);
+          dropTarget = snapToTokenBoundary(editor.value, dropTarget);
+          dropTarget = Math.max(dropTarget, minDropPos());
+          // If dropping at the same spot, do nothing
+          if (dropTarget >= start && dropTarget <= end) {
+            editor.setSelectionRange(dragOutState.origPos, dragOutState.origPos);
+          } else {
+            editor.focus();
+            // Remove original token first
+            editor.setSelectionRange(start, end);
+            document.execCommand('insertText', false, '');
+            // Adjust drop position for the removal
+            let insertAt = dropTarget > end ? dropTarget - (end - start) : dropTarget;
+            insertAt = Math.max(insertAt, minDropPos());
+            const t = editor.value;
+            const needSpace = insertAt > 0 && t[insertAt - 1] !== ' ';
+            const needTrail = insertAt < t.length && t[insertAt] !== ' ';
+            const insert = (needSpace ? ' ' : '') + token + (needTrail ? ' ' : '');
+            editor.setSelectionRange(insertAt, insertAt);
+            document.execCommand('insertText', false, insert);
+            editorContents[currentLevel] = editor.value;
+            updateLineNumbers();
+            updateEditorOverlay();
+            clearTimeout(liveCheckTimer);
+            liveCheckTimer = setTimeout(runLiveCheck, 100);
+          }
+        } else {
+          // Dragged outside editor — remove token
           editor.focus();
-          editor.setRangeText('', start, end, 'end');
+          editor.setSelectionRange(start, end);
+          document.execCommand('insertText', false, '');
           // Restore "undefined" if RHS is now empty
           const rhsStart = minDropPos();
           const rhs = editor.value.slice(rhsStart).trim();
           if (!rhs) {
             const insertAt = editor.value.length;
-            editor.setRangeText(' undefined', insertAt, insertAt, 'end');
+            editor.setSelectionRange(insertAt, insertAt);
+            document.execCommand('insertText', false, ' undefined');
           }
           editorContents[currentLevel] = editor.value;
           updateLineNumbers();
           updateEditorOverlay();
           clearTimeout(liveCheckTimer);
           liveCheckTimer = setTimeout(runLiveCheck, 100);
-        } else {
-          editor.setSelectionRange(dragOutState.origPos, dragOutState.origPos);
         }
       } else {
         editor.setSelectionRange(dragOutState.origPos, dragOutState.origPos);
@@ -1346,17 +1500,61 @@ function onEditorInput(e) {
   const lhs = level.lhs.trim();
   const minPos = lhs.length + 1; // lhs + space
 
-  // If LHS was damaged, restore it
+  // If LHS was damaged, restore it (using execCommand to preserve undo stack)
   if (!editor.value.startsWith(lhs + ' ')) {
-    // Try to salvage the RHS: everything after the first '=' or after the damaged prefix
     let rhs = '';
     const eqIdx = editor.value.indexOf('=');
     if (eqIdx >= 0) {
       rhs = editor.value.slice(eqIdx + 1).trimStart();
     }
-    editor.value = lhs + ' ' + rhs;
+    const restored = lhs + ' ' + rhs;
+    editor.setSelectionRange(0, editor.value.length);
+    document.execCommand('insertText', false, restored);
     const newPos = Math.max(minPos, editor.value.length);
     editor.setSelectionRange(newPos, newPos);
+  }
+
+  // Strip leading spaces from RHS (collapses double spaces at the LHS boundary)
+  const prefix = lhs + ' ';
+  if (editor.value.startsWith(prefix)) {
+    const rhs = editor.value.slice(prefix.length);
+    const trimmed = rhs.replace(/^ +/, '');
+    if (trimmed !== rhs) {
+      const shrink = rhs.length - trimmed.length;
+      const curPos = editor.selectionStart;
+      editor.setSelectionRange(prefix.length, prefix.length + shrink);
+      document.execCommand('insertText', false, '');
+      editor.setSelectionRange(Math.max(minPos, curPos - shrink), Math.max(minPos, curPos - shrink));
+    }
+  }
+
+  // Auto-space: insert spaces between adjacent ident↔op token boundaries
+  if (!_autoSpacing && editor.value.startsWith(prefix)) {
+    const _isId = c => /[a-zA-Z0-9_']/.test(c);
+    const _isOp = c => /[!@#$%^&*\-+=<>?/|~:.\\]/.test(c);
+    const rhsRaw = editor.value.slice(prefix.length);
+    let spaced = '';
+    let shift = 0;
+    const cRhsPos = editor.selectionStart - prefix.length;
+    for (let i = 0; i < rhsRaw.length; i++) {
+      if (i > 0) {
+        const p = rhsRaw[i - 1], c = rhsRaw[i];
+        if ((_isId(p) && _isOp(c)) || (_isOp(p) && _isId(c))) {
+          spaced += ' ';
+          if (i <= cRhsPos) shift++;
+        }
+      }
+      spaced += rhsRaw[i];
+    }
+    if (spaced !== rhsRaw) {
+      _autoSpacing = true;
+      const rhsStart = prefix.length;
+      editor.setSelectionRange(rhsStart, rhsStart + rhsRaw.length);
+      document.execCommand('insertText', false, spaced);
+      const newCur = prefix.length + cRhsPos + shift;
+      editor.setSelectionRange(newCur, newCur);
+      _autoSpacing = false;
+    }
   }
 
   editorContents[currentLevel] = editor.value;
@@ -1368,6 +1566,7 @@ function onEditorInput(e) {
 }
 
 let _overlayCache = { level: -1 };
+let _autoSpacing = false;
 function updateEditorOverlay() {
   const overlay = document.getElementById('editor-overlay');
   const editor = document.getElementById('code-editor');
@@ -1411,8 +1610,8 @@ function updateEditorOverlay() {
     for (const tok of tokens) {
       if (/^\s+$/.test(tok)) { html += tok; }
       else if (tok === 'undefined') { html += `<span class="token-undef">${tok}</span>`; }
-      else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += `<span class="token-func">${escHtml(tok)}</span>`; }
-      else if (params.has(tok)) { html += `<span class="token-param">${escHtml(tok)}</span>`; }
+      else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += `<span class="token-func">${symbolDisplay(tok, null, tok.length)}</span>`; }
+      else if (params.has(tok)) { html += `<span class="token-param">${symbolDisplay(tok, null, tok.length)}</span>`; }
       else if (tok === '(' || tok === ')') { html += `<span class="token-paren">${tok}</span>`; }
       else { html += escHtml(tok); }
     }
@@ -1585,12 +1784,12 @@ function renderExprTreeGecko(tree, funcSigMap, paramTypeMap, bareFuncs, params) 
 
   if (tree.type === 'leaf') {
     if (bareFuncs.has(tree.name) && funcSigMap[tree.name]) {
-      return `<div class="editor-token editor-token-func"><div class="token-label">${escHtml(tree.name)}</div><div style="margin-top:3px">${renderGeckoType(parseType(funcSigMap[tree.name]))}</div></div>`;
+      return `<div class="editor-token editor-token-func"><div class="token-label">${symbolDisplay(tree.name)}</div><div style="margin-top:3px">${renderGeckoType(parseType(funcSigMap[tree.name]))}</div></div>`;
     }
     if (params.has(tree.name) && paramTypeMap[tree.name]) {
-      return `<div class="editor-token editor-token-param"><div class="token-label">${escHtml(tree.name)}</div><div style="margin-top:3px">${renderGeckoType(paramTypeMap[tree.name])}</div></div>`;
+      return `<div class="editor-token editor-token-param"><div class="token-label">${symbolDisplay(tree.name)}</div><div style="margin-top:3px">${renderGeckoType(paramTypeMap[tree.name])}</div></div>`;
     }
-    return `<div class="editor-token editor-token-op"><div class="token-label">${escHtml(tree.name)}</div></div>`;
+    return `<div class="editor-token editor-token-op"><div class="token-label">${symbolDisplay(tree.name)}</div></div>`;
   }
 
   if (tree.type === 'app') {
@@ -1608,7 +1807,7 @@ function renderExprTreeGecko(tree, funcSigMap, paramTypeMap, bareFuncs, params) 
         const children = chain.map(step => {
           const gecko = renderGeckoType(step.type);
           return `<div style="display:inline-flex;flex-direction:column;align-items:center">
-            <div class="editor-slot-label ${step.cls}">${escHtml(step.label)}</div>${gecko}</div>`;
+            <div class="editor-slot-label ${step.cls}">${symbolDisplay(step.label)}</div>${gecko}</div>`;
         }).join('');
         return `<div class="gecko-arrow"><div class="gecko-arrow-inner">
           <div class="gecko-arrow-header">${geckoChevron}</div>
@@ -1626,13 +1825,13 @@ function renderExprTreeGecko(tree, funcSigMap, paramTypeMap, bareFuncs, params) 
 
   if (tree.type === 'comp') {
     return renderExprTreeGecko(tree.left, funcSigMap, paramTypeMap, bareFuncs, params) +
-      `<div class="editor-token editor-token-op"><div class="token-label">.</div></div>` +
+      `<div class="editor-token editor-token-op"><div class="token-label">${symbolDisplay('.')}</div></div>` +
       renderExprTreeGecko(tree.right, funcSigMap, paramTypeMap, bareFuncs, params);
   }
 
   if (tree.type === 'binop') {
     return renderExprTreeGecko(tree.left, funcSigMap, paramTypeMap, bareFuncs, params) +
-      `<div class="editor-token editor-token-op"><div class="token-label">${escHtml(tree.op)}</div></div>` +
+      `<div class="editor-token editor-token-op"><div class="token-label">${symbolDisplay(tree.op)}</div></div>` +
       renderExprTreeGecko(tree.right, funcSigMap, paramTypeMap, bareFuncs, params);
   }
 
@@ -1658,7 +1857,7 @@ function renderFuncAppGecko(funcName, funcSig, args, funcSigMap, paramTypeMap, b
     const abbrev = funcName.length > 2 ? funcName.slice(0, 2) : funcName;
     const nodeHtml = geckoNode(abbrev, '#93c5fd', '#1e40af', argsGecko);
     if (nested) return nodeHtml;
-    return `<div class="editor-token editor-token-func"><div class="token-label">${escHtml(funcName)}</div><div style="margin-top:3px">${nodeHtml}</div></div>`;
+    return `<div class="editor-token editor-token-func"><div class="token-label">${symbolDisplay(funcName)}</div><div style="margin-top:3px">${nodeHtml}</div></div>`;
   }
 
   // Partially applied — show arrow with filled and unfilled slots
@@ -1676,9 +1875,9 @@ function renderFuncAppGecko(funcName, funcSig, args, funcSigMap, paramTypeMap, b
 
   if (nested) {
     return `<div style="display:inline-flex;flex-direction:column;align-items:center">
-      <div class="editor-slot-label editor-slot-func">${escHtml(funcName)}</div>${arrowHtml}</div>`;
+      <div class="editor-slot-label editor-slot-func">${symbolDisplay(funcName)}</div>${arrowHtml}</div>`;
   }
-  return `<div class="editor-token editor-token-func"><div class="token-label">${escHtml(funcName)}</div><div style="margin-top:3px">${arrowHtml}</div></div>`;
+  return `<div class="editor-token editor-token-func"><div class="token-label">${symbolDisplay(funcName)}</div><div style="margin-top:3px">${arrowHtml}</div></div>`;
 }
 
 function renderArgSlot(argTree, slotType, funcSigMap, paramTypeMap, bareFuncs, params) {
@@ -1689,12 +1888,12 @@ function renderArgSlot(argTree, slotType, funcSigMap, paramTypeMap, bareFuncs, p
       // Param — show type block with name label
       const gecko = renderGeckoType(paramTypeMap[argTree.name]);
       return `<div style="display:inline-flex;flex-direction:column;align-items:center">
-        <div class="editor-slot-label editor-slot-param">${escHtml(argTree.name)}</div>${gecko}</div>`;
+        <div class="editor-slot-label editor-slot-param">${symbolDisplay(argTree.name)}</div>${gecko}</div>`;
     }
     if (bareFuncs.has(argTree.name) && funcSigMap[argTree.name]) {
       // Unapplied function as argument — show its full arrow
       return `<div style="display:inline-flex;flex-direction:column;align-items:center">
-        <div class="editor-slot-label editor-slot-func">${escHtml(argTree.name)}</div>${renderGeckoType(parseType(funcSigMap[argTree.name]))}</div>`;
+        <div class="editor-slot-label editor-slot-func">${symbolDisplay(argTree.name)}</div>${renderGeckoType(parseType(funcSigMap[argTree.name]))}</div>`;
     }
     return renderGeckoType(slotType);
   }
@@ -1777,7 +1976,7 @@ function runLiveCheck() {
 }
 
 function renderTypeSig(name, sig) {
-  return `<span class="type-name">${escHtml(name)}</span> <span style="color:#374151">::</span> ${colorizeType(sig)}`;
+  return `<span class="type-name">${symbolDisplay(name)}</span> <span style="color:#374151">::</span> ${colorizeType(sig)}`;
 }
 
 function colorizeType(sig) {
@@ -1786,7 +1985,7 @@ function colorizeType(sig) {
     if (t === '->') return '<span class="arrow">&rarr;</span>';
     if (t === '(' || t === ')') return `<span class="type-paren">${t}</span>`;
     if (t === ',') return '<span class="type-paren">,</span>';
-    if (t[0] >= 'A' && t[0] <= 'Z' || t === '()') return `<span class="type-con">${escHtml(t)}</span>`;
+    if (t[0] >= 'A' && t[0] <= 'Z' || t === '()') return `<span class="type-con">${symbolDisplay(t)}</span>`;
     return `<span class="type-var">${escHtml(t)}</span>`;
   }).join(' ');
 }
@@ -1801,6 +2000,100 @@ const geckoColors = {
   '()': 'rgb(180,180,180)',
 };
 const varColor = 'rgb(239,177,177)';
+
+// Icon mode: SVG icon registry — superhero themed!
+const ICON_MAP = (() => {
+  const svg = (d, vb) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb || '0 0 24 24'}" width="1em" height="1em" fill="currentColor">${d}</svg>`;
+  const S = 'stroke="currentColor"', N = 'fill="none"', R = 'stroke-linecap="round" stroke-linejoin="round"';
+  const map = {
+    // ── Type constructors ──
+    // Zero: cracked shield (broken, needs to become Hero!)
+    'Zero': svg(`<path d="M12 2L4 7v6c0 5 3.5 9.7 8 11 4.5-1.3 8-6 8-11V7z" ${N} ${S} stroke-width="2"/><path d="M10 7l1.5 4.5-1.5 3.5 1 4" ${N} ${S} stroke-width="2" ${R}/>`),
+    // Hero: solid shield (powered up!)
+    'Hero': svg('<path d="M12 2L4 7v6c0 5 3.5 9.7 8 11 4.5-1.3 8-6 8-11V7z"/>'),
+
+    // ── Operators (action effects!) ──
+    // $: lightning bolt (ZAP! apply this power!)
+    '$': svg('<path d="M13 2L7 12h4l-2 10 8-12h-4z"/>'),
+    // .: chain links (combo! connect two powers!)
+    '.': svg(`<circle cx="8" cy="12" r="5" ${N} ${S} stroke-width="2.5"/><circle cx="16" cy="12" r="5" ${N} ${S} stroke-width="2.5"/>`),
+    // <$>: magic wand + star (cast a spell through the wrapper!)
+    '<$>': svg(`<line x1="3" y1="21" x2="16" y2="8" ${S} stroke-width="2.5" stroke-linecap="round"/><path d="M18 2l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/>`),
+    // <*>: starburst (POW! power combo!)
+    '<*>': svg(`<circle cx="12" cy="12" r="3"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5M5.6 5.6l3.5 3.5M14.9 14.9l3.5 3.5M18.4 5.6l-3.5 3.5M9.1 14.9l-3.5 3.5" ${N} ${S} stroke-width="2" stroke-linecap="round"/>`),
+    // >>=: double chevrons (WHOOSH! channel power forward!)
+    '>>=': svg(`<path d="M4 7l6 5-6 5" ${N} ${S} stroke-width="2.5" ${R}/><path d="M12 7l6 5-6 5" ${N} ${S} stroke-width="2.5" ${R}/>`),
+
+    // ── Superpowers (each function = a unique power!) ──
+    // f: star (basic hero power)
+    'f': svg('<path d="M12 2l2.9 6.3H22l-5.7 4.2 2.2 6.8L12 15l-6.5 4.3 2.2-6.8L2 8.3h7.1z"/>'),
+    // f1: flame (fire power!)
+    'f1': svg('<path d="M12 1c-5 6-8 10-8 15a8 8 0 0016 0c0-5-3-9-8-15z"/>'),
+    // f2: water drop (water power!)
+    'f2': svg('<path d="M12 2C8 8 4 12 4 16a8 8 0 0016 0c0-4-4-8-8-14z"/>'),
+    // f3: heart (courage!)
+    'f3': svg('<path d="M12 21C5.5 15.5 2 12 2 8.5A5.5 5.5 0 017.5 3c1.7 0 3.4.8 4.5 2.1A6 6 0 0116.5 3 5.5 5.5 0 0122 8.5C22 12 18.5 15.5 12 21z"/>'),
+    // f4: gem (crystal power!)
+    'f4': svg('<path d="M6 3h12l4 7-10 12L2 10z"/>'),
+    // g: crescent moon (mystical power!)
+    'g': svg('<path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/>'),
+
+    // ── Hero gadgets (what they do!) ──
+    // runZero: key (unlock! free the value from Zero!)
+    'runZero': svg(`<circle cx="8" cy="7" r="5" ${N} ${S} stroke-width="2.5"/><path d="M12 10v10" ${S} stroke-width="2.5" stroke-linecap="round"/><path d="M10 15h4M10 18h4" ${S} stroke-width="2" stroke-linecap="round"/>`),
+    // mkHero: cape (suit up! become a hero!)
+    'mkHero': svg(`<path d="M7 3h10v3c0 5-2 9-5 15-3-6-5-10-5-15z"/>`),
+    // fmap: sparkles (magic transformation!)
+    'fmap': svg('<path d="M9 2l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z"/><path d="M18 7l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/><path d="M11 13l1.5 3.5 3.5 1.5-3.5 1.5-1.5 3.5-1.5-3.5-3.5-1.5 3.5-1.5z"/>'),
+    // id: straight arrow (pass through unchanged!)
+    'id': svg(`<path d="M4 12h16M17 8l4 4-4 4" ${N} ${S} stroke-width="2.5" ${R}/>`),
+    // pure: arrow up (lift up to hero level!)
+    'pure': svg(`<path d="M12 22V6M6 12l6-6 6 6" ${N} ${S} stroke-width="2.5" ${R}/>`),
+    // join: arrow down (flatten! squash layers together!)
+    'join': svg(`<path d="M12 2v16M6 12l6 6 6-6" ${N} ${S} stroke-width="2.5" ${R}/>`),
+    // ap: bullseye target (activate! hit the target!)
+    'ap': svg(`<circle cx="12" cy="12" r="9" ${N} ${S} stroke-width="2.5"/><circle cx="12" cy="12" r="4" fill="currentColor"/>`),
+    // liftA2: two arrows up (lift two things at once!)
+    'liftA2': svg(`<path d="M7 22V10M4 14l3-4 3 4M17 22V10M14 14l3-4 3 4" ${N} ${S} stroke-width="2.5" ${R}/>`),
+    // wrap: gift box (wrap it up inside!)
+    'wrap': svg(`<rect x="3" y="10" width="18" height="12" rx="2" ${N} ${S} stroke-width="2"/><path d="M12 10v12M3 14h18" ${S} stroke-width="2"/><path d="M7 10l5-6 5 6" ${N} ${S} stroke-width="2" ${R}/>`),
+    // dup: fork split (clone! one becomes two!)
+    'dup': svg(`<circle cx="12" cy="5" r="3" fill="currentColor"/><circle cx="5" cy="19" r="3" fill="currentColor"/><circle cx="19" cy="19" r="3" fill="currentColor"/><path d="M12 8v4l-7 7M12 12l7 7" ${N} ${S} stroke-width="2" ${R}/>`),
+    // nest: nested boxes (put inside another box!)
+    'nest': svg(`<rect x="2" y="2" width="20" height="20" rx="3" ${N} ${S} stroke-width="2"/><rect x="7" y="7" width="13" height="13" rx="2" ${N} ${S} stroke-width="2"/>`),
+    // swap: crossing arrows (switch places!)
+    'swap': svg(`<path d="M5 8h14M16 5l3 3-3 3" ${N} ${S} stroke-width="2" ${R}/><path d="M19 16H5M8 13l-3 3 3 3" ${N} ${S} stroke-width="2" ${R}/>`),
+    // pair: two converge into one (team up!)
+    'pair': svg(`<circle cx="5" cy="5" r="3" fill="currentColor"/><circle cx="19" cy="5" r="3" fill="currentColor"/><path d="M5 8v4l7 5 7-5V8" ${N} ${S} stroke-width="2" ${R}/><circle cx="12" cy="19" r="3" fill="currentColor"/>`),
+    // fst: arrow left to dot (pick the left one!)
+    'fst': svg(`<path d="M20 12H8M12 8l-4 4 4 4" ${N} ${S} stroke-width="2.5" ${R}/><circle cx="4" cy="12" r="3" fill="currentColor"/>`),
+    // snd: arrow right to dot (pick the right one!)
+    'snd': svg(`<path d="M4 12h12M12 8l4 4-4 4" ${N} ${S} stroke-width="2.5" ${R}/><circle cx="20" cy="12" r="3" fill="currentColor"/>`),
+
+    // ── Parameters (your starting ingredients!) ──
+    // z: glowing orb (the raw material you're working with!)
+    'z': svg('<circle cx="12" cy="12" r="9" fill="currentColor" opacity="0.25"/><circle cx="12" cy="12" r="6" fill="currentColor" opacity="0.4"/><circle cx="12" cy="12" r="3" fill="currentColor"/>'),
+    // ad/bd/cd: potion bottles (full, half, empty!)
+    'ad': svg(`<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 6l-2 4v10a2 2 0 002 2h8a2 2 0 002-2V10l-2-4z"/>`),
+    'bd': svg(`<rect x="8" y="2" width="8" height="4" rx="1" ${N} ${S} stroke-width="2"/><path d="M8 6l-2 4v10a2 2 0 002 2h8a2 2 0 002-2V10l-2-4z" ${N} ${S} stroke-width="2"/><rect x="6" y="14" width="12" height="8" rx="2" fill="currentColor" opacity="0.5"/>`),
+    'cd': svg(`<rect x="8" y="2" width="8" height="4" rx="1" ${N} ${S} stroke-width="2"/><path d="M8 6l-2 4v10a2 2 0 002 2h8a2 2 0 002-2V10l-2-4z" ${N} ${S} stroke-width="2"/>`),
+
+    // Type variables — null means stay as text
+    'a': null, 'b': null, 'c': null, 'd': null,
+  };
+  // Gecko abbreviation aliases
+  map['Ze'] = map['Zero'];
+  map['He'] = map['Hero'];
+  return map;
+})();
+
+function symbolDisplay(name, fallbackHtml, fixedWidthCh) {
+  if (!iconMode) return fallbackHtml != null ? fallbackHtml : escHtml(name);
+  const svg = ICON_MAP[name];
+  if (!svg) return fallbackHtml != null ? fallbackHtml : escHtml(name);
+  const w = fixedWidthCh ? `width:${fixedWidthCh}ch;` : '';
+  return `<span class="icon-sym" title="${escHtml(name)}" style="${w}">${svg}</span>`;
+}
 
 function renderGeckoArrow(sig) {
   const type = parseType(sig);
@@ -1854,7 +2147,7 @@ function renderGeckoType(type) {
 function geckoLeaf(label, bgColor, textColor) {
   return `<div class="gecko-wrap"><div class="gecko-inner" style="background:${bgColor}">
     <div class="gecko-header"></div>
-    <div class="gecko-body" style="color:${textColor}">${escHtml(label)}</div>
+    <div class="gecko-body" style="color:${textColor}">${symbolDisplay(label)}</div>
   </div></div>`;
 }
 
@@ -1862,14 +2155,14 @@ function geckoNode(label, bgColor, textColor, childrenHtml) {
   return `<div class="gecko-wrap"><div class="gecko-inner" style="background:${bgColor}">
     <div class="gecko-header"></div>
     <div style="display:flex">
-      <div class="gecko-body" style="color:${textColor};min-width:24px">${escHtml(label)}</div>
+      <div class="gecko-body" style="color:${textColor};min-width:24px">${symbolDisplay(label)}</div>
       <div class="gecko-children">${childrenHtml}</div>
     </div>
   </div></div>`;
 }
 
 function escHtml(s) {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ─── Actions ───
@@ -1967,6 +2260,14 @@ window.toggleGecko = function() {
   geckoOn = !geckoOn;
   render();
   // Restore editor content after re-render
+  const ed = document.getElementById('code-editor');
+  if (ed) ed.value = getEditorContent();
+};
+
+window.toggleIconMode = function() {
+  iconMode = !iconMode;
+  saveProgress();
+  render();
   const ed = document.getElementById('code-editor');
   if (ed) ed.value = getEditorContent();
 };
