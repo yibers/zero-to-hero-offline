@@ -75,9 +75,9 @@ main { display: flex; flex-direction: column; height: calc(100vh - 36px); }
 
 /* Editor — original uses CodeMirror with white bg */
 .editor-wrap { display: flex; flex-direction: column; overflow: hidden; }
-.editor-container { display: flex; flex: 1; background: white; overflow: hidden; }
+.editor-container { display: flex; background: white; overflow: hidden; }
 .line-numbers { background: white; color: #9ca3af; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 0; text-align: right; user-select: none; min-width: 28px; padding-right: 8px; line-height: 1.5; }
-textarea.editor { width: 100%; height: 100%; background: transparent; color: transparent; caret-color: black; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; border: none; resize: none; outline: none; line-height: 1.5; position: relative; z-index: 1; }
+textarea.editor { width: 100%; background: transparent; color: transparent; caret-color: black; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; border: none; resize: none; outline: none; line-height: 1.5; position: relative; z-index: 1; }
 textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .editor-area { flex: 1; position: relative; overflow: hidden; }
 .editor-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; line-height: 1.5; white-space: pre-wrap; overflow: hidden; z-index: 0; }
@@ -86,6 +86,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .token-param { background: #d1fae5; border-radius: 3px; color: #065f46; box-shadow: 3px 0 0 #d1fae5, -3px 0 0 #d1fae5; }
 .token-undef { color: #94a3b8; font-style: italic; }
 .token-paren { color: #374151; }
+.token-unknown { color: #9ca3af; font-style: italic; }
 
 /* Editor token gecko blocks */
 .editor-tokens { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-end;
@@ -990,7 +991,7 @@ function render() {
               <div class="line-numbers" id="line-numbers">1</div>
               <div class="editor-area">
                 <div class="editor-overlay" id="editor-overlay"></div>
-                <textarea class="editor code" id="code-editor" spellcheck="false"></textarea>
+                <textarea class="editor code" id="code-editor" rows="1" spellcheck="false"></textarea>
               </div>
             </div>
             ${geckoOn ? `<div id="editor-tokens" class="editor-tokens"></div>` : ''}
@@ -1541,7 +1542,7 @@ function onEditorInput(e) {
         const p = rhsRaw[i - 1], c = rhsRaw[i];
         if ((_isId(p) && _isOp(c)) || (_isOp(p) && _isId(c))) {
           spaced += ' ';
-          if (i <= cRhsPos) shift++;
+          if (i < cRhsPos) shift++;
         }
       }
       spaced += rhsRaw[i];
@@ -1613,7 +1614,7 @@ function updateEditorOverlay() {
       else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += `<span class="token-func">${symbolDisplay(tok, null, tok.length)}</span>`; }
       else if (params.has(tok)) { html += `<span class="token-param">${symbolDisplay(tok, null, tok.length)}</span>`; }
       else if (tok === '(' || tok === ')') { html += `<span class="token-paren">${tok}</span>`; }
-      else { html += escHtml(tok); }
+      else { html += `<span class="token-unknown">${escHtml(tok)}</span>`; }
     }
   } else {
     html = escHtml(text);
@@ -1760,7 +1761,7 @@ function flattenExprChain(tree, funcSigMap, paramTypeMap, bareFuncs, params) {
     }
 
     if (head && head.type === 'leaf' && funcSigMap[head.name]) {
-      const funcType = parseType(funcSigMap[head.name]);
+      const funcType = freshen(parseType(funcSigMap[head.name]));
       const parts = [];
       let cur = funcType;
       while (cur.tag === 'fun') { parts.push(cur.from); cur = cur.to; }
@@ -1770,7 +1771,12 @@ function flattenExprChain(tree, funcSigMap, paramTypeMap, bareFuncs, params) {
       if (args.length === 1 && parts.length === 2) {
         const inner = flattenExprChain(args[0], funcSigMap, paramTypeMap, bareFuncs, params);
         if (inner) {
-          return [...inner, { type: parts[1], label: head.name, cls: 'editor-slot-func' }];
+          // Unify this function's input with previous step's output
+          const prevOutput = inner[inner.length - 1].type;
+          const subst = unify(parts[0], prevOutput, {});
+          if (!subst) return null; // type mismatch breaks the chain
+          const outputType = applySubst(subst, parts[1]);
+          return [...inner, { type: outputType, label: head.name, cls: 'editor-slot-func' }];
         }
       }
     }

@@ -713,6 +713,28 @@ test.describe('Zero to Hero', () => {
     expect(val).toBe('zeroToHero z = f2 $ f1');
   });
 
+  test('typing chars one-at-a-time before operator merges into single token', async ({ page }) => {
+    const editor = page.locator('#code-editor');
+
+    // Start with "$ f3 z" in the RHS — cursor at left of $
+    await editor.fill('zeroToHero z = $ f3 z');
+    await page.waitForTimeout(100);
+    await editor.click();
+    // Place cursor right before $
+    await editor.press('Home');
+    // Home goes to start of RHS (after "zeroToHero z = ")
+    await page.waitForTimeout(50);
+
+    // Type 'f' then '2' — should merge into 'f2', not 'f 2'
+    await page.keyboard.type('f', { delay: 50 });
+    await page.waitForTimeout(150);
+    await page.keyboard.type('2', { delay: 50 });
+    await page.waitForTimeout(150);
+
+    const val = await editor.inputValue();
+    expect(val).toBe('zeroToHero z = f2 $ f3 z');
+  });
+
   test('icon mode preference persists across reloads', async ({ page }) => {
     // Icon mode should be off by default
     const toggle = page.getByText('Icons');
