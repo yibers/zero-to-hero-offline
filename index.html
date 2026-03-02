@@ -82,7 +82,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .editor-area { flex: 1; position: relative; overflow: hidden; }
 .editor-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; line-height: 1.5; white-space: pre-wrap; overflow: hidden; z-index: 0; }
 .token-lhs { color: #6b7280; }
-.token-func { background: #dbeafe; border-radius: 3px; color: #1e40af; font-weight: 600; box-shadow: 3px 0 0 #dbeafe, -3px 0 0 #dbeafe; }
+.token-func { background: #dbeafe; border-radius: 3px; color: #1e40af; box-shadow: 3px 0 0 #dbeafe, -3px 0 0 #dbeafe; }
 .token-param { background: #d1fae5; border-radius: 3px; color: #065f46; box-shadow: 3px 0 0 #d1fae5, -3px 0 0 #d1fae5; }
 .token-undef { color: #94a3b8; font-style: italic; }
 .token-paren { color: #374151; }
@@ -1065,6 +1065,14 @@ function render() {
         if (e.key === 'Backspace' && !e.metaKey && s <= lhsLen) { e.preventDefault(); return; }
         return;
       }
+      // Auto-clear "undefined" placeholder when user starts typing
+      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+        const rhs = text.slice(lhsLen).trim();
+        if (rhs === 'undefined') {
+          editor.setSelectionRange(lhsLen, text.length);
+          // Let the keystroke replace the selection naturally
+        }
+      }
       // Token-level Backspace (no selection): delete entire token before cursor
       if (e.key === 'Backspace' && s === end && s > lhsLen) {
         e.preventDefault();
@@ -1119,6 +1127,16 @@ function render() {
       }
       // Prevent delete at end of LHS when nothing selected
       if (e.key === 'Delete' && s === end && s < lhsLen) { e.preventDefault(); return; }
+      // Block ArrowLeft at LHS boundary (with or without Shift)
+      if (e.key === 'ArrowLeft' && s <= lhsLen && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          editor.setSelectionRange(lhsLen, end);
+        } else {
+          editor.setSelectionRange(lhsLen, lhsLen);
+        }
+        return;
+      }
       // Token-level ArrowLeft (no selection): jump to start of previous token
       if (e.key === 'ArrowLeft' && s === end && !e.shiftKey && s > lhsLen) {
         e.preventDefault();
@@ -1178,7 +1196,7 @@ function render() {
     // Prevent mouse clicks from placing cursor in LHS
     editor.addEventListener('mouseup', () => {
       if (editor.selectionStart < lhsLen) {
-        editor.setSelectionRange(Math.max(lhsLen, editor.selectionEnd), editor.selectionEnd);
+        editor.setSelectionRange(lhsLen, Math.max(lhsLen, editor.selectionEnd));
       }
     });
     editor.addEventListener('scroll', () => {
@@ -1518,25 +1536,59 @@ function onEditorInput(e) {
     const eqIdx = editor.value.indexOf('=');
     if (eqIdx >= 0) {
       rhs = editor.value.slice(eqIdx + 1).trimStart();
+    } else {
+      // No '=' found at all (e.g. paste replaced everything) —
+      // treat the entire value as RHS if it doesn't resemble the LHS
+      const raw = editor.value.trim();
+      if (raw && !raw.startsWith('zeroToHero')) {
+        rhs = raw;
+      }
     }
     const restored = lhs + ' ' + rhs;
     editor.setSelectionRange(0, editor.value.length);
     document.execCommand('insertText', false, restored);
+    // Fallback: if execCommand failed (e.g. nested input events), force value
+    if (!editor.value.startsWith(lhs + ' ')) {
+      editor.value = restored;
+    }
     const newPos = Math.max(minPos, editor.value.length);
     editor.setSelectionRange(newPos, newPos);
   }
 
-  // Strip leading spaces from RHS (collapses double spaces at the LHS boundary)
+  // Strip leading spaces from RHS and collapse consecutive spaces
   const prefix = lhs + ' ';
-  if (editor.value.startsWith(prefix)) {
+  if (!_normalizingSpaces && editor.value.startsWith(prefix)) {
     const rhs = editor.value.slice(prefix.length);
-    const trimmed = rhs.replace(/^ +/, '');
+    // Remove leading spaces and collapse runs of 2+ spaces into single space
+    const trimmed = rhs.replace(/^ +/, '').replace(/ {2,}/g, ' ');
     if (trimmed !== rhs) {
-      const shrink = rhs.length - trimmed.length;
-      const curPos = editor.selectionStart;
-      editor.setSelectionRange(prefix.length, prefix.length + shrink);
-      document.execCommand('insertText', false, '');
-      editor.setSelectionRange(Math.max(minPos, curPos - shrink), Math.max(minPos, curPos - shrink));
+      _normalizingSpaces = true;
+      const curRhsPos = editor.selectionStart - prefix.length;
+      // Delete extra spaces individually (right-to-left) to preserve undo
+      const deletePositions = [];
+      let inLeading = true;
+      for (let ci = 0; ci < rhs.length; ci++) {
+        if (inLeading && rhs[ci] === ' ') { deletePositions.push(ci); continue; }
+        inLeading = false;
+        if (rhs[ci] === ' ' && ci > 0 && rhs[ci - 1] === ' ') { deletePositions.push(ci); }
+      }
+      for (let di = deletePositions.length - 1; di >= 0; di--) {
+        const absPos = prefix.length + deletePositions[di];
+        editor.setSelectionRange(absPos, absPos + 1);
+        document.execCommand('delete');
+      }
+      // Recompute cursor position
+      let removed = 0;
+      inLeading = true;
+      for (let ci = 0; ci < rhs.length; ci++) {
+        if (ci >= curRhsPos) break;
+        if (inLeading && rhs[ci] === ' ') { removed++; continue; }
+        inLeading = false;
+        if (rhs[ci] === ' ' && ci > 0 && rhs[ci - 1] === ' ') { removed++; }
+      }
+      const newCur = prefix.length + Math.max(0, curRhsPos - removed);
+      editor.setSelectionRange(Math.max(minPos, newCur), Math.max(minPos, newCur));
+      _normalizingSpaces = false;
     }
   }
 
@@ -1560,9 +1612,101 @@ function onEditorInput(e) {
     }
     if (spaced !== rhsRaw) {
       _autoSpacing = true;
-      const rhsStart = prefix.length;
-      editor.setSelectionRange(rhsStart, rhsStart + rhsRaw.length);
-      document.execCommand('insertText', false, spaced);
+      // Insert spaces at boundary points (right-to-left to preserve offsets)
+      const spacePositions = [];
+      let oi = 0, ni = 0;
+      while (oi < rhsRaw.length && ni < spaced.length) {
+        if (rhsRaw[oi] === spaced[ni]) { oi++; ni++; }
+        else if (spaced[ni] === ' ') { spacePositions.push(oi); ni++; }
+        else break;
+      }
+      for (let si = spacePositions.length - 1; si >= 0; si--) {
+        const absPos = prefix.length + spacePositions[si];
+        editor.setSelectionRange(absPos, absPos);
+        document.execCommand('insertText', false, ' ');
+      }
+      const newCur = prefix.length + cRhsPos + shift;
+      editor.setSelectionRange(newCur, newCur);
+      _autoSpacing = false;
+    }
+  }
+
+  // Semantic ident splitting: insert spaces between adjacent known tokens
+  // (e.g. "fz" → "f z" when f and z are both known tokens on this level)
+  if (!_autoSpacing && editor.value.startsWith(prefix)) {
+    const _isId = c => /[a-zA-Z0-9_']/.test(c);
+    const level = LEVELS[currentLevel];
+    if (!_knownIdents || _knownIdentsLevel !== currentLevel) {
+      _knownIdents = new Set();
+      for (const func of level.funcs) {
+        const bare = func.name.replace(/^\(/, '').replace(/\)$/, '');
+        if (/^[a-zA-Z_]/.test(bare)) _knownIdents.add(bare);
+      }
+      const lhsParams = level.lhs.split('=')[0].trim().split(/\s+/).slice(1);
+      for (const p of lhsParams) _knownIdents.add(p);
+      _knownIdentsLevel = currentLevel;
+    }
+
+    const rhs = editor.value.slice(prefix.length);
+    const cRhsPos = editor.selectionStart - prefix.length;
+    let newRhs = '';
+    let shift = 0;
+    let ri = 0;
+    while (ri < rhs.length) {
+      if (_isId(rhs[ri])) {
+        let runEnd = ri;
+        while (runEnd < rhs.length && _isId(rhs[runEnd])) runEnd++;
+        const run = rhs.slice(ri, runEnd);
+        // Greedy split into known tokens
+        const tokens = [];
+        let pos = 0;
+        let fullMatch = true;
+        while (pos < run.length) {
+          let matched = false;
+          for (let len = run.length - pos; len > 0; len--) {
+            if (_knownIdents.has(run.slice(pos, pos + len))) {
+              tokens.push(run.slice(pos, pos + len));
+              pos += len;
+              matched = true;
+              break;
+            }
+          }
+          if (!matched) { fullMatch = false; break; }
+        }
+        if (fullMatch && tokens.length > 1) {
+          let consumed = ri;
+          for (let t = 0; t < tokens.length; t++) {
+            if (t > 0) {
+              newRhs += ' ';
+              if (consumed < cRhsPos) shift++;
+            }
+            newRhs += tokens[t];
+            consumed += tokens[t].length;
+          }
+        } else {
+          newRhs += run;
+        }
+        ri = runEnd;
+      } else {
+        newRhs += rhs[ri];
+        ri++;
+      }
+    }
+    if (newRhs !== rhs) {
+      _autoSpacing = true;
+      // Insert spaces at split points (right-to-left to preserve offsets)
+      const splitPositions = [];
+      let oi = 0, ni = 0;
+      while (oi < rhs.length && ni < newRhs.length) {
+        if (rhs[oi] === newRhs[ni]) { oi++; ni++; }
+        else if (newRhs[ni] === ' ') { splitPositions.push(oi); ni++; }
+        else break;
+      }
+      for (let si = splitPositions.length - 1; si >= 0; si--) {
+        const absPos = prefix.length + splitPositions[si];
+        editor.setSelectionRange(absPos, absPos);
+        document.execCommand('insertText', false, ' ');
+      }
       const newCur = prefix.length + cRhsPos + shift;
       editor.setSelectionRange(newCur, newCur);
       _autoSpacing = false;
@@ -1579,6 +1723,9 @@ function onEditorInput(e) {
 
 let _overlayCache = { level: -1 };
 let _autoSpacing = false;
+let _normalizingSpaces = false;
+let _knownIdents = null;
+let _knownIdentsLevel = -1;
 function updateEditorOverlay() {
   const overlay = document.getElementById('editor-overlay');
   const editor = document.getElementById('code-editor');
