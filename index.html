@@ -1128,7 +1128,18 @@ function render() {
         // Find token at this position and jump to its start
         const range = getTokenRange(text, target);
         if (range && range.start >= lhsLen) {
-          editor.setSelectionRange(range.start, range.start);
+          // If already at start of this token, skip past it to the previous one
+          if (range.start === s) {
+            const prev = range.start - 1;
+            const prevRange = getTokenRange(text, prev);
+            if (prevRange && prevRange.start >= lhsLen) {
+              editor.setSelectionRange(prevRange.start, prevRange.start);
+            } else {
+              editor.setSelectionRange(lhsLen, lhsLen);
+            }
+          } else {
+            editor.setSelectionRange(range.start, range.start);
+          }
         } else {
           editor.setSelectionRange(lhsLen, lhsLen);
         }

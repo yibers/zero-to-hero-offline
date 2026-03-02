@@ -47,9 +47,9 @@ test.describe('Zero to Hero', () => {
 
     // Type correct solution (replace full editor content)
     await editor.fill('zeroToHero z = f z');
-    await page.waitForTimeout(200);
 
     // Inferred type should show the full signature with unicode arrow
+    // (auto-retries until live inference debounce fires)
     await expect(inferredType).toContainText('Zero a');
     await expect(inferredType).toContainText('Hero');
 
@@ -642,6 +642,30 @@ test.describe('Zero to Hero', () => {
     await editor.press('ArrowRight');
     const pos6 = await editor.evaluate(el => el.selectionStart);
     expect(pos6).toBe(23); // end of "$"
+  });
+
+  test('arrow keys navigate through parentheses token by token', async ({ page }) => {
+    // Jump directly to level 12 (index 11) which has parens and >>= operator
+    await page.evaluate(() => { currentLevel = 11; render(); });
+    await expect(page.locator('.level-badge')).toContainText('Level 12');
+    const editor = page.locator('#code-editor');
+    // Type: (f z) >>= dup
+    const lhs = await editor.evaluate(el => el.value.split('=')[0] + '= ');
+    await editor.fill(lhs + '(f z) >>= dup');
+    await editor.click();
+    await editor.press('End');
+    const lhsLen = lhs.length;
+
+    // RHS: ( f   z )   > > = d u p
+    //      +0+1 +2+3+4 +5+6+7+8+9  +10+11+12
+    // Navigate left — should visit start of each token:
+    // dup(+10), >>=(+6), )(+4), z(+3), f(+1), ((+0)
+    const expectedLeft = [lhsLen+10, lhsLen+6, lhsLen+4, lhsLen+3, lhsLen+1, lhsLen+0];
+    for (let i = 0; i < expectedLeft.length; i++) {
+      await editor.press('ArrowLeft');
+      const pos = await editor.evaluate(el => el.selectionStart);
+      expect(pos, `ArrowLeft #${i+1}`).toBe(expectedLeft[i]);
+    }
   });
 
   test('undo works after Ctrl+Backspace damages and restores LHS', async ({ page }) => {
