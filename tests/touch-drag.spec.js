@@ -73,49 +73,49 @@ test.describe('Phone touch dragging', () => {
     const editor = page.locator('#code-editor');
     const end = await center(page.locator('.editor-wrap'));
     await touch.drag(await center(page.locator('[data-func-name="f"]')), end);
-    await expect(editor).toHaveValue('zeroToHero z = f');
+    await expect(editor).toHaveValue('f');
     await expect(editor).not.toBeFocused();
     await touch.drag(await center(page.locator('[data-func-name="z"]')), end);
-    await expect(editor).toHaveValue('zeroToHero z = f z');
+    await expect(editor).toHaveValue('f z');
     await expect(page.locator('#inferred-type')).toContainText('Hero');
     await noDragUI(page);
     await page.getByRole('button', { name: 'Attempt', exact: true }).tap();
     await expect(page.locator('#level-dialog')).toBeVisible();
     await page.reload();
-    await expect(editor).toHaveValue('zeroToHero z = f z');
+    await expect(editor).toHaveValue('f z');
   });
 
-  test('insert at a token boundary and protect the left side', async ({ page }) => {
+  test('insert at the start of the playground', async ({ page }) => {
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = z');
+    await editor.fill('z');
     await editor.blur();
     await page.waitForTimeout(200);
-    await touch.drag(await center(page.locator('[data-func-name="f"]')), await editorPoint(page, 1));
-    await expect(editor).toHaveValue('zeroToHero z = f z');
+    await touch.drag(await center(page.locator('[data-func-name="f"]')), await editorPoint(page, 0));
+    await expect(editor).toHaveValue('f z');
     await noDragUI(page);
   });
 
   test('move editor tokens and drag them out to remove them', async ({ page }) => {
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = z f');
+    await editor.fill('z f');
     await editor.blur();
     // Let debounced type feedback settle before measuring token coordinates.
     await page.waitForTimeout(200);
-    await touch.drag(await editorPoint(page, 17), await editorPoint(page, 15));
-    await expect(editor).toHaveValue('zeroToHero z = f z');
-    await touch.drag(await editorPoint(page, 17), { x: 20, y: 80 });
-    await expect(editor).toHaveValue('zeroToHero z = f');
-    await touch.drag(await editorPoint(page, 15), { x: 20, y: 80 });
-    await expect(editor).toHaveValue('zeroToHero z = undefined');
+    await touch.drag(await editorPoint(page, 2), await editorPoint(page, 0));
+    await expect(editor).toHaveValue('f z');
+    await touch.drag(await editorPoint(page, 2), { x: 20, y: 80 });
+    await expect(editor).toHaveValue('f');
+    await touch.drag(await editorPoint(page, 0), { x: 20, y: 80 });
+    await expect(editor).toHaveValue('undefined');
     await noDragUI(page);
   });
 
   test('dropping a card outside the editor does not change the solution', async ({ page }) => {
     const touch = await gestures(page);
     await touch.drag(await center(page.locator('[data-func-name="f"]')), { x: 20, y: 80 });
-    await expect(page.locator('#code-editor')).toHaveValue('zeroToHero z = undefined');
+    await expect(page.locator('#code-editor')).toHaveValue('undefined');
     await noDragUI(page);
   });
 
@@ -132,16 +132,16 @@ test.describe('Phone touch dragging', () => {
     await page.waitForTimeout(380);
     await touch.secondFinger(source, { x: 20, y: 80 });
     await touch.end();
-    await expect(page.locator('#code-editor')).toHaveValue('zeroToHero z = undefined');
+    await expect(page.locator('#code-editor')).toHaveValue('undefined');
     await noDragUI(page);
     await touch.drag(source, target);
-    await expect(page.locator('#code-editor')).toHaveValue('zeroToHero z = f');
+    await expect(page.locator('#code-editor')).toHaveValue('f');
     await page.waitForTimeout(200);
-    await touch.start(await editorPoint(page, 15));
+    await touch.start(await editorPoint(page, 0));
     await page.waitForTimeout(380);
     await touch.move({ x: 20, y: 80 });
     await touch.cancel();
-    await expect(page.locator('#code-editor')).toHaveValue('zeroToHero z = f');
+    await expect(page.locator('#code-editor')).toHaveValue('f');
     await noDragUI(page);
   });
 
@@ -156,7 +156,7 @@ test.describe('Phone touch dragging', () => {
     for (let i = 1; i <= 6; i++) await touch.move({ x: from.x, y: from.y - i * 30 });
     await touch.end();
     await expect.poll(() => panel.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
-    await expect(page.locator('#code-editor')).toHaveValue(/= undefined$/);
+    await expect(page.locator('#code-editor')).toHaveValue('undefined');
     await noDragUI(page);
   });
 
@@ -172,6 +172,6 @@ test.describe('Phone touch dragging', () => {
     await touch.end();
     await noDragUI(page);
     await touch.drag(await center(page.locator('[data-func-name="f"]')), await center(page.locator('.editor-wrap')));
-    await expect(editor).toHaveValue('zeroToHero z = f');
+    await expect(editor).toHaveValue('f');
   });
 });

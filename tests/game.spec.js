@@ -28,8 +28,8 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('body')).toContainText('Gecko Graph');
     await expect(page.locator('body')).toContainText('Bypass');
     await expect(page.locator('textarea#code-editor')).toBeVisible();
-    // Editor pre-filled with "zeroToHero z = undefined"
-    await expect(page.locator('#code-editor')).toHaveValue(/zeroToHero z = undefined/);
+    // Editor pre-filled with "undefined"
+    await expect(page.locator('#code-editor')).toHaveValue(/undefined/);
   });
 
   test('shows initial inferred type as just "a"', async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe('Zero to Hero', () => {
     const syntaxHint = page.locator('#syntax-hint');
 
     // Type correct solution (replace full editor content)
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
 
     // Inferred type should show the full signature with unicode arrow
     // (auto-retries until live inference debounce fires)
@@ -63,7 +63,7 @@ test.describe('Zero to Hero', () => {
     const inferredType = page.locator('#inferred-type');
     const syntaxHint = page.locator('#syntax-hint');
 
-    await editor.fill('zeroToHero z = z');
+    await editor.fill('z');
     await page.waitForTimeout(200);
 
     await expect(syntaxHint).toContainText('valid syntax');
@@ -74,7 +74,7 @@ test.describe('Zero to Hero', () => {
     const editor = page.locator('#code-editor');
     const syntaxHint = page.locator('#syntax-hint');
 
-    await editor.fill('zeroToHero z = foo z');
+    await editor.fill('foo z');
     await page.waitForTimeout(200);
 
     await expect(syntaxHint).toHaveClass(/invalid/);
@@ -84,7 +84,7 @@ test.describe('Zero to Hero', () => {
   test('live type inference shows error for undefined usage', async ({ page }) => {
     const editor = page.locator('#code-editor');
 
-    await editor.fill('zeroToHero z = undefined');
+    await editor.fill('undefined');
     await page.waitForTimeout(200);
 
     await expect(page.locator('#status-output')).toContainText('did not make any changes');
@@ -92,7 +92,7 @@ test.describe('Zero to Hero', () => {
 
   test('Attempt button completes level 1 with correct answer', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.waitForTimeout(200);
 
     await page.locator('button', { hasText: 'Attempt' }).click();
@@ -104,7 +104,7 @@ test.describe('Zero to Hero', () => {
 
   test('Attempt button shows failure for wrong answer', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = z');
+    await editor.fill('z');
     await page.waitForTimeout(200);
 
     await page.locator('button', { hasText: 'Attempt' }).click();
@@ -117,7 +117,7 @@ test.describe('Zero to Hero', () => {
 
   test('can advance to level 2 after completing level 1', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
 
@@ -129,13 +129,13 @@ test.describe('Zero to Hero', () => {
   });
 
   test('level 2 correct solution: mkHero $ runZero z', async ({ page }) => {
-    await page.locator('#code-editor').fill('zeroToHero z = f z');
+    await page.locator('#code-editor').fill('f z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
-    await page.locator('#code-editor').fill('zeroToHero z = mkHero $ runZero z');
+    await page.locator('#code-editor').fill('mkHero $ runZero z');
     await page.waitForTimeout(200);
 
     await expect(page.locator('#syntax-hint')).toContainText('valid syntax');
@@ -153,12 +153,12 @@ test.describe('Zero to Hero', () => {
     await expect(inferredType).toContainText('a');
 
     // Type just 'f' (no argument)
-    await editor.fill('zeroToHero z = f');
+    await editor.fill('f');
     await page.waitForTimeout(200);
     await expect(inferredType).toContainText('Zero');
 
     // Complete with 'f z'
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.waitForTimeout(200);
     await expect(inferredType).toContainText('Hero');
   });
@@ -185,7 +185,8 @@ test.describe('Zero to Hero', () => {
   test('line numbers are shown in editor', async ({ page }) => {
     const lineNums = page.locator('#line-numbers');
     await expect(lineNums).toBeVisible();
-    await expect(lineNums).toContainText('1');
+    await expect(lineNums).toContainText('2');
+    await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
   });
 
   test('unicode arrow is used in type signatures', async ({ page }) => {
@@ -196,28 +197,28 @@ test.describe('Zero to Hero', () => {
 
   test('rejects expression with unexpected characters', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z !!!');
+    await editor.fill('f z !!!');
     await page.waitForTimeout(200);
     await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
   });
 
   test('rejects unbalanced parentheses (missing closing)', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = (f z');
+    await editor.fill('(f z');
     await page.waitForTimeout(200);
     await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
   });
 
   test('rejects trailing tokens after valid expression', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z)');
+    await editor.fill('f z)');
     await page.waitForTimeout(200);
     await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
   });
 
   test('rejects undefined used inside expression', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f undefined');
+    await editor.fill('f undefined');
     await page.waitForTimeout(200);
     await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
     await expect(page.locator('#syntax-hint')).toContainText('undefined is not allowed');
@@ -225,7 +226,7 @@ test.describe('Zero to Hero', () => {
 
   test('Attempt rejects undefined inside expression', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f undefined');
+    await editor.fill('f undefined');
     await page.waitForTimeout(200);
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
@@ -235,7 +236,7 @@ test.describe('Zero to Hero', () => {
   test('bypass button decrements count', async ({ page }) => {
     // Solve level 1 to earn 1 bypass point
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -258,21 +259,21 @@ test.describe('Zero to Hero', () => {
     const editor = page.locator('#code-editor');
 
     // Solve level 1
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 2
-    await editor.fill('zeroToHero z = mkHero $ runZero z');
+    await editor.fill('mkHero $ runZero z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 3
-    await editor.fill('zeroToHero z = f3 $ f1 z');
+    await editor.fill('f3 $ f1 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -314,28 +315,28 @@ test.describe('Zero to Hero', () => {
     const editor = page.locator('#code-editor');
 
     // Solve level 1
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 2
-    await editor.fill('zeroToHero z = mkHero $ runZero z');
+    await editor.fill('mkHero $ runZero z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 3
-    await editor.fill('zeroToHero z = f3 $ f1 z');
+    await editor.fill('f3 $ f1 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 4
-    await editor.fill('zeroToHero z = f2 $ f4 z');
+    await editor.fill('f2 $ f4 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -357,8 +358,8 @@ test.describe('Zero to Hero', () => {
     // Since Playwright can't easily simulate the custom drag-out, we simulate the
     // effect programmatically: remove f1, which should restore "undefined"
     await editor.evaluate(el => {
-      const rhsStart = el.value.indexOf('=') + 1;
-      // Select everything after = sign
+      const rhsStart = 0;
+      // Select the entire solution
       const rhs = el.value.slice(rhsStart).trim();
       const tokenStart = el.value.indexOf(rhs, rhsStart);
       el.setSelectionRange(tokenStart, tokenStart + rhs.length);
@@ -368,7 +369,7 @@ test.describe('Zero to Hero', () => {
       if (!newRhs) {
         const insertAt = el.value.length;
         el.setSelectionRange(insertAt, insertAt);
-        document.execCommand('insertText', false, ' undefined');
+        document.execCommand('insertText', false, 'undefined');
       }
     });
     await page.waitForTimeout(200);
@@ -390,25 +391,25 @@ test.describe('Zero to Hero', () => {
     // Navigate to level 5 by solving levels 1-4
     const editor = page.locator('#code-editor');
 
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
-    await editor.fill('zeroToHero z = mkHero $ runZero z');
+    await editor.fill('mkHero $ runZero z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
-    await editor.fill('zeroToHero z = f3 $ f1 z');
+    await editor.fill('f3 $ f1 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
-    await editor.fill('zeroToHero z = f2 $ f4 z');
+    await editor.fill('f2 $ f4 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -424,7 +425,7 @@ test.describe('Zero to Hero', () => {
     const baseline = await editor.inputValue();
 
     // Run 3 cycles: backspace to clear RHS, then simulate the drop handler
-    // with _dropPos at rhsStart (right after "="). This is what happens when
+    // with _dropPos at the start of the playground. This is what happens when
     // the user drops near the left edge of the RHS area.
     for (let i = 0; i < 3; i++) {
       await editor.click();
@@ -436,7 +437,7 @@ test.describe('Zero to Hero', () => {
       // Set _dropPos to rhsStart then fire a synthetic drop event
       // so the actual app drop handler runs (not a copy of the logic)
       await editor.evaluate(el => {
-        el._dropPos = el.value.indexOf('=') + 1;
+        el._dropPos = 0;
         const dt = new DataTransfer();
         dt.setData('text/plain', 'f1');
         const dropEvent = new DragEvent('drop', {
@@ -452,7 +453,7 @@ test.describe('Zero to Hero', () => {
 
   test('backspace deletes whole token and preserves LHS', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = mkHero');
+    await editor.fill('mkHero');
     await page.waitForTimeout(100);
     await editor.click();
     await editor.press('End');
@@ -460,17 +461,17 @@ test.describe('Zero to Hero', () => {
     // One backspace deletes entire "mkHero" token
     await editor.press('Backspace');
     const after = await editor.inputValue();
-    expect(after).toBe('zeroToHero z = ');
+    expect(after).toBe('');
 
-    // One more backspace — blocked by LHS protection
+    // One more backspace at the start leaves the header intact
     await editor.press('Backspace');
     const afterExtra = await editor.inputValue();
-    expect(afterExtra).toBe('zeroToHero z = ');
+    expect(afterExtra).toBe('');
   });
 
   test('Ctrl+Backspace does not damage LHS', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = mkHero $ runZero z');
+    await editor.fill('mkHero $ runZero z');
     await page.waitForTimeout(100);
     await editor.click();
     await editor.press('End');
@@ -486,19 +487,21 @@ test.describe('Zero to Hero', () => {
     const after4 = await editor.inputValue();
 
     // After all Ctrl+Backspaces, LHS must still be intact
-    expect(after4).toMatch(/^zeroToHero z = /);
+    expect(after4).toBe('');
+    await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
 
     // Mash Ctrl+Backspace a few more times — LHS must survive
     for (let i = 0; i < 5; i++) {
       await page.keyboard.press('Control+Backspace');
     }
     const afterMash = await editor.inputValue();
-    expect(afterMash).toMatch(/^zeroToHero z = /);
+    expect(afterMash).toBe('');
+    await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
   });
 
-  test('selecting all RHS then backspace leaves clean LHS', async ({ page }) => {
+  test('selecting all then backspace clears only the playground', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.waitForTimeout(100);
 
     // Ctrl+A selects only RHS, then backspace
@@ -508,35 +511,35 @@ test.describe('Zero to Hero', () => {
     await page.waitForTimeout(100);
 
     const afterSelectAll = await editor.inputValue();
-    // LHS + one space must remain, nothing else
-    expect(afterSelectAll).toBe('zeroToHero z = ');
+    // The playground is empty; the separate prefix remains visible
+    expect(afterSelectAll).toBe('');
   });
 
   test('backspace with cursor mid-expression leaves correct state', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.waitForTimeout(100);
 
-    // Place cursor between 'f' and ' z' (position 16)
+    // Place cursor between 'f' and ' z' (position 1)
     await editor.evaluate(el => {
       el.focus();
-      el.setSelectionRange(16, 16);
+      el.setSelectionRange(1, 1);
     });
 
     // Backspace should delete 'f'; the resulting double space auto-collapses
     await editor.press('Backspace');
     const after = await editor.inputValue();
-    expect(after).toBe('zeroToHero z = z');
+    expect(after).toBe('z');
 
-    // One more — blocked by LHS protection (cursor at boundary)
+    // One more at the start leaves the first token intact
     await editor.press('Backspace');
     const after2 = await editor.inputValue();
-    expect(after2).toBe('zeroToHero z = z');
+    expect(after2).toBe('z');
   });
 
   test('repeated backspace never produces double spaces in RHS', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.waitForTimeout(100);
     await editor.click();
     await editor.press('End');
@@ -546,9 +549,9 @@ test.describe('Zero to Hero', () => {
       await editor.press('Backspace');
       const val = await editor.inputValue();
       // LHS must always be intact
-      expect(val).toMatch(/^zeroToHero z =/);
-      // No double spaces allowed (except possibly right after = where "= " is the boundary)
-      const rhs = val.slice(val.indexOf('=') + 1);
+      await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
+      // No double spaces allowed in the playground
+      const rhs = val;
       expect(rhs.trimStart()).not.toMatch(/  /);
     }
   });
@@ -564,7 +567,7 @@ test.describe('Zero to Hero', () => {
     const baseline = await editor.inputValue();
 
     for (let i = 0; i < 3; i++) {
-      // Ctrl+A selects only RHS (intercepted by keydown handler)
+      // Ctrl+A selects the playground
       await editor.click();
       await page.keyboard.press('Control+a');
       await page.keyboard.press('Backspace');
@@ -573,7 +576,7 @@ test.describe('Zero to Hero', () => {
 
       // Fire synthetic drop with _dropPos at rhsStart
       await editor.evaluate(el => {
-        el._dropPos = el.value.indexOf('=') + 1;
+        el._dropPos = 0;
         const dt = new DataTransfer();
         dt.setData('text/plain', 'f');
         el.dispatchEvent(new DragEvent('drop', {
@@ -590,58 +593,58 @@ test.describe('Zero to Hero', () => {
     const editor = page.locator('#code-editor');
 
     // Multi-char identifier: backspace should delete whole "mkHero"
-    await editor.fill('zeroToHero z = mkHero');
+    await editor.fill('mkHero');
     await editor.click();
     await editor.press('End');
     await editor.press('Backspace');
     const after1 = await editor.inputValue();
-    expect(after1).toBe('zeroToHero z = ');
+    expect(after1).toBe('');
 
     // Operator token: backspace should delete whole "$"
-    await editor.fill('zeroToHero z = f $ z');
-    await editor.evaluate(el => { el.focus(); el.setSelectionRange(18, 18); }); // right after "$"
+    await editor.fill('f $ z');
+    await editor.evaluate(el => { el.focus(); el.setSelectionRange(3, 3); }); // right after "$"
     await editor.press('Backspace');
     const after2 = await editor.inputValue();
     // "$" and surrounding spaces removed → "f z"
-    expect(after2).toBe('zeroToHero z = f z');
+    expect(after2).toBe('f z');
 
   });
 
   test('arrow keys navigate by token, not by character', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = mkHero $ runZero z');
+    await editor.fill('mkHero $ runZero z');
     await editor.click();
-    await editor.press('End'); // cursor at end (pos 33)
+    await editor.press('End'); // cursor at end (pos 17)
 
-    // Left arrow: should jump to start of "z" (from pos 33 to 32)
+    // Left arrow: jump to the start of "z"
     await editor.press('ArrowLeft');
     const pos1 = await editor.evaluate(el => el.selectionStart);
-    expect(pos1).toBe(32); // start of "z"
+    expect(pos1).toBe(17); // start of "z"
 
-    // Left again: should jump over space to start of "runZero" (pos 24 -> skip space -> pos 24)
+    // Left again: jump over the space to the start of "runZero"
     await editor.press('ArrowLeft');
     const pos2 = await editor.evaluate(el => el.selectionStart);
-    expect(pos2).toBe(24); // start of "runZero"
+    expect(pos2).toBe(9); // start of "runZero"
 
     // Left again: should jump over " $ " to start of "$" or to start of "mkHero"
     await editor.press('ArrowLeft');
     const pos3 = await editor.evaluate(el => el.selectionStart);
-    expect(pos3).toBe(22); // start of "$"
+    expect(pos3).toBe(7); // start of "$"
 
     // Left again: should jump to start of "mkHero"
     await editor.press('ArrowLeft');
     const pos4 = await editor.evaluate(el => el.selectionStart);
-    expect(pos4).toBe(15); // start of "mkHero" (right after "= ")
+    expect(pos4).toBe(0); // start of "mkHero"
 
     // Right arrow from start of "mkHero": jump to end of "mkHero"
     await editor.press('ArrowRight');
     const pos5 = await editor.evaluate(el => el.selectionStart);
-    expect(pos5).toBe(21); // end of "mkHero"
+    expect(pos5).toBe(6); // end of "mkHero"
 
     // Right again: jump to end of "$"
     await editor.press('ArrowRight');
     const pos6 = await editor.evaluate(el => el.selectionStart);
-    expect(pos6).toBe(23); // end of "$"
+    expect(pos6).toBe(8); // end of "$"
   });
 
   test('arrow keys navigate through parentheses token by token', async ({ page }) => {
@@ -650,17 +653,15 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('.level-badge')).toContainText('Level 12');
     const editor = page.locator('#code-editor');
     // Type: (f z) >>= dup
-    const lhs = await editor.evaluate(el => el.value.split('=')[0] + '= ');
-    await editor.fill(lhs + '(f z) >>= dup');
+    await editor.fill('(f z) >>= dup');
     await editor.click();
     await editor.press('End');
-    const lhsLen = lhs.length;
 
     // RHS: ( f   z )   > > = d u p
     //      +0+1 +2+3+4 +5+6+7+8+9  +10+11+12
     // Navigate left — should visit start of each token:
     // dup(+10), >>=(+6), )(+4), z(+3), f(+1), ((+0)
-    const expectedLeft = [lhsLen+10, lhsLen+6, lhsLen+4, lhsLen+3, lhsLen+1, lhsLen+0];
+    const expectedLeft = [10, 6, 4, 3, 1, 0];
     for (let i = 0; i < expectedLeft.length; i++) {
       await editor.press('ArrowLeft');
       const pos = await editor.evaluate(el => el.selectionStart);
@@ -668,21 +669,21 @@ test.describe('Zero to Hero', () => {
     }
   });
 
-  test('undo works after Ctrl+Backspace damages and restores LHS', async ({ page }) => {
+  test('undo works after clearing the playground with Ctrl+Backspace', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.waitForTimeout(100);
     await editor.click();
     await editor.press('End');
 
-    // Ctrl+Backspace multiple times to go past LHS boundary
-    // This triggers LHS restoration in onEditorInput (editor.value = ...)
+    // Ctrl+Backspace repeatedly reaches the start of the playground
     await page.keyboard.press('Control+Backspace'); // deletes "z"
     await page.keyboard.press('Control+Backspace'); // deletes "f"
-    await page.keyboard.press('Control+Backspace'); // deletes into LHS, triggers restoration
+    await page.keyboard.press('Control+Backspace'); // no-op at the start
     await page.waitForTimeout(100);
     const afterCtrlBS = await editor.inputValue();
-    expect(afterCtrlBS).toMatch(/^zeroToHero z = /);
+    expect(afterCtrlBS).toBe('');
+    await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
 
     // Ctrl+Z should be able to undo back to original
     await page.keyboard.press('Control+z');
@@ -700,19 +701,19 @@ test.describe('Zero to Hero', () => {
     const editor = page.locator('#code-editor');
 
     // Variant 1: f2( with no space — cursor right after (
-    await editor.fill('zeroToHero z = f2( $ f2');
+    await editor.fill('f2( $ f2');
     await page.waitForTimeout(100);
-    await editor.evaluate(el => { el.focus(); el.setSelectionRange(18, 18); });
+    await editor.evaluate(el => { el.focus(); el.setSelectionRange(3, 3); });
     await editor.press('Backspace');
     await page.waitForTimeout(100);
-    expect(await editor.inputValue()).toBe('zeroToHero z = f2$ f2');
+    expect(await editor.inputValue()).toBe('f2$ f2');
 
     // Variant 2: f2 ( with space — cursor at left side of (
     // The whitespace-skip in backspace handler must NOT jump past the space
     // and delete f2 — it should find and delete ( instead.
-    await editor.fill('zeroToHero z = f2 ( $ f2');
+    await editor.fill('f2 ( $ f2');
     await page.waitForTimeout(100);
-    await editor.evaluate(el => { el.focus(); el.setSelectionRange(18, 18); }); // left of (
+    await editor.evaluate(el => { el.focus(); el.setSelectionRange(3, 3); }); // left of (
     await editor.press('Backspace');
     await page.waitForTimeout(100);
     const afterSpaceVariant = await editor.inputValue();
@@ -725,7 +726,7 @@ test.describe('Zero to Hero', () => {
     const editor = page.locator('#code-editor');
 
     // Type ident+op+ident without spaces: f2$f1
-    await editor.fill('zeroToHero z = ');
+    await editor.fill('');
     await page.waitForTimeout(100);
     await editor.click();
     await editor.press('End');
@@ -734,19 +735,19 @@ test.describe('Zero to Hero', () => {
     const val = await editor.inputValue();
 
     // Editor should auto-space between different token classes
-    expect(val).toBe('zeroToHero z = f2 $ f1');
+    expect(val).toBe('f2 $ f1');
   });
 
   test('typing chars one-at-a-time before operator merges into single token', async ({ page }) => {
     const editor = page.locator('#code-editor');
 
     // Start with "$ f3 z" in the RHS — cursor at left of $
-    await editor.fill('zeroToHero z = $ f3 z');
+    await editor.fill('$ f3 z');
     await page.waitForTimeout(100);
     await editor.click();
     // Place cursor right before $
     await editor.press('Home');
-    // Home goes to start of RHS (after "zeroToHero z = ")
+    // Home goes to the start of the playground
     await page.waitForTimeout(50);
 
     // Type 'f' then '2' — should merge into 'f2', not 'f 2'
@@ -756,7 +757,7 @@ test.describe('Zero to Hero', () => {
     await page.waitForTimeout(150);
 
     const val = await editor.inputValue();
-    expect(val).toBe('zeroToHero z = f2 $ f3 z');
+    expect(val).toBe('f2 $ f3 z');
   });
 
   test('icon mode preference persists across reloads', async ({ page }) => {
@@ -786,7 +787,7 @@ test.describe('Zero to Hero', () => {
   test('re-solving completed level does not grant additional bypass points', async ({ page }) => {
     // Solve level 1
     const editor = page.locator('#code-editor');
-    await editor.fill('zeroToHero z = f z');
+    await editor.fill('f z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
 
@@ -800,7 +801,7 @@ test.describe('Zero to Hero', () => {
     await page.waitForTimeout(200);
 
     // Re-solve level 1
-    await page.locator('#code-editor').fill('zeroToHero z = f z');
+    await page.locator('#code-editor').fill('f z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
 

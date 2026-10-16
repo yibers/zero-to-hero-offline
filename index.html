@@ -74,14 +74,16 @@ main { display: flex; flex-direction: column; height: calc(100vh - 36px); }
 .code-block { background: white; color: black; padding: 8px; overflow: auto; font-size: 1rem; }
 
 /* Editor — original uses CodeMirror with white bg */
-.editor-wrap { display: flex; flex-direction: column; overflow: hidden; }
-.editor-container { display: flex; background: white; overflow: hidden; }
+.editor-wrap { display: flex; flex-direction: column; min-height: 145px; overflow: hidden; }
+.editor-container { display: flex; flex-shrink: 0; background: white; overflow: hidden; }
+.editor-prefix-row { display: flex; flex-shrink: 0; background: #f3f4f6; border-bottom: 1px solid #d1d5db; }
+.editor-prefix-row .line-numbers { background: transparent; }
+.editor-prefix { flex: 1; min-width: 0; padding: 4px 8px; font-family: 'Fira Code', monospace; font-size: 1rem; line-height: 1.5; color: #6b7280; white-space: pre; overflow-x: auto; }
 .line-numbers { background: white; color: #9ca3af; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 0; text-align: right; user-select: none; min-width: 28px; padding-right: 8px; line-height: 1.5; }
-textarea.editor { width: 100%; background: transparent; color: transparent; caret-color: black; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; border: none; resize: none; outline: none; line-height: 1.5; position: relative; z-index: 1; }
+textarea.editor { display: block; width: 100%; background: transparent; color: transparent; caret-color: black; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; border: none; resize: none; outline: none; line-height: 1.5; position: relative; z-index: 1; }
 textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
-.editor-area { flex: 1; position: relative; overflow: hidden; }
+.editor-area { flex: 1; min-width: 0; position: relative; overflow: hidden; }
 .editor-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 8px; line-height: 1.5; white-space: pre-wrap; overflow: hidden; z-index: 0; }
-.token-lhs { color: #6b7280; }
 .token-func { background: #dbeafe; border-radius: 3px; color: #1e40af; box-shadow: 3px 0 0 #dbeafe, -3px 0 0 #dbeafe; }
 .token-param { background: #d1fae5; border-radius: 3px; color: #065f46; box-shadow: 3px 0 0 #d1fae5, -3px 0 0 #d1fae5; }
 .token-undef { color: #94a3b8; font-style: italic; }
@@ -89,7 +91,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .token-unknown { color: #9ca3af; font-style: italic; }
 
 /* Editor token gecko blocks */
-.editor-tokens { display: flex; flex-wrap: wrap; gap: 4px; align-items: flex-end;
+.editor-tokens { display: flex; min-height: 0; overflow: auto; flex-wrap: wrap; gap: 4px; align-items: flex-end;
                   padding: 6px 8px; background: white; border-top: 1px solid #e5e7eb; }
 .editor-token { border-radius: 4px; padding: 3px 6px; text-align: center; }
 .editor-token .token-label { font-weight: 600; font-family: 'Fira Code', monospace; font-size: 12px; }
@@ -993,11 +995,15 @@ function render() {
 
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M230.14,70.54,185.46,25.86a20,20,0,0,0-28.28,0L33.86,149.17A19.85,19.85,0,0,0,28,163.31V208a20,20,0,0,0,20,20H92.69a19.86,19.86,0,0,0,14.14-5.86L230.14,98.82A20,20,0,0,0,230.14,70.54ZM91,204H52V165l84-84,39,39Z"/></svg> Code Editor</div>
           <div class="editor-wrap">
+            <div class="editor-prefix-row">
+              <div class="line-numbers" aria-hidden="true">1</div>
+              <div class="editor-prefix" id="editor-prefix">${escHtml(level.lhs.trim())}</div>
+            </div>
             <div class="editor-container">
-              <div class="line-numbers" id="line-numbers">1</div>
+              <div class="line-numbers" id="line-numbers" aria-hidden="true">2</div>
               <div class="editor-area">
                 <div class="editor-overlay" id="editor-overlay"></div>
-                <textarea class="editor code" id="code-editor" rows="1" spellcheck="false"></textarea>
+                <textarea class="editor code" id="code-editor" rows="3" spellcheck="false" aria-label="Solution expression" aria-describedby="editor-prefix"></textarea>
               </div>
             </div>
             ${geckoOn ? `<div id="editor-tokens" class="editor-tokens"></div>` : ''}
@@ -1042,46 +1048,37 @@ function render() {
   if (editor) {
     editor.value = getEditorContent();
     editor.addEventListener('input', onEditorInput);
-    // Protect LHS from editing
-    const lhsPrefix = LEVELS[currentLevel].lhs.trim() + ' ';
-    const lhsLen = lhsPrefix.length;
+    // Only the solution is editable; the fixed prefix is a separate header.
     editor.addEventListener('keydown', e => {
       const { selectionStart: s, selectionEnd: end } = editor;
       const text = editor.value;
       // Ctrl/Meta key held
       if (e.ctrlKey || e.metaKey) {
-        // Prevent Ctrl+A from selecting LHS — select only RHS
-        if (e.code === 'KeyA') {
-          e.preventDefault();
-          editor.setSelectionRange(lhsLen, editor.value.length);
-          return;
-        }
-        // Ctrl+Backspace: delete previous word but stop at LHS boundary
+        // Ctrl+Backspace: delete previous word but stop at start of the solution
         // Let Meta+Backspace (macOS Cmd+Backspace) fall through to native behavior
-        if (e.key === 'Backspace' && !e.metaKey && s === end && s > lhsLen) {
+        if (e.key === 'Backspace' && !e.metaKey && s === end && s > 0) {
           e.preventDefault();
           // Find word boundary backwards (mimic browser Ctrl+Backspace)
           let wordStart = s;
-          while (wordStart > lhsLen && text[wordStart - 1] === ' ') wordStart--;
-          while (wordStart > lhsLen && text[wordStart - 1] !== ' ') wordStart--;
-          wordStart = Math.max(wordStart, lhsLen);
+          while (wordStart > 0 && /\s/.test(text[wordStart - 1])) wordStart--;
+          while (wordStart > 0 && !/\s/.test(text[wordStart - 1])) wordStart--;
           editor.setSelectionRange(wordStart, s);
           document.execCommand('insertText', false, '');
           return;
         }
-        if (e.key === 'Backspace' && !e.metaKey && s <= lhsLen) { e.preventDefault(); return; }
+        if (e.key === 'Backspace' && !e.metaKey && s === end && s === 0) { e.preventDefault(); return; }
         return;
       }
       // Auto-clear "undefined" placeholder when user starts typing
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        const rhs = text.slice(lhsLen).trim();
+        const rhs = text.trim();
         if (rhs === 'undefined') {
-          editor.setSelectionRange(lhsLen, text.length);
+          editor.setSelectionRange(0, text.length);
           // Let the keystroke replace the selection naturally
         }
       }
       // Token-level Backspace (no selection): delete entire token before cursor
-      if (e.key === 'Backspace' && s === end && s > lhsLen) {
+      if (e.key === 'Backspace' && s === end && s > 0) {
         e.preventDefault();
         // Find the token ending at or before cursor
         let delEnd = s;
@@ -1092,13 +1089,13 @@ function render() {
         const _isPunc = _c && !/\s/.test(_c) && !/[a-zA-Z0-9_']/.test(_c) && !/[!@#$%^&*\-+=<>?/|~:.\\]/.test(_c);
         if (!_isPunc) {
           // Skip whitespace backwards
-          while (delEnd > lhsLen && text[delEnd - 1] === ' ') delEnd--;
+          while (delEnd > 0 && /\s/.test(text[delEnd - 1])) delEnd--;
         }
         const range = getTokenRange(text, delEnd);
-        if (range && range.start >= lhsLen) {
+        if (range) {
           let removeStart = range.start;
           let removeEnd = range.end;
-          const hasBefore = removeStart > lhsLen && text[removeStart - 1] === ' ';
+          const hasBefore = removeStart > 0 && text[removeStart - 1] === ' ';
           const hasAfter = removeEnd < text.length && text[removeEnd] === ' ';
           // Remove one adjacent space, but not both (keep one if token is between other tokens)
           if (hasBefore && hasAfter) {
@@ -1108,20 +1105,19 @@ function render() {
           } else if (hasBefore) {
             removeStart--; // remove leading space
           }
-          removeStart = Math.max(removeStart, lhsLen);
           editor.setSelectionRange(removeStart, removeEnd);
           document.execCommand('insertText', false, '');
         }
         return;
       }
-      // Prevent backspace into LHS
-      if (e.key === 'Backspace' && s === end && s <= lhsLen) { e.preventDefault(); return; }
+      // Prevent backspace at the start
+      if (e.key === 'Backspace' && s === end && s <= 0) { e.preventDefault(); return; }
       // Token-level Delete (no selection): delete entire token after cursor
-      if (e.key === 'Delete' && s === end && s >= lhsLen) {
+      if (e.key === 'Delete' && s === end) {
         e.preventDefault();
         let delStart = s;
         // Skip whitespace forward
-        while (delStart < text.length && text[delStart] === ' ') delStart++;
+        while (delStart < text.length && /\s/.test(text[delStart])) delStart++;
         if (delStart >= text.length) return;
         const range = getTokenRange(text, delStart);
         if (range) {
@@ -1132,41 +1128,39 @@ function render() {
         }
         return;
       }
-      // Prevent delete at end of LHS when nothing selected
-      if (e.key === 'Delete' && s === end && s < lhsLen) { e.preventDefault(); return; }
-      // Block ArrowLeft at LHS boundary (with or without Shift)
-      if (e.key === 'ArrowLeft' && s <= lhsLen && !e.ctrlKey && !e.metaKey) {
+      // Block ArrowLeft at start of the solution (with or without Shift)
+      if (e.key === 'ArrowLeft' && s <= 0 && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         if (e.shiftKey) {
-          editor.setSelectionRange(lhsLen, end);
+          editor.setSelectionRange(0, end);
         } else {
-          editor.setSelectionRange(lhsLen, lhsLen);
+          editor.setSelectionRange(0, 0);
         }
         return;
       }
       // Token-level ArrowLeft (no selection): jump to start of previous token
-      if (e.key === 'ArrowLeft' && s === end && !e.shiftKey && s > lhsLen) {
+      if (e.key === 'ArrowLeft' && s === end && !e.shiftKey && s > 0) {
         e.preventDefault();
         let target = s;
         // Skip whitespace backwards
-        while (target > lhsLen && text[target - 1] === ' ') target--;
+        while (target > 0 && /\s/.test(text[target - 1])) target--;
         // Find token at this position and jump to its start
         const range = getTokenRange(text, target);
-        if (range && range.start >= lhsLen) {
+        if (range) {
           // If already at start of this token, skip past it to the previous one
           if (range.start === s) {
             const prev = range.start - 1;
             const prevRange = getTokenRange(text, prev);
-            if (prevRange && prevRange.start >= lhsLen) {
+            if (prevRange) {
               editor.setSelectionRange(prevRange.start, prevRange.start);
             } else {
-              editor.setSelectionRange(lhsLen, lhsLen);
+              editor.setSelectionRange(0, 0);
             }
           } else {
             editor.setSelectionRange(range.start, range.start);
           }
         } else {
-          editor.setSelectionRange(lhsLen, lhsLen);
+          editor.setSelectionRange(0, 0);
         }
         return;
       }
@@ -1175,7 +1169,7 @@ function render() {
         e.preventDefault();
         let target = s;
         // Skip whitespace forward
-        while (target < text.length && text[target] === ' ') target++;
+        while (target < text.length && /\s/.test(text[target])) target++;
         // Find token at this position and jump to its end
         const range = getTokenRange(text, target);
         if (range) {
@@ -1185,32 +1179,15 @@ function render() {
         }
         return;
       }
-      // Prevent selection that starts in LHS from being typed over
-      if (s < lhsLen && end > s && !e.altKey &&
-          e.key.length === 1) {
-        e.preventDefault();
-        editor.setSelectionRange(lhsLen, end);
-        document.execCommand('insertText', false, e.key);
-        return;
-      }
-      // Clamp Home key to after LHS
-      if (e.key === 'Home') {
-        e.preventDefault();
-        editor.setSelectionRange(lhsLen, e.shiftKey ? end : lhsLen);
-        return;
-      }
-    });
-    // Prevent mouse clicks from placing cursor in LHS
-    editor.addEventListener('mouseup', () => {
-      if (editor.selectionStart < lhsLen) {
-        editor.setSelectionRange(lhsLen, Math.max(lhsLen, editor.selectionEnd));
-      }
     });
     editor.addEventListener('scroll', () => {
       const lineNums = document.getElementById('line-numbers');
       if (lineNums) lineNums.scrollTop = editor.scrollTop;
       const overlay = document.getElementById('editor-overlay');
-      if (overlay) overlay.scrollTop = editor.scrollTop;
+      if (overlay) {
+        overlay.scrollTop = editor.scrollTop;
+        overlay.scrollLeft = editor.scrollLeft;
+      }
     });
     updateLineNumbers();
     updateEditorOverlay();
@@ -1292,15 +1269,11 @@ function render() {
     }
 
     // Drop handling on editor
-    function minDropPos() {
-      const eq = editor.value.indexOf('=');
-      return eq >= 0 ? eq + 1 : 0;
-    }
     editor.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
       if (editorWrap) editorWrap.classList.add('drag-over');
-      const pos = Math.max(caretPosFromPoint(e.clientX, e.clientY), minDropPos());
+      const pos = Math.max(caretPosFromPoint(e.clientX, e.clientY), 0);
       editor._dropPos = pos;
       showDropCaret(pos);
     });
@@ -1320,10 +1293,10 @@ function render() {
       if (!fname) return;
       editor.focus();
       // Remove "undefined" and any surrounding whitespace from RHS
-      const rhsStart = minDropPos();
+      const rhsStart = 0;
       const rhs = editor.value.slice(rhsStart).trim();
       if (rhs === 'undefined') {
-        // Remove everything after = (whitespace + "undefined")
+        // Remove the placeholder before inserting the first token
         const removeFrom = rhsStart;
         const removeTo = editor.value.length;
         editor.setSelectionRange(removeFrom, removeTo);
@@ -1340,7 +1313,7 @@ function render() {
       const insert = (needSpace ? ' ' : '') + fname + (needTrail ? ' ' : '');
       editor.setSelectionRange(pos, pos);
       document.execCommand('insertText', false, insert);
-      editorContents[currentLevel] = editor.value;
+      setEditorContent(editor.value);
       updateLineNumbers();
       updateEditorOverlay();
       clearTimeout(liveCheckTimer);
@@ -1370,7 +1343,7 @@ function render() {
       const pos = caretPosFromPoint(e.clientX, e.clientY);
       const text = editor.value;
       const range = getTokenRange(text, pos);
-      if (!range || range.start < minDropPos()) return;
+      if (!range) return;
       e.preventDefault();
       editor.focus();
       editor.setSelectionRange(range.start, range.end);
@@ -1406,7 +1379,7 @@ function render() {
         if (overEditor) {
           let pos = caretPosFromPoint(e.clientX, e.clientY);
           pos = snapToTokenBoundary(editor.value, pos);
-          pos = Math.max(pos, minDropPos());
+          pos = Math.max(pos, 0);
           showDropCaret(pos);
         } else {
           removeDropCaret();
@@ -1433,7 +1406,7 @@ function render() {
           // Rearrange: compute drop position, adjust for removal offset
           let dropTarget = caretPosFromPoint(e.clientX, e.clientY);
           dropTarget = snapToTokenBoundary(editor.value, dropTarget);
-          dropTarget = Math.max(dropTarget, minDropPos());
+          dropTarget = Math.max(dropTarget, 0);
           // If dropping at the same spot, do nothing
           if (dropTarget >= start && dropTarget <= end) {
             editor.setSelectionRange(dragOutState.origPos, dragOutState.origPos);
@@ -1444,14 +1417,14 @@ function render() {
             document.execCommand('insertText', false, '');
             // Adjust drop position for the removal
             let insertAt = dropTarget > end ? dropTarget - (end - start) : dropTarget;
-            insertAt = Math.max(insertAt, minDropPos());
+            insertAt = Math.max(insertAt, 0);
             const t = editor.value;
             const needSpace = insertAt > 0 && t[insertAt - 1] !== ' ';
             const needTrail = insertAt < t.length && t[insertAt] !== ' ';
             const insert = (needSpace ? ' ' : '') + token + (needTrail ? ' ' : '');
             editor.setSelectionRange(insertAt, insertAt);
             document.execCommand('insertText', false, insert);
-            editorContents[currentLevel] = editor.value;
+            setEditorContent(editor.value);
             updateLineNumbers();
             updateEditorOverlay();
             clearTimeout(liveCheckTimer);
@@ -1463,13 +1436,13 @@ function render() {
           editor.setSelectionRange(start, end);
           document.execCommand('insertText', false, '');
           // Restore "undefined" if RHS is now empty
-          const rhsStart = minDropPos();
+          const rhsStart = 0;
           const rhs = editor.value.slice(rhsStart).trim();
           if (!rhs) {
             editor.setSelectionRange(rhsStart, editor.value.length);
-            document.execCommand('insertText', false, ' undefined');
+            document.execCommand('insertText', false, 'undefined');
           }
-          editorContents[currentLevel] = editor.value;
+          setEditorContent(editor.value);
           updateLineNumbers();
           updateEditorOverlay();
           clearTimeout(liveCheckTimer);
@@ -1504,7 +1477,7 @@ function render() {
     function touchDropPosition(touch) {
       const hit = document.elementFromPoint(touch.clientX, touch.clientY);
       if (!hit || !editorWrap.contains(hit)) return null;
-      return Math.max(caretPosFromPoint(touch.clientX, touch.clientY), minDropPos());
+      return Math.max(caretPosFromPoint(touch.clientX, touch.clientY), 0);
     }
     function moveTouchDrag(touch) {
       if (!touchState.card) {
@@ -1528,7 +1501,7 @@ function render() {
       const touch = e.touches[0];
       const pos = caretPosFromPoint(touch.clientX, touch.clientY);
       const range = card ? null : getTokenRange(editor.value, pos);
-      if (!card && (!range || range.start < minDropPos())) return;
+      if (!card && (!range)) return;
       const state = touchState = {
         id: touch.identifier, card, active: false, value: editor.value
       };
@@ -1633,31 +1606,25 @@ function render() {
 }
 
 function getEditorContent() {
-  const level = LEVELS[currentLevel];
+  const lhs = LEVELS[currentLevel].lhs.trim();
   if (editorContents[currentLevel] === undefined) {
-    editorContents[currentLevel] = level.lhs.replace('=', '').trim().replace(/^zeroToHero/, 'zeroToHero') + ' = undefined';
-    // Actually use the full lhs with "undefined"
-    editorContents[currentLevel] = level.lhs + ' undefined';
+    editorContents[currentLevel] = lhs + ' undefined';
   }
-  return editorContents[currentLevel];
+  // Keep full definitions in saved progress so existing solutions still load.
+  const full = editorContents[currentLevel];
+  if (full.startsWith(lhs)) {
+    const rhs = full.slice(lhs.length);
+    return rhs.startsWith(' ') ? rhs.slice(1) : rhs.trimStart();
+  }
+  return full;
+}
+
+function setEditorContent(value) {
+  editorContents[currentLevel] = LEVELS[currentLevel].lhs.trim() + ' ' + value;
 }
 
 function getCodeFromEditor() {
-  // Extract just the RHS (after the "=") from the full editor content
-  const full = editorContents[currentLevel] || '';
-  const level = LEVELS[currentLevel];
-  const lhs = level.lhs.trim();
-  // Find the RHS: everything after the LHS
-  if (full.startsWith(lhs)) {
-    return full.slice(lhs.length).trim();
-  }
-  // Fallback: look for last "=" in first line
-  const firstLine = full.split('\n')[0];
-  const eqIdx = firstLine.indexOf('=');
-  if (eqIdx >= 0) {
-    return full.slice(eqIdx + 1).trim();
-  }
-  return full.trim();
+  return getEditorContent().trim();
 }
 
 let liveCheckTimer = null;
@@ -1667,44 +1634,14 @@ let touchDragCleanup = null;
 
 function onEditorInput(e) {
   const editor = e.target;
-  const level = LEVELS[currentLevel];
-  const lhs = level.lhs.trim();
-  const minPos = lhs.length + 1; // lhs + space
-
-  // If LHS was damaged, restore it (using execCommand to preserve undo stack)
-  if (!editor.value.startsWith(lhs + ' ')) {
-    let rhs = '';
-    const eqIdx = editor.value.indexOf('=');
-    if (eqIdx >= 0) {
-      rhs = editor.value.slice(eqIdx + 1).trimStart();
-    } else {
-      // No '=' found at all (e.g. paste replaced everything) —
-      // treat the entire value as RHS if it doesn't resemble the LHS
-      const raw = editor.value.trim();
-      if (raw && !raw.startsWith('zeroToHero')) {
-        rhs = raw;
-      }
-    }
-    const restored = lhs + ' ' + rhs;
-    editor.setSelectionRange(0, editor.value.length);
-    document.execCommand('insertText', false, restored);
-    // Fallback: if execCommand failed (e.g. nested input events), force value
-    if (!editor.value.startsWith(lhs + ' ')) {
-      editor.value = restored;
-    }
-    const newPos = Math.max(minPos, editor.value.length);
-    editor.setSelectionRange(newPos, newPos);
-  }
-
   // Strip leading spaces from RHS and collapse consecutive spaces
-  const prefix = lhs + ' ';
-  if (!_normalizingSpaces && editor.value.startsWith(prefix)) {
-    const rhs = editor.value.slice(prefix.length);
+  if (!_normalizingSpaces) {
+    const rhs = editor.value;
     // Remove leading spaces and collapse runs of 2+ spaces into single space
     const trimmed = rhs.replace(/^ +/, '').replace(/ {2,}/g, ' ');
     if (trimmed !== rhs) {
       _normalizingSpaces = true;
-      const curRhsPos = editor.selectionStart - prefix.length;
+      const curRhsPos = editor.selectionStart;
       // Delete extra spaces individually (right-to-left) to preserve undo
       const deletePositions = [];
       let inLeading = true;
@@ -1714,7 +1651,7 @@ function onEditorInput(e) {
         if (rhs[ci] === ' ' && ci > 0 && rhs[ci - 1] === ' ') { deletePositions.push(ci); }
       }
       for (let di = deletePositions.length - 1; di >= 0; di--) {
-        const absPos = prefix.length + deletePositions[di];
+        const absPos = deletePositions[di];
         editor.setSelectionRange(absPos, absPos + 1);
         document.execCommand('delete');
       }
@@ -1727,20 +1664,20 @@ function onEditorInput(e) {
         inLeading = false;
         if (rhs[ci] === ' ' && ci > 0 && rhs[ci - 1] === ' ') { removed++; }
       }
-      const newCur = prefix.length + Math.max(0, curRhsPos - removed);
-      editor.setSelectionRange(Math.max(minPos, newCur), Math.max(minPos, newCur));
+      const newCur = Math.max(0, curRhsPos - removed);
+      editor.setSelectionRange(newCur, newCur);
       _normalizingSpaces = false;
     }
   }
 
   // Auto-space: insert spaces between adjacent ident↔op token boundaries
-  if (!_autoSpacing && editor.value.startsWith(prefix)) {
+  if (!_autoSpacing) {
     const _isId = c => /[a-zA-Z0-9_']/.test(c);
     const _isOp = c => /[!@#$%^&*\-+=<>?/|~:.\\]/.test(c);
-    const rhsRaw = editor.value.slice(prefix.length);
+    const rhsRaw = editor.value;
     let spaced = '';
     let shift = 0;
-    const cRhsPos = editor.selectionStart - prefix.length;
+    const cRhsPos = editor.selectionStart;
     for (let i = 0; i < rhsRaw.length; i++) {
       if (i > 0) {
         const p = rhsRaw[i - 1], c = rhsRaw[i];
@@ -1762,11 +1699,11 @@ function onEditorInput(e) {
         else break;
       }
       for (let si = spacePositions.length - 1; si >= 0; si--) {
-        const absPos = prefix.length + spacePositions[si];
+        const absPos = spacePositions[si];
         editor.setSelectionRange(absPos, absPos);
         document.execCommand('insertText', false, ' ');
       }
-      const newCur = prefix.length + cRhsPos + shift;
+      const newCur = cRhsPos + shift;
       editor.setSelectionRange(newCur, newCur);
       _autoSpacing = false;
     }
@@ -1774,7 +1711,7 @@ function onEditorInput(e) {
 
   // Semantic ident splitting: insert spaces between adjacent known tokens
   // (e.g. "fz" → "f z" when f and z are both known tokens on this level)
-  if (!_autoSpacing && editor.value.startsWith(prefix)) {
+  if (!_autoSpacing) {
     const _isId = c => /[a-zA-Z0-9_']/.test(c);
     const level = LEVELS[currentLevel];
     if (!_knownIdents || _knownIdentsLevel !== currentLevel) {
@@ -1788,8 +1725,8 @@ function onEditorInput(e) {
       _knownIdentsLevel = currentLevel;
     }
 
-    const rhs = editor.value.slice(prefix.length);
-    const cRhsPos = editor.selectionStart - prefix.length;
+    const rhs = editor.value;
+    const cRhsPos = editor.selectionStart;
     let newRhs = '';
     let shift = 0;
     let ri = 0;
@@ -1844,17 +1781,17 @@ function onEditorInput(e) {
         else break;
       }
       for (let si = splitPositions.length - 1; si >= 0; si--) {
-        const absPos = prefix.length + splitPositions[si];
+        const absPos = splitPositions[si];
         editor.setSelectionRange(absPos, absPos);
         document.execCommand('insertText', false, ' ');
       }
-      const newCur = prefix.length + cRhsPos + shift;
+      const newCur = cRhsPos + shift;
       editor.setSelectionRange(newCur, newCur);
       _autoSpacing = false;
     }
   }
 
-  editorContents[currentLevel] = editor.value;
+  setEditorContent(editor.value);
   updateLineNumbers();
   updateEditorOverlay();
   // Debounce live type inference (100ms, matching the original)
@@ -1900,23 +1837,17 @@ function updateEditorOverlay() {
       funcSigMap, paramTypeMap,
     };
   }
-  const { lhs, funcNames, bareFuncs, params, funcSigMap, paramTypeMap } = _overlayCache;
+  const { funcNames, bareFuncs, params, funcSigMap, paramTypeMap } = _overlayCache;
 
   let html = '';
-  if (text.startsWith(lhs)) {
-    html += `<span class="token-lhs">${escHtml(lhs)}</span>`;
-    const rhs = text.slice(lhs.length);
-    const tokens = rhs.match(/[a-zA-Z_][a-zA-Z0-9_']*|[()[\]{}]|[!@#$%^&*\-+=<>?/|~:.\\]+|\s+|./g) || [];
-    for (const tok of tokens) {
-      if (/^\s+$/.test(tok)) { html += tok; }
-      else if (tok === 'undefined') { html += `<span class="token-undef">${tok}</span>`; }
-      else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += `<span class="token-func">${symbolDisplay(tok, null, tok.length)}</span>`; }
-      else if (params.has(tok)) { html += `<span class="token-param">${symbolDisplay(tok, null, tok.length)}</span>`; }
-      else if (tok === '(' || tok === ')') { html += `<span class="token-paren">${tok}</span>`; }
-      else { html += `<span class="token-unknown">${escHtml(tok)}</span>`; }
-    }
-  } else {
-    html = escHtml(text);
+  const tokens = text.match(/[a-zA-Z_][a-zA-Z0-9_']*|[()[\]{}]|[!@#$%^&*\-+=<>?/|~:.\\]+|\s+|./g) || [];
+  for (const tok of tokens) {
+    if (/^\s+$/.test(tok)) { html += tok; }
+    else if (tok === 'undefined') { html += `<span class="token-undef">${tok}</span>`; }
+    else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += `<span class="token-func">${symbolDisplay(tok, null, tok.length)}</span>`; }
+    else if (params.has(tok)) { html += `<span class="token-param">${symbolDisplay(tok, null, tok.length)}</span>`; }
+    else if (tok === '(' || tok === ')') { html += `<span class="token-paren">${tok}</span>`; }
+    else { html += `<span class="token-unknown">${escHtml(tok)}</span>`; }
   }
   overlay.innerHTML = html;
   overlay.scrollTop = editor.scrollTop;
@@ -1925,8 +1856,7 @@ function updateEditorOverlay() {
   const tokensEl = document.getElementById('editor-tokens');
   if (!tokensEl) return;
 
-  if (!text.startsWith(lhs)) { tokensEl.innerHTML = ''; return; }
-  const rhs = text.slice(lhs.length);
+  const rhs = text;
 
   // Parse RHS into expression tree and render as nested gecko
   try {
@@ -2226,7 +2156,7 @@ function updateLineNumbers() {
   const lineNums = document.getElementById('line-numbers');
   if (!editor || !lineNums) return;
   const lines = editor.value.split('\n').length;
-  lineNums.innerHTML = Array.from({length: lines}, (_, i) => i + 1).join('<br>');
+  lineNums.innerHTML = Array.from({length: lines}, (_, i) => i + 2).join('<br>');
 }
 
 function renderGeckoLeafVar(name) {
