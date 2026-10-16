@@ -75,7 +75,8 @@ main { display: flex; flex-direction: column; height: calc(100vh - 36px); }
 
 /* Editor — original uses CodeMirror with white bg */
 .editor-wrap { display: flex; flex-direction: column; min-height: 145px; overflow: hidden; }
-.editor-container { display: flex; flex-shrink: 0; background: white; overflow: hidden; }
+.editor-container { display: flex; flex-shrink: 0; position: relative; padding-left: 28px; background: white; overflow: hidden; }
+.editor-container > .line-numbers { position: absolute; left: 0; top: 0; bottom: 0; width: 28px; overflow: hidden; }
 .editor-prefix-row { display: flex; flex-shrink: 0; background: #f3f4f6; border-bottom: 1px solid #d1d5db; }
 .editor-prefix-row .line-numbers { background: transparent; }
 .editor-prefix { flex: 1; min-width: 0; padding: 4px 8px; font-family: 'Fira Code', monospace; font-size: 1rem; line-height: 1.5; color: #6b7280; white-space: pre; overflow-x: auto; }
@@ -1196,22 +1197,49 @@ function render() {
     // Run live check immediately
     setTimeout(runLiveCheck, 0);
 
-    // Drop-caret helpers (monospace grid calculation)
+    // Measure the displayed tokens so drops follow icons, wrapping, and scrolling.
     const editorWrap = editor.closest('.editor-wrap');
-    let charW = null;
-    function getCharW() {
-      if (charW) return charW;
-      const span = document.createElement('span');
-      const s = getComputedStyle(editor);
-      span.style.font = s.font;
-      span.style.position = 'absolute';
-      span.style.visibility = 'hidden';
-      span.style.whiteSpace = 'pre';
-      span.textContent = 'MMMMMMMMMM';
-      document.body.appendChild(span);
-      charW = span.offsetWidth / 10;
-      span.remove();
-      return charW;
+    let lastCaretStop = null;
+    function editorCaretStops() {
+      const overlay = document.getElementById('editor-overlay');
+      const rect = editor.getBoundingClientRect();
+      const style = getComputedStyle(editor);
+      const height = parseFloat(style.lineHeight);
+      const left = rect.left + parseFloat(style.paddingLeft) - editor.scrollLeft;
+      const top = rect.top + parseFloat(style.paddingTop) - editor.scrollTop;
+      const stops = [];
+      const add = (pos, x, y) => stops.push({
+        pos, x, y: top + Math.round((y - top) / height) * height, height
+      });
+      const range = document.createRange();
+      let offset = 0;
+      for (const node of overlay.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          // Whitespace contributes source offsets, explicit newlines, and
+          // browser-created soft wraps just like the visible token spans.
+          for (let i = 0; i < node.length; i++) {
+            range.setStart(node, i);
+            range.setEnd(node, i + 1);
+            const r = range.getBoundingClientRect();
+            if (r.height) {
+              add(offset + i, r.left, r.top);
+              if (node.textContent[i] === '\n') add(offset + i + 1, left, r.top + height);
+              else add(offset + i + 1, r.right, r.top);
+            }
+          }
+          offset += node.length;
+        } else {
+          const length = Number(node.dataset.codeLength);
+          const rects = Array.from(node.getClientRects());
+          if (rects.length) {
+            add(offset, rects[0].left, rects[0].top);
+            const end = rects[rects.length - 1];
+            add(offset + length, end.right, end.top);
+          }
+          offset += length;
+        }
+      }
+      return stops.length ? stops : [{ pos: 0, x: left, y: top, height }];
     }
     function snapToTokenBoundary(text, pos) {
       if (pos <= 0 || pos >= text.length) return pos;
@@ -1231,29 +1259,24 @@ function render() {
       return (pos - start <= end - pos) ? start : end;
     }
     function caretPosFromPoint(cx, cy) {
-      const rect = editor.getBoundingClientRect();
-      const s = getComputedStyle(editor);
-      const lh = parseFloat(s.lineHeight);
-      const x = cx - rect.left - parseFloat(s.paddingLeft) + editor.scrollLeft;
-      const y = cy - rect.top - parseFloat(s.paddingTop) + editor.scrollTop;
-      const row = Math.max(0, Math.floor(y / lh));
-      const col = Math.max(0, Math.round(x / getCharW()));
-      const lines = editor.value.split('\n');
-      let pos = 0;
-      for (let i = 0; i < Math.min(row, lines.length); i++) pos += lines[i].length + 1;
-      pos += row < lines.length ? Math.min(col, lines[row].length) : lines[lines.length - 1].length;
-      return snapToTokenBoundary(editor.value, Math.min(pos, editor.value.length));
+      let best = null, bestRowDistance = Infinity, bestColumnDistance = Infinity;
+      for (const stop of editorCaretStops()) {
+        const rowDistance = Math.abs(cy - (stop.y + stop.height / 2));
+        const columnDistance = Math.abs(cx - stop.x);
+        if (rowDistance < bestRowDistance - 1 ||
+            (Math.abs(rowDistance - bestRowDistance) <= 1 && columnDistance < bestColumnDistance)) {
+          best = stop;
+          bestRowDistance = rowDistance;
+          bestColumnDistance = columnDistance;
+        }
+      }
+      lastCaretStop = best;
+      return best.pos;
     }
     function showDropCaret(pos) {
-      const s = getComputedStyle(editor);
-      const lh = parseFloat(s.lineHeight);
-      const before = editor.value.substring(0, pos);
-      const bLines = before.split('\n');
-      const row = bLines.length - 1;
-      const col = bLines[row].length;
-      const eRect = editor.getBoundingClientRect();
-      const caretX = eRect.left + parseFloat(s.paddingLeft) + col * getCharW() - editor.scrollLeft;
-      const caretY = eRect.top + parseFloat(s.paddingTop) + row * lh - editor.scrollTop;
+      const stop = lastCaretStop?.pos === pos ? lastCaretStop :
+        editorCaretStops().find(s => s.pos === pos);
+      if (!stop) return;
       let caret = document.getElementById('drop-caret');
       if (!caret) {
         caret = document.createElement('div');
@@ -1261,9 +1284,9 @@ function render() {
         caret.className = 'drop-caret';
         document.body.appendChild(caret);
       }
-      caret.style.left = caretX + 'px';
-      caret.style.top = caretY + 'px';
-      caret.style.height = lh + 'px';
+      caret.style.left = stop.x + 'px';
+      caret.style.top = stop.y + 'px';
+      caret.style.height = stop.height + 'px';
     }
     function removeDropCaret() {
       const c = document.getElementById('drop-caret');
@@ -1310,8 +1333,8 @@ function render() {
       pos = Math.min(pos, text.length);
       // Skip over existing whitespace so we don't double-space
       while (pos < text.length && text[pos] === ' ') pos++;
-      const needSpace = pos > 0 && text[pos - 1] !== ' ';
-      const needTrail = pos < text.length && text[pos] !== ' ';
+      const needSpace = pos > 0 && !/\s/.test(text[pos - 1]);
+      const needTrail = pos < text.length && !/\s/.test(text[pos]);
       const insert = (needSpace ? ' ' : '') + fname + (needTrail ? ' ' : '');
       editor.setSelectionRange(pos, pos);
       document.execCommand('insertText', false, insert);
@@ -1421,8 +1444,8 @@ function render() {
             let insertAt = dropTarget > end ? dropTarget - (end - start) : dropTarget;
             insertAt = Math.max(insertAt, 0);
             const t = editor.value;
-            const needSpace = insertAt > 0 && t[insertAt - 1] !== ' ';
-            const needTrail = insertAt < t.length && t[insertAt] !== ' ';
+            const needSpace = insertAt > 0 && !/\s/.test(t[insertAt - 1]);
+            const needTrail = insertAt < t.length && !/\s/.test(t[insertAt]);
             const insert = (needSpace ? ' ' : '') + token + (needTrail ? ' ' : '');
             editor.setSelectionRange(insertAt, insertAt);
             document.execCommand('insertText', false, insert);
@@ -1842,14 +1865,16 @@ function updateEditorOverlay() {
   const { funcNames, bareFuncs, params, funcSigMap, paramTypeMap } = _overlayCache;
 
   let html = '';
+  const tokenSpan = (cls, content, length) =>
+    `<span class="${cls}" data-code-length="${length}">${content}</span>`;
   const tokens = text.match(/[a-zA-Z_][a-zA-Z0-9_']*|[()[\]{}]|[!@#$%^&*\-+=<>?/|~:.\\]+|\s+|./g) || [];
   for (const tok of tokens) {
     if (/^\s+$/.test(tok)) { html += tok; }
-    else if (tok === 'undefined') { html += `<span class="token-undef">${tok}</span>`; }
-    else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += `<span class="token-func">${symbolDisplay(tok, null, tok.length)}</span>`; }
-    else if (params.has(tok)) { html += `<span class="token-param">${symbolDisplay(tok, null, tok.length)}</span>`; }
-    else if (tok === '(' || tok === ')') { html += `<span class="token-paren">${tok}</span>`; }
-    else { html += `<span class="token-unknown">${escHtml(tok)}</span>`; }
+    else if (tok === 'undefined') { html += tokenSpan('token-undef', tok, tok.length); }
+    else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += tokenSpan('token-func', symbolDisplay(tok, null, tok.length), tok.length); }
+    else if (params.has(tok)) { html += tokenSpan('token-param', symbolDisplay(tok, null, tok.length), tok.length); }
+    else if (tok === '(' || tok === ')') { html += tokenSpan('token-paren', tok, tok.length); }
+    else { html += tokenSpan('token-unknown', escHtml(tok), tok.length); }
   }
   overlay.innerHTML = html;
   overlay.scrollTop = editor.scrollTop;

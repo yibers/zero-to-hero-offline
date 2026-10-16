@@ -112,6 +112,70 @@ test.describe('Phone touch dragging', () => {
     await noDragUI(page);
   });
 
+  test('icon drops below the code use the horizontal start or middle position', async ({ page }) => {
+    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    const code = 'f3 $ f1 z';
+    for (const [target, expected] of [
+      ['f3', 'f2 f3 $ f1 z'],
+      ['f1', 'f3 $ f2 f1 z'],
+    ]) {
+      await editor.fill(code);
+      await editor.blur();
+      await page.waitForTimeout(200);
+      const icon = await page.locator(`#editor-overlay [title="${target}"]`).boundingBox();
+      const area = await editor.boundingBox();
+      await touch.drag(await center(page.locator('[data-func-name="f2"]')), {
+        x: icon.x + 1, y: area.y + area.height - 12,
+      });
+      await expect(editor).toHaveValue(expected);
+      await noDragUI(page);
+    }
+  });
+
+  test('icon drops follow wrapped code rather than append to the end', async ({ page }) => {
+    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    await editor.fill('f1 f2 f3 $ f1 f2 f3 $ f1 f2 f3 z');
+    await editor.blur();
+    await page.waitForTimeout(200);
+    const icons = page.locator('#editor-overlay [title="f3"]');
+    const first = await icons.first().boundingBox();
+    const second = await icons.nth(2).boundingBox();
+    expect(second.y).toBeGreaterThan(first.y);
+    await touch.drag(await center(page.locator('[data-func-name="f2"]')), {
+      x: second.x + 1, y: second.y + second.height / 2,
+    });
+    await expect(editor).toHaveValue('f1 f2 f3 $ f1 f2 f3 $ f1 f2 f2 f3 z');
+    await noDragUI(page);
+  });
+
+  test('icon drops follow scrolled lines without adding indentation', async ({ page }) => {
+    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    await editor.fill('f1\nf2\nf3\nf1\nf2 z');
+    await editor.blur();
+    await editor.evaluate(el => { el.scrollTop = el.scrollHeight; });
+    await expect.poll(() => page.locator('#editor-overlay').evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    await page.waitForTimeout(200);
+    const icon = await page.locator('#editor-overlay [title="f2"]').last().boundingBox();
+    const area = await editor.boundingBox();
+    expect(icon.y).toBeGreaterThanOrEqual(area.y);
+    expect(icon.y + icon.height).toBeLessThanOrEqual(area.y + area.height);
+    await touch.start(await center(page.locator('[data-func-name="f3"]')));
+    await page.waitForTimeout(380);
+    await touch.move({ x: icon.x + 1, y: icon.y + icon.height / 2 });
+    const caret = await page.locator('#drop-caret').boundingBox();
+    expect(caret.x).toBeCloseTo(icon.x, 0);
+    expect(Math.abs(caret.y - icon.y)).toBeLessThan(12);
+    await touch.end();
+    await expect(editor).toHaveValue('f1\nf2\nf3\nf1\nf3 f2 z');
+    await noDragUI(page);
+  });
+
   test('dropping a card outside the editor does not change the solution', async ({ page }) => {
     const touch = await gestures(page);
     await touch.drag(await center(page.locator('[data-func-name="f"]')), { x: 20, y: 80 });
