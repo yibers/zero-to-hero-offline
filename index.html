@@ -1475,9 +1475,13 @@ function render() {
         const rect = editor.getBoundingClientRect();
         const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
                        e.clientY >= rect.top && e.clientY <= rect.bottom;
-        // Remove token from original position
-        let { start, end } = dragOutState.range;
+        // When a function leaves the playground, remove its adjacent explicit
+        // connector too. Implicit connections are recomputed from the tokens.
         const text = editor.value;
+        const removal = !inside
+          ? functionRemovalRange(text, dragOutState.range, LEVELS[currentLevel])
+          : dragOutState.range;
+        let { start, end } = removal;
         if (start > 0 && text[start - 1] === ' ') start--;
         else if (end < text.length && text[end] === ' ') end++;
         const token = dragOutState.token;
@@ -1681,13 +1685,13 @@ function render() {
   });
 }
 
-function getEditorContent() {
-  const lhs = LEVELS[currentLevel].lhs.trim();
-  if (editorContents[currentLevel] === undefined) {
-    editorContents[currentLevel] = lhs + ' undefined';
+function getEditorContent(levelIndex = currentLevel) {
+  const lhs = LEVELS[levelIndex].lhs.trim();
+  if (editorContents[levelIndex] === undefined) {
+    editorContents[levelIndex] = lhs + ' undefined';
   }
   // Keep full definitions in saved progress so existing solutions still load.
-  const full = editorContents[currentLevel];
+  const full = editorContents[levelIndex];
   if (full.startsWith(lhs)) {
     const rhs = full.slice(lhs.length);
     return rhs.startsWith(' ') ? rhs.slice(1) : rhs.trimStart();
@@ -1695,12 +1699,63 @@ function getEditorContent() {
   return full;
 }
 
-function setEditorContent(value) {
-  editorContents[currentLevel] = LEVELS[currentLevel].lhs.trim() + ' ' + value;
+function setEditorContent(value, levelIndex = currentLevel) {
+  editorContents[levelIndex] = LEVELS[levelIndex].lhs.trim() + ' ' + value;
+}
+
+// Source offsets remain tied to the visible tokens. Default connectors are
+// derived for evaluation, so moving/removing icons cannot strand an operator.
+function connectionTokens(text) {
+  return Array.from(text.matchAll(/[a-zA-Z_][a-zA-Z0-9_']*|[!@#$%^&*\-+=<>?/|~:.\\]+|\S/g));
+}
+
+function withDefaultConnections(text, level) {
+  const functions = new Set(level.funcs.map(f => f.name).filter(name => /^[a-zA-Z_]/.test(name)));
+  const params = new Set(level.lhs.split('=')[0].trim().split(/\s+/).slice(1));
+  const scopes = [];
+  let hasFunction = false, end = 0, code = '';
+  for (const token of connectionTokens(text)) {
+    const name = token[0];
+    const gap = text.slice(end, token.index);
+    code += gap;
+    if (functions.has(name)) {
+      if (hasFunction) code += (gap ? '' : ' ') + '$ ';
+      hasFunction = true;
+    } else if (params.has(name)) {
+      // Parameters (including function-valued ones such as bd) stay arguments
+      // of the preceding function; a later function starts the next step.
+    } else if (name === '(') {
+      scopes.push(hasFunction);
+      hasFunction = false;
+    } else if (name === ')') {
+      hasFunction = scopes.pop() || false;
+    } else {
+      // An explicit operator or unrecognized token ends the implicit chain.
+      hasFunction = false;
+    }
+    code += name;
+    end = token.index + name.length;
+  }
+  return code + text.slice(end);
+}
+
+function functionRemovalRange(text, range, level) {
+  const name = text.slice(range.start, range.end);
+  if (!level.funcs.some(f => f.name === name)) return range;
+  const tokens = connectionTokens(text);
+  const index = tokens.findIndex(t => t.index === range.start);
+  const connectors = new Set(['$', '.', '<$>', '<*>', '>>=']);
+  const next = tokens[index + 1], prev = tokens[index - 1];
+  // Prefer the outgoing connector. For the last function, remove the incoming
+  // one instead. Parameters and parentheses remain where the player put them.
+  if (next && connectors.has(next[0])) return { start: range.start, end: next.index + next[0].length };
+  if (prev && connectors.has(prev[0])) return { start: prev.index, end: range.end };
+  return range;
 }
 
 function getCodeFromEditor() {
-  return getEditorContent().trim();
+  const text = getEditorContent();
+  return (iconMode ? withDefaultConnections(text, LEVELS[currentLevel]) : text).trim();
 }
 
 let liveCheckTimer = null;
@@ -1936,7 +1991,7 @@ function updateEditorOverlay() {
   const tokensEl = document.getElementById('editor-tokens');
   if (!tokensEl) return;
 
-  const rhs = text;
+  const rhs = iconMode ? withDefaultConnections(text, LEVELS[currentLevel]) : text;
 
   // Parse RHS into expression tree and render as nested gecko
   try {
@@ -2581,6 +2636,14 @@ window.toggleGecko = function() {
 };
 
 window.toggleIconMode = function() {
+  if (iconMode) {
+    // Text mode shows ordinary Haskell. Materialize defaults for every saved
+    // level so changing the global display mode never changes a solution.
+    for (const key of Object.keys(editorContents)) {
+      const index = Number(key), level = LEVELS[index];
+      if (level) setEditorContent(withDefaultConnections(getEditorContent(index), level), index);
+    }
+  }
   iconMode = !iconMode;
   saveProgress();
   render();

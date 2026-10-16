@@ -244,6 +244,55 @@ test.describe('Phone touch dragging', () => {
     await expect(editor).toHaveValue('undefined');
   });
 
+  test('implicit connections follow touch insertion, reordering, and removal', async ({ page }) => {
+    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    const tile = name => page.locator(`#editor-overlay > span:has([title="${name}"])`);
+    await editor.fill('f1 z');
+    await editor.blur();
+    await page.waitForTimeout(200);
+    let first = await tile('f1').boundingBox();
+    await touch.drag(await center(page.locator('[data-func-name="f3"]')), { x: first.x + 2, y: first.y + first.height / 2 });
+    await expect(editor).toHaveValue('f3 f1 z');
+    expect(await page.evaluate(() => getCodeFromEditor())).toBe('f3 $ f1 z');
+    expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(true);
+    first = await tile('f3').boundingBox();
+    await touch.drag(await center(tile('f1')), { x: first.x + 2, y: first.y + first.height / 2 });
+    await expect(editor).toHaveValue('f1 f3 z');
+    expect(await page.evaluate(() => getCodeFromEditor())).toBe('f1 $ f3 z');
+    await touch.drag(await center(tile('f3')), { x: 20, y: 80 });
+    await expect(editor).toHaveValue('f1 z');
+    expect(await page.evaluate(() => getCodeFromEditor())).toBe('f1 z');
+    await noDragUI(page);
+  });
+
+  test('dragging functions out removes one adjacent explicit connector', async ({ page }) => {
+    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    for (const [code, token, expected] of [
+      ['f3 $ f1 z', 'f3', 'f1 z'],
+      ['f3 $ f1 z', 'f1', 'f3 z'],
+      ['f3 . f2 $ f1 z', 'f2', 'f3 . f1 z'],
+      ['f3 . f1 z', 'f3', 'f1 z'],
+      ['f3 $ f1 z', 'z', 'f3 $ f1'],
+    ]) {
+      await editor.fill(code);
+      await editor.blur();
+      await page.waitForTimeout(200);
+      await touch.drag(await center(page.locator(`#editor-overlay > span:has([title="${token}"])`)), { x: 20, y: 80 });
+      await expect(editor).toHaveValue(expected);
+      await noDragUI(page);
+    }
+    await page.evaluate(() => toggleIconMode());
+    await editor.fill('f3 $ f1 z');
+    await editor.blur();
+    await page.waitForTimeout(200);
+    await touch.drag(await editorPoint(page, 0), { x: 20, y: 80 });
+    await expect(editor).toHaveValue('f1 z');
+  });
+
   test('dropping a card outside the editor does not change the solution', async ({ page }) => {
     const touch = await gestures(page);
     await touch.drag(await center(page.locator('[data-func-name="f"]')), { x: 20, y: 80 });
