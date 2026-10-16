@@ -101,6 +101,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .editor-icons .editor-overlay .icon-sym { height: 48px; justify-content: center; vertical-align: top; }
 .editor-icons .editor-overlay .icon-sym svg { width: 36px; height: 36px; flex-shrink: 0; }
 .editor-icons .editor-container > .line-numbers { font-size: 12px; line-height: 64px; padding-top: 8px; }
+.editor-overlay > .connection-target { outline: 3px solid #7c3aed; outline-offset: 2px; background: #ede9fe; }
 .editor-overlay > .drag-source { opacity: .3; outline: 2px dashed #2563eb; outline-offset: 2px; }
 
 /* Editor token gecko blocks */
@@ -155,9 +156,26 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .touch-drag-ghost.removing .drag-action { display: block; }
 .touch-drag-hint { display: none; font-size: 12px; margin-bottom: 8px; color: #475569; }
 @media (any-pointer: coarse) { .touch-drag-hint { display: block; } }
+.operator-badge { display: inline-block; margin-bottom: 6px; padding: 2px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font: 600 11px 'Exo', sans-serif; }
+.func-card-operator { border-left: 3px solid #a78bfa; }
 .func-card.dragging { opacity: 0.4; cursor: grabbing; }
 .editor-wrap.drag-over { outline: 2px solid #60a5fa; }
 .editor-wrap.drag-over textarea { cursor: copy; }
+.connection-picker { box-sizing: border-box; width: min(520px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); overflow-y: auto; position: fixed; inset: 50dvh auto auto 50vw; transform: translate(-50%, -50%); margin: 0; padding: 20px; border: 0; border-radius: 16px; color: #0f172a; background: white; box-shadow: 0 12px 48px #0f172a66; font-family: 'Exo', sans-serif; }
+.connection-picker::backdrop { background: #0f172a88; }
+.connection-picker h2 { margin: 0 0 8px; font-size: 20px; }
+.connection-picker p { margin: 8px 0; font-size: 14px; }
+.connection-picker button { min-height: 48px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #0f172a; font: inherit; cursor: pointer; touch-action: manipulation; }
+.connection-picker button:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+.connection-order { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
+.connection-order .icon-sym svg, .connection-option .icon-sym svg { width: 28px; height: 28px; }
+.connection-order-label { display: inline-flex; align-items: center; gap: 5px; }
+.connection-options { display: grid; gap: 8px; }
+.connection-picker .connection-option { text-align: left; background: #eff6ff; border-color: #bfdbfe; }
+.connection-option-title { display: flex; align-items: center; gap: 8px; font-weight: bold; }
+.connection-option code { display: block; margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px 'Fira Code', monospace; }
+.connection-picker .connection-cancel { display: block; margin-top: 16px; width: 100%; }
+.editor-drop-hint { color: #475569; font-size: 12px; padding: 6px 8px; background: #f8fafc; }
 .drop-caret { position: fixed; width: 2px; background: #3b82f6; pointer-events: none; z-index: 10000; }
 
 /* Type signature display — original: all text-gray-700, flex gap-x-1 */
@@ -856,6 +874,17 @@ try {
     geckoOn = parsed.geckoOn !== false;
     iconMode = parsed.iconMode === true;
     showIntro = parsed.showIntro !== false;
+    // Preserve the meaning of solutions saved by the old implicit-$ editor.
+    // New edits and every later reload use ordinary application in both modes.
+    if (parsed.connectionVersion !== 1 && iconMode) {
+      for (const key of Object.keys(editorContents)) {
+        const index = Number(key), level = LEVELS[index];
+        if (level && typeof editorContents[key] === 'string') {
+          setEditorContent(withLegacyConnections(getEditorContent(index), level), index);
+        }
+      }
+    }
+    if (parsed.connectionVersion !== 1) saveProgress();
   }
 } catch(e) {}
 
@@ -868,11 +897,13 @@ function saveProgress() {
     bypassCount,
     geckoOn,
     iconMode,
-    showIntro: false
+    showIntro: false,
+    connectionVersion: 1
   }));
 }
 
 function render() {
+  document.getElementById('connection-picker')?.remove();
   if (touchDragCleanup) touchDragCleanup();
   const level = LEVELS[currentLevel];
   const app = document.getElementById('app');
@@ -1026,6 +1057,7 @@ function render() {
                 <textarea class="editor code" id="code-editor" rows="${iconMode ? 2 : 3}" spellcheck="false" aria-label="Solution expression" aria-describedby="editor-prefix"></textarea>
               </div>
             </div>
+            <div class="editor-drop-hint">${level.funcs.some(f => isOperatorName(f.name)) ? 'Drop beside to insert. Drop onto a function to choose an operator.' : 'Drag cards into the editor. Drag tokens out to remove them.'}</div>
             ${geckoOn ? `<div id="editor-tokens" class="editor-tokens"></div>` : ''}
           </div>
 
@@ -1043,7 +1075,8 @@ function render() {
           <p class="touch-drag-hint">Drag cards and editor tokens. Swipe the background to scroll.</p>
           <h2><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,24H72A32,32,0,0,0,40,56V224a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16H56a16,16,0,0,1,16-16H208a8,8,0,0,0,8-8V32A8,8,0,0,0,208,24Zm-8,160H72a31.82,31.82,0,0,0-16,4.29V56A16,16,0,0,1,72,40H200Z"/></svg> Available Functions</h2>
           ${level.funcs.map(f => `
-            <div class="func-card" draggable="true" data-func-name="${f.name}">
+            <div class="func-card${isOperatorName(f.name) ? ' func-card-operator' : ''}" draggable="true" data-func-name="${f.name}">
+              ${isOperatorName(f.name) ? '<span class="operator-badge">Operator</span>' : ''}
               <div class="type-sig">${renderTypeSig(f.name, f.sig)}</div>
               ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
             </div>
@@ -1313,25 +1346,153 @@ function render() {
       if (c) c.remove();
     }
 
+    // Tile edges are insertion targets; the center offers an explicit connection.
+    // Use actual painted rectangles, including wraps and scrolling, in both modes.
+    const namedFunctions = new Set(level.funcs.map(f => f.name).filter(n => /^[a-zA-Z_]/.test(n)));
+    const operators = level.funcs.filter(f => isOperatorName(f.name));
+    let nativeDragName = '';
+    function clearConnectionTarget() {
+      document.querySelectorAll('#editor-overlay > .connection-target').forEach(n => n.classList.remove('connection-target'));
+    }
+    function connectionTargetFromPoint(name, point, sourceRange) {
+      if (!namedFunctions.has(name) || !operators.length) return null;
+      const area = editor.getBoundingClientRect();
+      if (point.clientX < area.left || point.clientX > area.right ||
+          point.clientY < area.top || point.clientY > area.bottom) return null;
+      let offset = 0;
+      for (const node of document.getElementById('editor-overlay').childNodes) {
+        const length = node.nodeType === Node.TEXT_NODE ? node.length : Number(node.dataset.codeLength);
+        const token = editor.value.slice(offset, offset + length);
+        if (node.nodeType !== Node.TEXT_NODE && namedFunctions.has(token) && sourceRange?.start !== offset) {
+          for (const r of node.getClientRects()) {
+            // Reserve a quarter of each side for insertion (at least 10px in icon mode).
+            const edge = iconMode ? Math.max(10, r.width * .25) : r.width * .25;
+            if (point.clientX > r.left + edge && point.clientX < r.right - edge &&
+                point.clientY >= r.top && point.clientY <= r.bottom) {
+              return { start: offset, end: offset + length, node };
+            }
+          }
+        }
+        offset += length;
+      }
+      return null;
+    }
+    function showDropIntent(name, point, pos, sourceRange) {
+      clearConnectionTarget();
+      const target = connectionTargetFromPoint(name, point, sourceRange);
+      if (target) {
+        removeDropCaret();
+        target.node.classList.add('connection-target');
+      } else showDropCaret(pos);
+    }
+    function connectionCode(original, name, target, sourceRange, op, swapped) {
+      let text = original, start = target.start, end = target.end;
+      if (sourceRange) {
+        let removal = functionRemovalRange(text, sourceRange, level);
+        let a = removal.start, b = removal.end;
+        if (a > 0 && text[a - 1] === ' ') a--;
+        else if (b < text.length && text[b] === ' ') b++;
+        text = text.slice(0, a) + text.slice(b);
+        if (b <= start) { start -= b - a; end -= b - a; }
+      }
+      const existing = text.slice(start, end);
+      const left = swapped ? name : existing, right = swapped ? existing : name;
+      return text.slice(0, start) + left + (op ? ' ' + op : '') + ' ' + right + text.slice(end);
+    }
+    function openConnectionPicker(name, target, sourceRange) {
+      const original = editor.value;
+      const existing = original.slice(target.start, target.end);
+      const dialog = document.createElement('dialog');
+      dialog.id = 'connection-picker';
+      dialog.className = 'connection-picker';
+      dialog.setAttribute('aria-labelledby', 'connection-title');
+      dialog.innerHTML = `<h2 id="connection-title">Choose an operator</h2>
+        <p>Preview the code, then choose how to connect these functions.</p>
+        <div class="connection-order"><span id="connection-order-label"></span><button type="button" id="connection-swap">Swap order</button></div>
+        <div class="connection-options"></div>
+        <button type="button" class="connection-cancel">Cancel</button>`;
+      document.body.appendChild(dialog);
+      let swapped = false;
+      const descriptions = { '$': 'Apply', '.': 'Compose', '<$>': 'Map', '<*>': 'Apply wrapped function', '>>=': 'Bind' };
+      const close = () => { dialog.close(); dialog.remove(); };
+      function choose(code) {
+        // A pending choice never edits the document, and stale choices are discarded.
+        if (!editor.isConnected || editor.value !== original) { close(); return; }
+        close();
+        const inputMode = editor.getAttribute('inputmode');
+        editor.setAttribute('inputmode', 'none');
+        editor.focus({ preventScroll: true });
+        editor.select();
+        document.execCommand('insertText', false, code);
+        setEditorContent(editor.value);
+        updateLineNumbers();
+        updateEditorOverlay();
+        saveProgress();
+        clearTimeout(liveCheckTimer);
+        liveCheckTimer = setTimeout(runLiveCheck, 100);
+        editor.blur();
+        if (inputMode === null) editor.removeAttribute('inputmode');
+        else editor.setAttribute('inputmode', inputMode);
+      }
+      function renderChoices() {
+        const left = swapped ? name : existing, right = swapped ? existing : name;
+        dialog.querySelector('#connection-order-label').innerHTML =
+          `<span class="connection-order-label">Left: ${symbolDisplay(left)} <span aria-hidden="true">→</span> Right: ${symbolDisplay(right)}</span>`;
+        const options = dialog.querySelector('.connection-options');
+        options.replaceChildren();
+        for (const f of [...operators, { name: '', sig: '' }]) {
+          const op = f.name.slice(1, -1);
+          const code = connectionCode(original, name, target, sourceRange, op, swapped);
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'connection-option';
+          button.dataset.operator = op;
+          button.setAttribute('aria-label', op ? `Use ${op}` : 'Insert without operator');
+          button.innerHTML = `<span class="connection-option-title">${op ? symbolDisplay(op) + ' ' + escHtml(op) + ' · ' + escHtml(descriptions[op] || 'Connect') : 'No operator'}</span><code>${escHtml(code)}</code>`;
+          button.addEventListener('click', () => choose(code));
+          options.appendChild(button);
+        }
+      }
+      dialog.querySelector('#connection-swap').addEventListener('click', () => { swapped = !swapped; renderChoices(); });
+      dialog.querySelector('.connection-cancel').addEventListener('click', close);
+      dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
+      dialog.addEventListener('click', e => { if (e.target === dialog) {
+        const r = dialog.getBoundingClientRect();
+        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) close();
+      } });
+      renderChoices();
+      editor.blur();
+      dialog.showModal();
+      dialog.querySelector('.connection-option').focus({ preventScroll: true });
+    }
+    function dropCard(name, point, pos) {
+      const target = connectionTargetFromPoint(name, point);
+      clearConnectionTarget();
+      if (target) openConnectionPicker(name, target);
+      else insertDroppedToken(name, pos);
+    }
+    document.querySelectorAll('.func-card[draggable]').forEach(card => {
+      card.addEventListener('dragstart', () => { nativeDragName = card.dataset.funcName; });
+      card.addEventListener('dragend', () => { nativeDragName = ''; clearConnectionTarget(); });
+    });
     // Drop handling on editor
     editor.addEventListener('dragover', e => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
-      if (editorWrap) editorWrap.classList.add('drag-over');
+      editorWrap.classList.add('drag-over');
       const pos = Math.max(caretPosFromPoint(e.clientX, e.clientY), 0);
-      editor._dropPos = pos;
-      showDropCaret(pos);
+      showDropIntent(nativeDragName, e, pos);
     });
     editor.addEventListener('dragleave', () => {
-      if (editorWrap) editorWrap.classList.remove('drag-over');
+      editorWrap.classList.remove('drag-over');
       removeDropCaret();
+      clearConnectionTarget();
     });
     editor.addEventListener('drop', e => {
       e.preventDefault();
-      if (editorWrap) editorWrap.classList.remove('drag-over');
+      editorWrap.classList.remove('drag-over');
       removeDropCaret();
-      insertDroppedToken(e.dataTransfer.getData('text/plain'), editor._dropPos);
-      delete editor._dropPos;
+      dropCard(e.dataTransfer.getData('text/plain'), e, caretPosFromPoint(e.clientX, e.clientY));
     });
     function insertDroppedToken(name, dropPos) {
       const fname = name.replace(/^\(/, '').replace(/\)$/, '');
@@ -1459,9 +1620,10 @@ function render() {
           let pos = caretPosFromPoint(e.clientX, e.clientY);
           pos = snapToTokenBoundary(editor.value, pos);
           pos = Math.max(pos, 0);
-          showDropCaret(pos);
+          showDropIntent(dragOutState.token, e, pos, dragOutState.range);
         } else {
           removeDropCaret();
+          clearConnectionTarget();
         }
       }
     };
@@ -1471,12 +1633,18 @@ function render() {
       if (ghost) ghost.remove();
       markDragSource(null);
       removeDropCaret();
+      clearConnectionTarget();
       if (dragOutState.dragging) {
         const rect = editor.getBoundingClientRect();
         const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
                        e.clientY >= rect.top && e.clientY <= rect.bottom;
-        // When a function leaves the playground, remove its adjacent explicit
-        // connector too. Implicit connections are recomputed from the tokens.
+        const target = inside && connectionTargetFromPoint(dragOutState.token, e, dragOutState.range);
+        if (target) {
+          openConnectionPicker(dragOutState.token, target, dragOutState.range);
+          dragOutState = null;
+          return;
+        }
+        // When a function leaves the playground, remove its adjacent connector too.
         const text = editor.value;
         const removal = !inside
           ? functionRemovalRange(text, dragOutState.range, LEVELS[currentLevel])
@@ -1552,6 +1720,7 @@ function render() {
       }
       touchState = null;
       markDragSource(null);
+      clearConnectionTarget();
       editor.classList.remove('touch-dragging');
       editorWrap.classList.remove('drag-over');
       document.getElementById('touch-drag-ghost')?.remove();
@@ -1572,8 +1741,8 @@ function render() {
       positionDragGhost(ghost, touch);
       const pos = touchDropPosition(touch);
       editorWrap.classList.toggle('drag-over', pos !== null);
-      if (pos === null) removeDropCaret();
-      else showDropCaret(pos);
+      if (pos === null) { removeDropCaret(); clearConnectionTarget(); }
+      else showDropIntent(touchState.card.dataset.funcName, touch, pos);
     }
     document.addEventListener('touchstart', e => {
       // A second finger cancels rather than committing an accidental edit.
@@ -1634,7 +1803,7 @@ function render() {
           if (editor.value === touchState.value) {
             if (touchState.card) {
               const pos = touchDropPosition(touch);
-              if (pos !== null) insertDroppedToken(touchState.card.dataset.funcName, pos);
+              if (pos !== null) dropCard(touchState.card.dataset.funcName, touch, pos);
             } else {
               onDragOutUp(touch);
             }
@@ -1703,13 +1872,17 @@ function setEditorContent(value, levelIndex = currentLevel) {
   editorContents[levelIndex] = LEVELS[levelIndex].lhs.trim() + ' ' + value;
 }
 
-// Source offsets remain tied to the visible tokens. Default connectors are
-// derived for evaluation, so moving/removing icons cannot strand an operator.
+// Shared source tokens for connector cleanup and migration of old saved code.
+function isOperatorName(name) {
+  return /^\([^a-zA-Z0-9_]+\)$/.test(name);
+}
+
 function connectionTokens(text) {
   return Array.from(text.matchAll(/[a-zA-Z_][a-zA-Z0-9_']*|[!@#$%^&*\-+=<>?/|~:.\\]+|\S/g));
 }
 
-function withDefaultConnections(text, level) {
+// Used only to migrate progress from the former implicit-connection editor.
+function withLegacyConnections(text, level) {
   const functions = new Set(level.funcs.map(f => f.name).filter(name => /^[a-zA-Z_]/.test(name)));
   const params = new Set(level.lhs.split('=')[0].trim().split(/\s+/).slice(1));
   const scopes = [];
@@ -1754,8 +1927,7 @@ function functionRemovalRange(text, range, level) {
 }
 
 function getCodeFromEditor() {
-  const text = getEditorContent();
-  return (iconMode ? withDefaultConnections(text, LEVELS[currentLevel]) : text).trim();
+  return getEditorContent().trim();
 }
 
 let liveCheckTimer = null;
@@ -1991,7 +2163,7 @@ function updateEditorOverlay() {
   const tokensEl = document.getElementById('editor-tokens');
   if (!tokensEl) return;
 
-  const rhs = iconMode ? withDefaultConnections(text, LEVELS[currentLevel]) : text;
+  const rhs = text;
 
   // Parse RHS into expression tree and render as nested gecko
   try {
@@ -2636,14 +2808,6 @@ window.toggleGecko = function() {
 };
 
 window.toggleIconMode = function() {
-  if (iconMode) {
-    // Text mode shows ordinary Haskell. Materialize defaults for every saved
-    // level so changing the global display mode never changes a solution.
-    for (const key of Object.keys(editorContents)) {
-      const index = Number(key), level = LEVELS[index];
-      if (level) setEditorContent(withDefaultConnections(getEditorContent(index), level), index);
-    }
-  }
   iconMode = !iconMode;
   saveProgress();
   render();

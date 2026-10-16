@@ -46,7 +46,9 @@ tests/          — Playwright + unit tests
 ### Additional features
 
 - Touch drag-and-drop — drag a function/parameter card straight into the editor, or drag an editor token to reorder or remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
-- Icon mode automatically connects function steps with `$` when no connector is supplied; parameters stay attached as arguments. Explicit connectors take precedence, and text mode shows the generated Haskell.
+- Operator cards are marked with an “Operator” badge in both text and icon modes.
+- Drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
+- Saved solutions from the earlier automatic-chaining editor retain their meaning through a one-time conversion to explicit `$` connectors.
 - Dragging a function out also removes an adjacent explicit connector.
 - A read-only function prefix on its own line, with a left-aligned solution playground below it
 - Editor contents persisted in localStorage

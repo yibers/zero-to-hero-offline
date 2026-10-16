@@ -244,7 +244,7 @@ test.describe('Phone touch dragging', () => {
     await expect(editor).toHaveValue('undefined');
   });
 
-  test('implicit connections follow touch insertion, reordering, and removal', async ({ page }) => {
+  test('adjacent touch insertion and reordering never add implicit connections', async ({ page }) => {
     await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
@@ -255,16 +255,58 @@ test.describe('Phone touch dragging', () => {
     let first = await tile('f1').boundingBox();
     await touch.drag(await center(page.locator('[data-func-name="f3"]')), { x: first.x + 2, y: first.y + first.height / 2 });
     await expect(editor).toHaveValue('f3 f1 z');
-    expect(await page.evaluate(() => getCodeFromEditor())).toBe('f3 $ f1 z');
-    expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(true);
+    expect(await page.evaluate(() => getCodeFromEditor())).toBe('f3 f1 z');
+    expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(false);
     first = await tile('f3').boundingBox();
     await touch.drag(await center(tile('f1')), { x: first.x + 2, y: first.y + first.height / 2 });
     await expect(editor).toHaveValue('f1 f3 z');
-    expect(await page.evaluate(() => getCodeFromEditor())).toBe('f1 $ f3 z');
+    expect(await page.evaluate(() => getCodeFromEditor())).toBe('f1 f3 z');
     await touch.drag(await center(tile('f3')), { x: 20, y: 80 });
     await expect(editor).toHaveValue('f1 z');
     expect(await page.evaluate(() => getCodeFromEditor())).toBe('f1 z');
     await noDragUI(page);
+  });
+
+  test('phone center drop offers operators, swaps order, and saves the selected connection', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    const tile = name => page.locator(`#editor-overlay > span:has([title="${name}"])`);
+    await editor.fill('f1 z');
+    await editor.blur();
+    await touch.start(await center(page.locator('[data-func-name="f3"]')));
+    await touch.move(await center(tile('f1')));
+    await expect(tile('f1')).toHaveClass(/connection-target/);
+    await expect(page.locator('#drop-caret')).toHaveCount(0);
+    await touch.end();
+    const picker = page.getByRole('dialog', { name: 'Choose an operator' });
+    await expect(picker).toBeVisible();
+    await expect(editor).toHaveValue('f1 z');
+    await noDragUI(page);
+    const bounds = await picker.boundingBox();
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(320);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(800);
+    await picker.getByRole('button', { name: 'Swap order' }).tap();
+    const dollar = picker.getByRole('button', { name: 'Use $', exact: true });
+    await expect(dollar).toContainText('f3 $ f1 z');
+    expect((await dollar.boundingBox()).height).toBeGreaterThanOrEqual(48);
+    await dollar.tap();
+    await expect(editor).toHaveValue('f3 $ f1 z');
+    await expect(editor).not.toBeFocused();
+    expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(true);
+    await page.reload();
+    await expect(editor).toHaveValue('f3 $ f1 z');
+    // Moving an existing function onto another also offers a choice, without editing until chosen.
+    await touch.drag(await center(tile('f1')), await center(tile('f3')));
+    await expect(picker).toBeVisible();
+    await picker.getByRole('button', { name: 'Cancel', exact: true }).tap();
+    await expect(editor).toHaveValue('f3 $ f1 z');
+    await noDragUI(page);
+    await touch.drag(await center(tile('f1')), await center(tile('f3')));
+    await picker.getByRole('button', { name: 'Use .', exact: true }).tap();
+    await expect(editor).toHaveValue('f3 . f1 z');
   });
 
   test('dragging functions out removes one adjacent explicit connector', async ({ page }) => {
