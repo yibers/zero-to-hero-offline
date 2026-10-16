@@ -835,6 +835,7 @@ try {
     editorContents = parsed.editorContents || {};
     currentLevel = Math.max(0, Math.min(parsed.currentLevel || 0, LEVELS.length - 1));
     bypassCount = parsed.bypassCount || 0;
+    geckoOn = parsed.geckoOn !== false;
     iconMode = parsed.iconMode === true;
     showIntro = parsed.showIntro !== false;
   }
@@ -847,6 +848,7 @@ function saveProgress() {
     editorContents,
     currentLevel,
     bypassCount,
+    geckoOn,
     iconMode,
     showIntro: false
   }));
@@ -2493,6 +2495,7 @@ window.resetGame = function() {
 
 window.toggleGecko = function() {
   geckoOn = !geckoOn;
+  saveProgress();
   render();
   // Restore editor content after re-render
   const ed = document.getElementById('code-editor');
