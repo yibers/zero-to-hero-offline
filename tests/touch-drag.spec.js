@@ -28,7 +28,6 @@ test.describe('Phone touch dragging', () => {
       secondFinger: (p, q) => send('touchStart', [p, q]),
       async drag(from, to) {
         await send('touchStart', [from]);
-        await page.waitForTimeout(380);
         for (let i = 1; i <= 8; i++) {
           await send('touchMove', [{
             x: from.x + (to.x - from.x) * i / 8,
@@ -166,7 +165,6 @@ test.describe('Phone touch dragging', () => {
     expect(icon.y).toBeGreaterThanOrEqual(area.y);
     expect(icon.y + icon.height).toBeLessThanOrEqual(area.y + area.height);
     await touch.start(await center(page.locator('[data-func-name="f3"]')));
-    await page.waitForTimeout(380);
     await touch.move({ x: icon.x + 1, y: icon.y + icon.height / 2 });
     const caret = await page.locator('#drop-caret').boundingBox();
     expect(caret.x).toBeCloseTo(icon.x, 0);
@@ -176,7 +174,7 @@ test.describe('Phone touch dragging', () => {
     await noDragUI(page);
   });
 
-  test('large icon tiles show the held icon, reorder, and explain removal', async ({ page }) => {
+  test('large icon tiles immediately show the picked-up icon, reorder, and explain removal', async ({ page }) => {
     await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
@@ -195,7 +193,6 @@ test.describe('Phone touch dragging', () => {
     const z = await tile('z').boundingBox();
     const source = { x: z.x + z.width - 2, y: z.y + z.height / 2 };
     await touch.start(source);
-    await page.waitForTimeout(380);
     const ghost = page.locator('#drag-out-ghost');
     await expect(ghost.locator('[title="z"] svg')).toBeVisible();
     await expect(tile('z')).toHaveClass(/drag-source/);
@@ -209,7 +206,6 @@ test.describe('Phone touch dragging', () => {
     await expect(editor).toHaveValue('z f1 f2');
     await noDragUI(page);
     await touch.start(await center(tile('f1')));
-    await page.waitForTimeout(380);
     await touch.move({ x: 20, y: 80 });
     await expect(ghost.locator('[title="f1"] svg')).toBeVisible();
     await expect(ghost).toHaveClass(/removing/);
@@ -218,7 +214,6 @@ test.describe('Phone touch dragging', () => {
     await expect(editor).toHaveValue('z f2');
     await noDragUI(page);
     await touch.start(await center(tile('f2')));
-    await page.waitForTimeout(380);
     await touch.move({ x: 20, y: 80 });
     await touch.cancel();
     await expect(editor).toHaveValue('z f2');
@@ -236,7 +231,6 @@ test.describe('Phone touch dragging', () => {
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
     await touch.start(await center(page.locator('[data-func-name="runZero"]')));
-    await page.waitForTimeout(380);
     await expect(page.locator('#touch-drag-ghost [title="runZero"] svg')).toBeVisible();
     await touch.move(await center(editor));
     await touch.end();
@@ -262,12 +256,10 @@ test.describe('Phone touch dragging', () => {
     const source = await center(page.locator('[data-func-name="f"]'));
     const target = await center(page.locator('.editor-wrap'));
     await touch.start(source);
-    await page.waitForTimeout(380);
     await touch.move(target);
     await touch.cancel();
     await noDragUI(page);
     await touch.start(source);
-    await page.waitForTimeout(380);
     await touch.secondFinger(source, { x: 20, y: 80 });
     await touch.end();
     await expect(page.locator('#code-editor')).toHaveValue('undefined');
@@ -276,20 +268,44 @@ test.describe('Phone touch dragging', () => {
     await expect(page.locator('#code-editor')).toHaveValue('f');
     await page.waitForTimeout(200);
     await touch.start(await editorPoint(page, 0));
-    await page.waitForTimeout(380);
     await touch.move({ x: 20, y: 80 });
     await touch.cancel();
     await expect(page.locator('#code-editor')).toHaveValue('f');
     await noDragUI(page);
   });
 
-  test('ordinary swipes scroll the cards without starting a drag', async ({ page }) => {
+  test('taps and tiny movements do not insert or remove tokens', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    const card = page.locator('[data-func-name="f"]');
+    await card.tap();
+    await expect(editor).toHaveValue('undefined');
+    await noDragUI(page);
+    await editor.fill('f z');
+    await editor.blur();
+    await page.waitForTimeout(200);
+    const token = await center(page.locator('#editor-overlay > span:has([title="f"])'));
+    await page.touchscreen.tap(token.x, token.y);
+    await expect(editor).toBeFocused();
+    await expect(editor).toHaveValue('f z');
+    await noDragUI(page);
+    await editor.blur();
+    await touch.start(token);
+    await touch.move({ x: token.x + 2, y: token.y + 1 });
+    await touch.end();
+    await expect(editor).toHaveValue('f z');
+    await noDragUI(page);
+  });
+
+  test('background swipes scroll the cards without starting a drag', async ({ page }) => {
     // A later level has enough real cards to overflow the phone viewport.
     await page.evaluate(() => { currentLevel = 9; render(); });
     const touch = await gestures(page);
     const panel = page.locator('.right-panel');
     const r = await panel.boundingBox();
-    const from = { x: r.x + r.width / 2, y: r.y + r.height - 50 };
+    const from = { x: r.x + r.width - 3, y: r.y + r.height - 50 };
+    expect(await page.evaluate(p => !!document.elementFromPoint(p.x, p.y).closest('.func-card'), from)).toBe(false);
     await touch.start(from);
     for (let i = 1; i <= 6; i++) await touch.move({ x: from.x, y: from.y - i * 30 });
     await touch.end();
@@ -305,7 +321,6 @@ test.describe('Phone touch dragging', () => {
     await editor.blur();
     const touch = await gestures(page);
     await touch.start(await center(page.locator('[data-func-name="f"]')));
-    await page.waitForTimeout(380);
     await page.evaluate(() => toggleGecko());
     await touch.end();
     await noDragUI(page);

@@ -45,7 +45,7 @@ tests/          — Playwright + unit tests
 
 ### Additional features
 
-- Touch drag-and-drop — hold a function/parameter card, then drag it into the editor; hold an editor token to move it or drag it out to remove it. Swipe normally to scroll.
+- Touch drag-and-drop — drag a function/parameter card straight into the editor, or drag an editor token to reorder or remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
 - A read-only function prefix on its own line, with a left-aligned solution playground below it
 - Editor contents persisted in localStorage
 - "Show optimal solution" link on non-optimal completion
