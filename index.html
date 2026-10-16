@@ -130,6 +130,11 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .right-panel h2 { font-size: 16px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .right-panel h2 svg { width: 18px; height: 18px; }
 .func-card { background: white; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; cursor: grab; }
+.func-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.touch-dragging { outline: 2px solid #60a5fa; outline-offset: -2px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.touch-drag-ghost { position: fixed; padding: 6px 10px; background: #2563eb; color: white; border-radius: 6px; font: 14px "Fira Code", monospace; pointer-events: none; z-index: 10000; white-space: nowrap; }
+.touch-drag-hint { display: none; font-size: 12px; margin-bottom: 8px; color: #475569; }
+@media (any-pointer: coarse) { .touch-drag-hint { display: block; } }
 .func-card.dragging { opacity: 0.4; cursor: grabbing; }
 .editor-wrap.drag-over { outline: 2px solid #60a5fa; }
 .editor-wrap.drag-over textarea { cursor: copy; }
@@ -846,6 +851,7 @@ function saveProgress() {
 }
 
 function render() {
+  if (touchDragCleanup) touchDragCleanup();
   const level = LEVELS[currentLevel];
   const app = document.getElementById('app');
 
@@ -1008,6 +1014,7 @@ function render() {
         <div class="gutter-col"></div>
 
         <div class="right-panel">
+          <p class="touch-drag-hint">Hold a card or editor token, then drag it.</p>
           <h2><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,24H72A32,32,0,0,0,40,56V224a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16H56a16,16,0,0,1,16-16H208a8,8,0,0,0,8-8V32A8,8,0,0,0,208,24Zm-8,160H72a31.82,31.82,0,0,0-16,4.29V56A16,16,0,0,1,72,40H200Z"/></svg> Available Functions</h2>
           ${level.funcs.map(f => `
             <div class="func-card" draggable="true" data-func-name="${f.name}">
@@ -1305,7 +1312,11 @@ function render() {
       e.preventDefault();
       if (editorWrap) editorWrap.classList.remove('drag-over');
       removeDropCaret();
-      const fname = e.dataTransfer.getData('text/plain').replace(/^\(/, '').replace(/\)$/, '');
+      insertDroppedToken(e.dataTransfer.getData('text/plain'), editor._dropPos);
+      delete editor._dropPos;
+    });
+    function insertDroppedToken(name, dropPos) {
+      const fname = name.replace(/^\(/, '').replace(/\)$/, '');
       if (!fname) return;
       editor.focus();
       // Remove "undefined" and any surrounding whitespace from RHS
@@ -1320,7 +1331,7 @@ function render() {
       }
       // Re-read text after potential removal, clamp pos into valid range
       const text = editor.value;
-      let pos = Math.max(editor._dropPos ?? text.length, rhsStart);
+      let pos = Math.max(dropPos ?? text.length, rhsStart);
       pos = Math.min(pos, text.length);
       // Skip over existing whitespace so we don't double-space
       while (pos < text.length && text[pos] === ' ') pos++;
@@ -1334,7 +1345,7 @@ function render() {
       updateEditorOverlay();
       clearTimeout(liveCheckTimer);
       liveCheckTimer = setTimeout(runLiveCheck, 100);
-    });
+    }
 
     // Custom drag-out: auto-select token under cursor, drag to remove
     function getTokenRange(text, pos) {
@@ -1455,8 +1466,7 @@ function render() {
           const rhsStart = minDropPos();
           const rhs = editor.value.slice(rhsStart).trim();
           if (!rhs) {
-            const insertAt = editor.value.length;
-            editor.setSelectionRange(insertAt, insertAt);
+            editor.setSelectionRange(rhsStart, editor.value.length);
             document.execCommand('insertText', false, ' undefined');
           }
           editorContents[currentLevel] = editor.value;
@@ -1470,6 +1480,136 @@ function render() {
       }
       dragOutState = null;
     };
+    // Touch gestures are armed by a hold. Moving before the hold is a normal
+    // scroll; once armed, non-passive touchmove keeps the gesture in the app.
+    let touchState = null;
+    const touchListeners = new AbortController();
+    const touchOptions = { signal: touchListeners.signal, passive: false };
+    function clearTouchDrag() {
+      if (touchState) {
+        clearTimeout(touchState.timer);
+        if (touchState.card) {
+          touchState.card.draggable = true;
+          touchState.card.classList.remove('dragging');
+        }
+        if (touchState.active) dragOutState = null;
+      }
+      touchState = null;
+      editor.classList.remove('touch-dragging');
+      editorWrap.classList.remove('drag-over');
+      document.getElementById('touch-drag-ghost')?.remove();
+      document.getElementById('drag-out-ghost')?.remove();
+      removeDropCaret();
+    }
+    function touchDropPosition(touch) {
+      const hit = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (!hit || !editorWrap.contains(hit)) return null;
+      return Math.max(caretPosFromPoint(touch.clientX, touch.clientY), minDropPos());
+    }
+    function moveTouchDrag(touch) {
+      if (!touchState.card) {
+        onDragOutMove(touch);
+        return;
+      }
+      const ghost = document.getElementById('touch-drag-ghost');
+      ghost.style.left = Math.max(0, Math.min(touch.clientX + 12, innerWidth - ghost.offsetWidth)) + 'px';
+      ghost.style.top = Math.max(0, touch.clientY - 44) + 'px';
+      const pos = touchDropPosition(touch);
+      editorWrap.classList.toggle('drag-over', pos !== null);
+      if (pos === null) removeDropCaret();
+      else showDropCaret(pos);
+    }
+    document.addEventListener('touchstart', e => {
+      // A second finger cancels rather than committing an accidental edit.
+      if (e.touches.length !== 1) { clearTouchDrag(); return; }
+      const card = e.target.closest('.func-card[draggable]');
+      if (!card && e.target !== editor) return;
+      clearTouchDrag();
+      const touch = e.touches[0];
+      const pos = caretPosFromPoint(touch.clientX, touch.clientY);
+      const range = card ? null : getTokenRange(editor.value, pos);
+      if (!card && (!range || range.start < minDropPos())) return;
+      const state = touchState = {
+        id: touch.identifier, card, active: false, value: editor.value
+      };
+      // Disable the browser's own long-press HTML drag for this gesture.
+      if (card) card.draggable = false;
+      state.timer = setTimeout(() => {
+        if (touchState !== state || !editor.isConnected) return;
+        state.active = true;
+        editor.classList.add('touch-dragging');
+        if (card) {
+          card.classList.add('dragging');
+          const ghost = document.createElement('div');
+          ghost.id = 'touch-drag-ghost';
+          ghost.className = 'touch-drag-ghost';
+          ghost.textContent = card.dataset.funcName;
+          document.body.appendChild(ghost);
+          moveTouchDrag(touch);
+        } else {
+          dragOutState = {
+            range, token: editor.value.slice(range.start, range.end),
+            startX: touch.clientX, startY: touch.clientY,
+            dragging: false, origPos: pos
+          };
+        }
+      }, 300);
+    }, touchOptions);
+    document.addEventListener('touchmove', e => {
+      if (!touchState) return;
+      if (e.touches.length !== 1 || editor.value !== touchState.value) {
+        clearTouchDrag(); return;
+      }
+      const touch = Array.from(e.touches).find(t => t.identifier === touchState.id);
+      if (!touch) return;
+      // Let the browser handle a swipe from its first move event. Once it has
+      // started scrolling, cancelling later moves is not reliable on phones.
+      if (!touchState.active || !e.cancelable) { clearTouchDrag(); return; }
+      e.preventDefault();
+      moveTouchDrag(touch);
+    }, touchOptions);
+    document.addEventListener('touchend', e => {
+      if (!touchState) return;
+      const touch = Array.from(e.changedTouches).find(t => t.identifier === touchState.id);
+      if (!touch) return;
+      if (touchState.active) {
+        e.preventDefault(); // No emulated mouse click or keyboard after a drag.
+        const focused = document.activeElement === editor;
+        const inputMode = editor.getAttribute('inputmode');
+        editor.setAttribute('inputmode', 'none');
+        try {
+          if (editor.value === touchState.value) {
+            if (touchState.card) {
+              const pos = touchDropPosition(touch);
+              if (pos !== null) insertDroppedToken(touchState.card.dataset.funcName, pos);
+            } else {
+              onDragOutUp(touch);
+            }
+          }
+        } finally {
+          if (!focused) editor.blur();
+          if (inputMode === null) editor.removeAttribute('inputmode');
+          else editor.setAttribute('inputmode', inputMode);
+          clearTouchDrag();
+        }
+      } else {
+        clearTouchDrag(); // A short tap retains normal caret/keyboard behavior.
+      }
+    }, touchOptions);
+    document.addEventListener('touchcancel', clearTouchDrag, touchOptions);
+    document.addEventListener('contextmenu', e => {
+      if (touchState) e.preventDefault();
+    }, touchOptions);
+    window.addEventListener('blur', clearTouchDrag, { signal: touchListeners.signal });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) clearTouchDrag();
+    }, { signal: touchListeners.signal });
+    touchDragCleanup = () => {
+      clearTouchDrag();
+      touchListeners.abort();
+      touchDragCleanup = null;
+    };
+
     document.addEventListener('mousemove', onDragOutMove);
     document.addEventListener('mouseup', onDragOutUp);
     dragOutCleanup = () => {
@@ -1523,6 +1663,7 @@ function getCodeFromEditor() {
 let liveCheckTimer = null;
 let attemptInProgress = false;
 let dragOutCleanup = null;
+let touchDragCleanup = null;
 
 function onEditorInput(e) {
   const editor = e.target;
