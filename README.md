@@ -1,5 +1,7 @@
 # Zero to Hero — Client-Side Edition
 
+**[Play in your browser](https://yibers.github.io/zero-to-hero-offline/)**
+
 A fully client-side reimplementation of [Zero to Hero](https://zerotohero.fly.dev), a Haskell type puzzle game where you implement a `zeroToHero` function to convert between types using only the provided functions.
 
 ## What is this?
