@@ -43,6 +43,7 @@ tests/          — Playwright + unit tests
 
 ### Additional features
 
+- Touch drag-and-drop — hold a function/parameter card, then drag it into the editor; hold an editor token to move it or drag it out to remove it. Swipe normally to scroll.
 - Editor contents persisted in localStorage
 - "Show optimal solution" link on non-optimal completion
 - "Try again" option to improve your solution
@@ -57,7 +58,7 @@ Open `index.html` in a browser. That's it.
 npx playwright test
 ```
 
-Runs 15 Playwright end-to-end tests covering UI rendering, type inference, level completion flow, and gecko graph display.
+Runs Playwright end-to-end tests covering UI rendering, type inference, level completion, GeckoGraph display, mouse dragging, and phone touch gestures (Chromium).
 
 ## Attribution
 
