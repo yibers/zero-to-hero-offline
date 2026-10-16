@@ -91,6 +91,18 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .token-paren { color: #374151; }
 .token-unknown { color: #9ca3af; font-style: italic; }
 
+/* Keep the transparent input and icon overlay on the same character grid.
+   Negative margins enlarge the grab tiles without changing source offsets. */
+.editor-icons.editor-wrap { min-height: 250px; }
+.editor-icons textarea.editor, .editor-icons .editor-overlay { font-size: 30px; word-spacing: 16px; line-height: 64px; padding: 8px 17px; }
+.editor-icons .editor-overlay { overflow-wrap: break-word; }
+.editor-icons .editor-overlay > .token-func, .editor-icons .editor-overlay > .token-param,
+.editor-icons .editor-overlay > .token-paren { display: inline-block; height: 48px; line-height: 48px; padding: 0 13px; margin: 0 -13px; vertical-align: middle; border-radius: 10px; box-shadow: none; }
+.editor-icons .editor-overlay .icon-sym { height: 48px; justify-content: center; vertical-align: top; }
+.editor-icons .editor-overlay .icon-sym svg { width: 36px; height: 36px; flex-shrink: 0; }
+.editor-icons .editor-container > .line-numbers { font-size: 12px; line-height: 64px; padding-top: 8px; }
+.editor-overlay > .drag-source { opacity: .3; outline: 2px dashed #2563eb; outline-offset: 2px; }
+
 /* Editor token gecko blocks */
 .editor-tokens { display: flex; min-height: 0; overflow: auto; flex-wrap: wrap; gap: 4px; align-items: flex-end;
                   padding: 6px 8px; background: white; border-top: 1px solid #e5e7eb; }
@@ -135,7 +147,12 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .func-card { background: white; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; cursor: grab; }
 .func-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .touch-dragging { outline: 2px solid #60a5fa; outline-offset: -2px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
-.touch-drag-ghost { position: fixed; padding: 6px 10px; background: #2563eb; color: white; border-radius: 6px; font: 14px "Fira Code", monospace; pointer-events: none; z-index: 10000; white-space: nowrap; }
+.touch-drag-ghost { position: fixed; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 12px; background: #2563eb; color: white; border: 2px solid white; border-radius: 10px; box-shadow: 0 4px 16px #0f172a55; font: 14px "Fira Code", monospace; pointer-events: none; z-index: 10000; white-space: nowrap; }
+.touch-drag-ghost.icon-ghost { min-width: 64px; min-height: 64px; justify-content: center; }
+.touch-drag-ghost.icon-ghost .icon-sym svg { width: 44px; height: 44px; }
+.touch-drag-ghost .drag-action { display: none; font: 12px 'Exo', sans-serif; }
+.touch-drag-ghost.removing { background: #b91c1c; }
+.touch-drag-ghost.removing .drag-action { display: block; }
 .touch-drag-hint { display: none; font-size: 12px; margin-bottom: 8px; color: #475569; }
 @media (any-pointer: coarse) { .touch-drag-hint { display: block; } }
 .func-card.dragging { opacity: 0.4; cursor: grabbing; }
@@ -997,7 +1014,7 @@ function render() {
           <div class="gutter-row"></div>
 
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M230.14,70.54,185.46,25.86a20,20,0,0,0-28.28,0L33.86,149.17A19.85,19.85,0,0,0,28,163.31V208a20,20,0,0,0,20,20H92.69a19.86,19.86,0,0,0,14.14-5.86L230.14,98.82A20,20,0,0,0,230.14,70.54ZM91,204H52V165l84-84,39,39Z"/></svg> Code Editor</div>
-          <div class="editor-wrap">
+          <div class="editor-wrap${iconMode ? ' editor-icons' : ''}">
             <div class="editor-prefix-row">
               <div class="line-numbers" aria-hidden="true">1</div>
               <div class="editor-prefix" id="editor-prefix">${escHtml(level.lhs.trim())}</div>
@@ -1006,7 +1023,7 @@ function render() {
               <div class="line-numbers" id="line-numbers" aria-hidden="true">2</div>
               <div class="editor-area">
                 <div class="editor-overlay" id="editor-overlay"></div>
-                <textarea class="editor code" id="code-editor" rows="3" spellcheck="false" aria-label="Solution expression" aria-describedby="editor-prefix"></textarea>
+                <textarea class="editor code" id="code-editor" rows="${iconMode ? 2 : 3}" spellcheck="false" aria-label="Solution expression" aria-describedby="editor-prefix"></textarea>
               </div>
             </div>
             ${geckoOn ? `<div id="editor-tokens" class="editor-tokens"></div>` : ''}
@@ -1215,9 +1232,12 @@ function render() {
       let offset = 0;
       for (const node of overlay.childNodes) {
         if (node.nodeType === Node.TEXT_NODE) {
+          // Icon tile edges already provide the stops around spaces. Avoid
+          // placing an insertion marker inside their enlarged padding.
           // Whitespace contributes source offsets, explicit newlines, and
           // browser-created soft wraps just like the visible token spans.
           for (let i = 0; i < node.length; i++) {
+            if (iconMode && node.textContent[i] !== '\n') continue;
             range.setStart(node, i);
             range.setEnd(node, i + 1);
             const r = range.getBoundingClientRect();
@@ -1362,12 +1382,49 @@ function render() {
       }
       return { start, end };
     }
+    function tokenRangeFromPoint(cx, cy) {
+      if (!iconMode) return getTokenRange(editor.value, caretPosFromPoint(cx, cy));
+      let offset = 0;
+      for (const node of document.getElementById('editor-overlay').childNodes) {
+        const length = node.nodeType === Node.TEXT_NODE ? node.length : Number(node.dataset.codeLength);
+        if (node.nodeType !== Node.TEXT_NODE && Array.from(node.getClientRects()).some(r =>
+            cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom)) {
+          return { start: offset, end: offset + length };
+        }
+        offset += length;
+      }
+      return null;
+    }
+    function markDragSource(range) {
+      let offset = 0;
+      for (const node of document.getElementById('editor-overlay').childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) offset += node.length;
+        else {
+          node.classList.toggle('drag-source', !!range && offset === range.start);
+          offset += Number(node.dataset.codeLength);
+        }
+      }
+    }
+    function createDragGhost(id, token) {
+      const ghost = document.createElement('div');
+      ghost.id = id;
+      ghost.className = 'touch-drag-ghost' + (iconMode ? ' icon-ghost' : '');
+      const name = token.replace(/^\((.+)\)$/, '$1');
+      ghost.innerHTML = symbolDisplay(name) + '<span class="drag-action">Release to remove</span>';
+      document.body.appendChild(ghost);
+      return ghost;
+    }
+    function positionDragGhost(ghost, point) {
+      // Lift the preview above the finger, and keep it inside the viewport.
+      ghost.style.left = Math.max(4, Math.min(point.clientX - ghost.offsetWidth / 2, innerWidth - ghost.offsetWidth - 4)) + 'px';
+      ghost.style.top = Math.max(4, point.clientY - ghost.offsetHeight - 24) + 'px';
+    }
     let dragOutState = null;
     editor.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       const pos = caretPosFromPoint(e.clientX, e.clientY);
       const text = editor.value;
-      const range = getTokenRange(text, pos);
+      const range = tokenRangeFromPoint(e.clientX, e.clientY);
       if (!range) return;
       e.preventDefault();
       editor.focus();
@@ -1385,22 +1442,19 @@ function render() {
       const dy = e.clientY - dragOutState.startY;
       if (!dragOutState.dragging && dx * dx + dy * dy > 25) {
         dragOutState.dragging = true;
-        const ghost = document.createElement('div');
-        ghost.id = 'drag-out-ghost';
-        ghost.textContent = dragOutState.token;
-        ghost.style.cssText = 'position:fixed;padding:4px 8px;background:#3b82f6;color:white;border-radius:4px;font-family:"Fira Code",monospace;font-size:13px;pointer-events:none;z-index:10000;white-space:nowrap;';
-        document.body.appendChild(ghost);
+        if (!document.getElementById('drag-out-ghost')) createDragGhost('drag-out-ghost', dragOutState.token);
+        markDragSource(dragOutState.range);
       }
       if (dragOutState.dragging) {
         const ghost = document.getElementById('drag-out-ghost');
-        if (ghost) {
-          ghost.style.left = (e.clientX + 12) + 'px';
-          ghost.style.top = (e.clientY - 12) + 'px';
-        }
         // Show drop caret when hovering over editor
         const rect = editor.getBoundingClientRect();
         const overEditor = e.clientX >= rect.left && e.clientX <= rect.right &&
                            e.clientY >= rect.top && e.clientY <= rect.bottom;
+        if (ghost) {
+          ghost.classList.toggle('removing', !overEditor);
+          positionDragGhost(ghost, e);
+        }
         if (overEditor) {
           let pos = caretPosFromPoint(e.clientX, e.clientY);
           pos = snapToTokenBoundary(editor.value, pos);
@@ -1415,6 +1469,7 @@ function render() {
       if (!dragOutState) return;
       const ghost = document.getElementById('drag-out-ghost');
       if (ghost) ghost.remove();
+      markDragSource(null);
       removeDropCaret();
       if (dragOutState.dragging) {
         const rect = editor.getBoundingClientRect();
@@ -1493,6 +1548,7 @@ function render() {
         if (touchState.active) dragOutState = null;
       }
       touchState = null;
+      markDragSource(null);
       editor.classList.remove('touch-dragging');
       editorWrap.classList.remove('drag-over');
       document.getElementById('touch-drag-ghost')?.remove();
@@ -1510,8 +1566,7 @@ function render() {
         return;
       }
       const ghost = document.getElementById('touch-drag-ghost');
-      ghost.style.left = Math.max(0, Math.min(touch.clientX + 12, innerWidth - ghost.offsetWidth)) + 'px';
-      ghost.style.top = Math.max(0, touch.clientY - 44) + 'px';
+      positionDragGhost(ghost, touch);
       const pos = touchDropPosition(touch);
       editorWrap.classList.toggle('drag-over', pos !== null);
       if (pos === null) removeDropCaret();
@@ -1525,7 +1580,7 @@ function render() {
       clearTouchDrag();
       const touch = e.touches[0];
       const pos = caretPosFromPoint(touch.clientX, touch.clientY);
-      const range = card ? null : getTokenRange(editor.value, pos);
+      const range = card ? null : tokenRangeFromPoint(touch.clientX, touch.clientY);
       if (!card && (!range)) return;
       const state = touchState = {
         id: touch.identifier, card, active: false, value: editor.value
@@ -1538,11 +1593,7 @@ function render() {
         editor.classList.add('touch-dragging');
         if (card) {
           card.classList.add('dragging');
-          const ghost = document.createElement('div');
-          ghost.id = 'touch-drag-ghost';
-          ghost.className = 'touch-drag-ghost';
-          ghost.textContent = card.dataset.funcName;
-          document.body.appendChild(ghost);
+          createDragGhost('touch-drag-ghost', card.dataset.funcName);
           moveTouchDrag(touch);
         } else {
           dragOutState = {
@@ -1550,6 +1601,8 @@ function render() {
             startX: touch.clientX, startY: touch.clientY,
             dragging: false, origPos: pos
           };
+          markDragSource(range);
+          positionDragGhost(createDragGhost('drag-out-ghost', dragOutState.token), touch);
         }
       }, 300);
     }, touchOptions);

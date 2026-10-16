@@ -116,10 +116,10 @@ test.describe('Phone touch dragging', () => {
     await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
-    const code = 'f3 $ f1 z';
+    const code = 'f3 f1 z';
     for (const [target, expected] of [
-      ['f3', 'f2 f3 $ f1 z'],
-      ['f1', 'f3 $ f2 f1 z'],
+      ['f3', 'f2 f3 f1 z'],
+      ['f1', 'f3 f2 f1 z'],
     ]) {
       await editor.fill(code);
       await editor.blur();
@@ -174,6 +174,80 @@ test.describe('Phone touch dragging', () => {
     await touch.end();
     await expect(editor).toHaveValue('f1\nf2\nf3\nf1\nf3 f2 z');
     await noDragUI(page);
+  });
+
+  test('large icon tiles show the held icon, reorder, and explain removal', async ({ page }) => {
+    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    await editor.fill('f1 f2 z');
+    await editor.blur();
+    await page.waitForTimeout(200);
+    const tile = name => page.locator(`#editor-overlay > span:has([title="${name}"])`);
+    for (const name of ['f1', 'f2', 'z']) {
+      const r = await tile(name).boundingBox();
+      expect(r.width).toBeGreaterThanOrEqual(44);
+      expect(r.height).toBeGreaterThanOrEqual(44);
+      const svg = await tile(name).locator('svg').boundingBox();
+      expect(svg.width).toBeGreaterThanOrEqual(36);
+    }
+    // Grab the padding at the far edge, outside the small source character.
+    const z = await tile('z').boundingBox();
+    const source = { x: z.x + z.width - 2, y: z.y + z.height / 2 };
+    await touch.start(source);
+    await page.waitForTimeout(380);
+    const ghost = page.locator('#drag-out-ghost');
+    await expect(ghost.locator('[title="z"] svg')).toBeVisible();
+    await expect(tile('z')).toHaveClass(/drag-source/);
+    const preview = await ghost.boundingBox();
+    expect(preview.y + preview.height).toBeLessThan(source.y - 10);
+    const f1 = await tile('f1').boundingBox();
+    await touch.move({ x: f1.x + 2, y: f1.y + f1.height / 2 });
+    await expect(page.locator('#drop-caret')).toBeVisible();
+    await expect(ghost).not.toHaveClass(/removing/);
+    await touch.end();
+    await expect(editor).toHaveValue('z f1 f2');
+    await noDragUI(page);
+    await touch.start(await center(tile('f1')));
+    await page.waitForTimeout(380);
+    await touch.move({ x: 20, y: 80 });
+    await expect(ghost.locator('[title="f1"] svg')).toBeVisible();
+    await expect(ghost).toHaveClass(/removing/);
+    await expect(ghost).toContainText('Release to remove');
+    await touch.end();
+    await expect(editor).toHaveValue('z f2');
+    await noDragUI(page);
+    await touch.start(await center(tile('f2')));
+    await page.waitForTimeout(380);
+    await touch.move({ x: 20, y: 80 });
+    await touch.cancel();
+    await expect(editor).toHaveValue('z f2');
+    await noDragUI(page);
+    await expect(page.locator('.drag-source')).toHaveCount(0);
+    await page.evaluate(() => toggleIconMode());
+    await expect(editor).toHaveValue('z f2');
+    await expect(page.locator('.editor-icons')).toHaveCount(0);
+    expect(await editor.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBe(16);
+  });
+
+  test('icon card previews and long function tiles fit a narrow phone', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.evaluate(() => { currentLevel = 1; iconMode = true; geckoOn = false; render(); });
+    const touch = await gestures(page);
+    const editor = page.locator('#code-editor');
+    await touch.start(await center(page.locator('[data-func-name="runZero"]')));
+    await page.waitForTimeout(380);
+    await expect(page.locator('#touch-drag-ghost [title="runZero"] svg')).toBeVisible();
+    await touch.move(await center(editor));
+    await touch.end();
+    await expect(editor).toHaveValue('runZero');
+    await noDragUI(page);
+    const tile = await page.locator('#editor-overlay > span:has([title="runZero"])').boundingBox();
+    const area = await editor.boundingBox();
+    expect(tile.x).toBeGreaterThanOrEqual(area.x);
+    expect(tile.x + tile.width).toBeLessThanOrEqual(area.x + area.width);
+    await touch.drag({ x: tile.x + tile.width / 2, y: tile.y + tile.height / 2 }, { x: 20, y: 80 });
+    await expect(editor).toHaveValue('undefined');
   });
 
   test('dropping a card outside the editor does not change the solution', async ({ page }) => {
