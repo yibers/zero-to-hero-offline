@@ -29,6 +29,7 @@ This reimplements the game with no server dependencies:
 ```
 index.html      — Main app (~50KB)
 levels.js       — 15 puzzle definitions
+semantic-icons.js — SVG type patterns and per-level action descriptions
 fonts/          — Exo, Fira Code, Orbitron (.ttf)
 fonts/LICENSE   — SIL Open Font License
 tests/          — Playwright + unit tests
@@ -46,6 +47,7 @@ tests/          — Playwright + unit tests
 ### Additional features
 
 - Touch drag-and-drop — drag a function/parameter card straight into the editor, or drag an editor token to reorder or remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
+- Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments. Open “Icon key” for the shared shape legend.
 - Operator cards are marked with an “Operator” badge in both text and icon modes.
 - Drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
 - Saved solutions from the earlier automatic-chaining editor retain their meaning through a one-time conversion to explicit `$` connectors.

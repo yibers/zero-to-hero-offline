@@ -131,7 +131,16 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 /* Icon mode */
 .icon-sym { display:inline-flex; align-items:center; vertical-align:baseline; line-height:1; }
 .icon-sym svg { display:block; fill:currentColor; }
-.func-card .type-name > .semantic-icon svg { width: 48px; height: 48px; }
+.func-card .type-name { max-width: 100%; }
+.func-card .type-name > .semantic-icon { width: 72px; max-width: 100%; }
+.func-card .type-name > .semantic-icon svg { width: 100%; height: auto; aspect-ratio: 1; }
+@media (max-width: 600px) { .func-card .type-name > .semantic-icon { width: 48px; } }
+.icon-legend { font-size: 12px; line-height: 1.4; margin-bottom: 10px; color: #475569; }
+.icon-legend summary { cursor: pointer; padding: 6px 0; font-weight: 600; }
+.icon-legend p { margin-top: 6px; }
+.icon-key-marks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.icon-key-marks > span { display: inline-flex; align-items: center; gap: 3px; }
+.icon-key-marks svg { width: 18px; height: 18px; }
 .editor-icons .editor-overlay .semantic-icon svg { width: 44px; height: 44px; }
 .icon-explanation { margin-top: 6px; font-size: 12px; line-height: 1.4; color: #475569; }
 .gecko-body .icon-sym svg { height:12px; width:12px; }
@@ -171,7 +180,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .connection-picker button { min-height: 48px; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f8fafc; color: #0f172a; font: inherit; cursor: pointer; touch-action: manipulation; }
 .connection-picker button:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
 .connection-order { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; }
-.connection-order .icon-sym svg, .connection-option .icon-sym svg { width: 28px; height: 28px; }
+.connection-order .icon-sym svg { width: 32px; height: 32px; }
+.connection-option .icon-sym svg { width: 44px; height: 44px; }
 .connection-order-label { display: inline-flex; align-items: center; gap: 5px; }
 .connection-options { display: grid; gap: 8px; }
 .connection-picker .connection-option { text-align: left; background: #eff6ff; border-color: #bfdbfe; }
@@ -222,6 +232,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 <div id="app"></div>
 
 <script src="levels.js"></script>
+<script src="semantic-icons.js"></script>
 <script>
 
 // ─── Haskell Type Parser & Unifier ───
@@ -1076,13 +1087,14 @@ function render() {
 
         <div class="right-panel">
           <p class="touch-drag-hint">Drag cards and editor tokens. Swipe the background to scroll.</p>
+          ${iconMode ? ICON_LEGEND : ''}
           <h2><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,24H72A32,32,0,0,0,40,56V224a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16H56a16,16,0,0,1,16-16H208a8,8,0,0,0,8-8V32A8,8,0,0,0,208,24Zm-8,160H72a31.82,31.82,0,0,0-16,4.29V56A16,16,0,0,1,72,40H200Z"/></svg> Available Functions</h2>
           ${level.funcs.map(f => `
             <div class="func-card${isOperatorName(f.name) ? ' func-card-operator' : ''}" draggable="true" data-func-name="${f.name}">
               ${isOperatorName(f.name) ? '<span class="operator-badge">Operator</span>' : ''}
               <div class="type-sig">${renderTypeSig(f.name, f.sig)}</div>
               ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
-              ${iconMode && level.level === 1 ? '<p class="icon-explanation">Changes the wrapper; keeps the value. The dot represents <code>a</code>.</p>' : ''}
+              ${iconMode ? `<p class="icon-explanation" title="${escHtml(ICON_DESCRIPTIONS[level.level][f.name])}">${escHtml(ICON_CAPTIONS[level.level][f.name])}</p>` : ''}
             </div>
           `).join('')}
           <h2 style="margin-top:12px"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208ZM76,88a12,12,0,1,1,12,12A12,12,0,0,1,76,88Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,128Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,168Zm88-80H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Z"/></svg> Available Parameters</h2>
@@ -1092,7 +1104,7 @@ function render() {
             return params.map(p => `
               <div class="func-card" draggable="true" data-func-name="${p}">
                 <div class="type-sig"><span class="type-name">${symbolDisplay(p, escHtml(p))}</span></div>
-                ${iconMode && level.level === 1 ? '<p class="icon-explanation">A Zero with a value inside.</p>' : ''}
+                ${iconMode ? `<p class="icon-explanation">${escHtml(ICON_CAPTIONS[level.level][p])}</p>` : ''}
               </div>
             `).join('');
           })()}
@@ -2548,121 +2560,14 @@ const geckoColors = {
 };
 const varColor = 'rgb(239,177,177)';
 
-// Icon mode: SVG icon registry — superhero themed!
-const ICON_MAP = (() => {
-  const svg = (d, vb) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb || '0 0 24 24'}" width="1em" height="1em" fill="currentColor">${d}</svg>`;
-  const S = 'stroke="currentColor"', N = 'fill="none"', R = 'stroke-linecap="round" stroke-linejoin="round"';
-  const map = {
-    // ── Type constructors ──
-    // Zero: cracked shield (broken, needs to become Hero!)
-    'Zero': svg(`<path d="M12 2L4 7v6c0 5 3.5 9.7 8 11 4.5-1.3 8-6 8-11V7z" ${N} ${S} stroke-width="2"/><path d="M10 7l1.5 4.5-1.5 3.5 1 4" ${N} ${S} stroke-width="2" ${R}/>`),
-    // Hero: Sonic-style hedgehog profile with swept-back quills and a pointed ear
-    'Hero': svg('<path fill-rule="evenodd" d="M17 1l2 5.5c1.8 1.5 2 3.5 1.8 5.5l1.4.5c2.1-.4 2.3 2.9-.2 2.9l-1.8-.4c-1.4 4-4.6 6.5-9.3 5.1L6 23l1-4.7-6 1.2 3.6-5L.5 13l5.1-3.5L2 6.2 10 6c1.8-1.2 3.7-1.3 5.2-.5z M15.5 8c-3 1-4 3.5-3.5 6h6.9c.6-3-1-5.5-3.4-6z M11.7 15c2.3 1.3 5.5 1.5 7.5.3-1 3-3.9 4.5-6.7 3.4-1.5-.6-1.9-2.3-.8-3.7z M17 3.7l-.8 2.5 2 .6z"/><ellipse cx="17" cy="11.8" rx=".9" ry="1.9"/>'),
-
-    // ── Operators (action effects!) ──
-    // $: lightning bolt (ZAP! apply this power!)
-    '$': svg('<path d="M13 2L7 12h4l-2 10 8-12h-4z"/>'),
-    // .: chain links (combo! connect two powers!)
-    '.': svg(`<circle cx="8" cy="12" r="5" ${N} ${S} stroke-width="2.5"/><circle cx="16" cy="12" r="5" ${N} ${S} stroke-width="2.5"/>`),
-    // <$>: magic wand + star (cast a spell through the wrapper!)
-    '<$>': svg(`<line x1="3" y1="21" x2="16" y2="8" ${S} stroke-width="2.5" stroke-linecap="round"/><path d="M18 2l1 2.5 2.5 1-2.5 1-1 2.5-1-2.5-2.5-1 2.5-1z"/>`),
-    // <*>: starburst (POW! power combo!)
-    '<*>': svg(`<circle cx="12" cy="12" r="3"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5M5.6 5.6l3.5 3.5M14.9 14.9l3.5 3.5M18.4 5.6l-3.5 3.5M9.1 14.9l-3.5 3.5" ${N} ${S} stroke-width="2" stroke-linecap="round"/>`),
-    // >>=: double chevrons (WHOOSH! channel power forward!)
-    '>>=': svg(`<path d="M4 7l6 5-6 5" ${N} ${S} stroke-width="2.5" ${R}/><path d="M12 7l6 5-6 5" ${N} ${S} stroke-width="2.5" ${R}/>`),
-
-    // ── Superpowers (each function = a unique power!) ──
-    // f: star (basic hero power)
-    'f': svg('<path d="M12 2l2.9 6.3H22l-5.7 4.2 2.2 6.8L12 15l-6.5 4.3 2.2-6.8L2 8.3h7.1z"/>'),
-    // f1: forked flame with a hollow core, distinct from f2 even at small sizes
-    'f1': svg('<path fill-rule="evenodd" d="M13 1C14 7 8 7 9 12 6 11 6 8 6 7 3 11 2 14 3 17 4 21 7 23 12 23 17 23 21 20 21 15 21 11 19 8 17 6 17 10 15 12 14 13 15 8 16 5 13 1z M12 14C12 17 9 17 9 19a3 3 0 006 0c0-2-2-3-3-5z"/>'),
-    // f2: water drop (water power!)
-    'f2': svg('<path d="M12 2C8 8 4 12 4 16a8 8 0 0016 0c0-4-4-8-8-14z"/>'),
-    // f3: heart (courage!)
-    'f3': svg('<path d="M12 21C5.5 15.5 2 12 2 8.5A5.5 5.5 0 017.5 3c1.7 0 3.4.8 4.5 2.1A6 6 0 0116.5 3 5.5 5.5 0 0122 8.5C22 12 18.5 15.5 12 21z"/>'),
-    // f4: gem (crystal power!)
-    'f4': svg('<path d="M6 3h12l4 7-10 12L2 10z"/>'),
-    // g: crescent moon (mystical power!)
-    'g': svg('<path d="M21 12.8A9 9 0 1111.2 3 7 7 0 0021 12.8z"/>'),
-
-    // ── Hero gadgets (what they do!) ──
-    // runZero: key (unlock! free the value from Zero!)
-    'runZero': svg(`<circle cx="8" cy="7" r="5" ${N} ${S} stroke-width="2.5"/><path d="M12 10v10" ${S} stroke-width="2.5" stroke-linecap="round"/><path d="M10 15h4M10 18h4" ${S} stroke-width="2" stroke-linecap="round"/>`),
-    // mkHero: cape (suit up! become a hero!)
-    'mkHero': svg(`<path d="M7 3h10v3c0 5-2 9-5 15-3-6-5-10-5-15z"/>`),
-    // fmap: sparkles (magic transformation!)
-    'fmap': svg('<path d="M9 2l1.2 3 3 1.2-3 1.2-1.2 3-1.2-3-3-1.2 3-1.2z"/><path d="M18 7l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/><path d="M11 13l1.5 3.5 3.5 1.5-3.5 1.5-1.5 3.5-1.5-3.5-3.5-1.5 3.5-1.5z"/>'),
-    // id: straight arrow (pass through unchanged!)
-    'id': svg(`<path d="M4 12h16M17 8l4 4-4 4" ${N} ${S} stroke-width="2.5" ${R}/>`),
-    // pure: arrow up (lift up to hero level!)
-    'pure': svg(`<path d="M12 22V6M6 12l6-6 6 6" ${N} ${S} stroke-width="2.5" ${R}/>`),
-    // join: arrow down (flatten! squash layers together!)
-    'join': svg(`<path d="M12 2v16M6 12l6 6 6-6" ${N} ${S} stroke-width="2.5" ${R}/>`),
-    // ap: bullseye target (activate! hit the target!)
-    'ap': svg(`<circle cx="12" cy="12" r="9" ${N} ${S} stroke-width="2.5"/><circle cx="12" cy="12" r="4" fill="currentColor"/>`),
-    // liftA2: two arrows up (lift two things at once!)
-    'liftA2': svg(`<path d="M7 22V10M4 14l3-4 3 4M17 22V10M14 14l3-4 3 4" ${N} ${S} stroke-width="2.5" ${R}/>`),
-    // wrap: gift box (wrap it up inside!)
-    'wrap': svg(`<rect x="3" y="10" width="18" height="12" rx="2" ${N} ${S} stroke-width="2"/><path d="M12 10v12M3 14h18" ${S} stroke-width="2"/><path d="M7 10l5-6 5 6" ${N} ${S} stroke-width="2" ${R}/>`),
-    // dup: fork split (clone! one becomes two!)
-    'dup': svg(`<circle cx="12" cy="5" r="3" fill="currentColor"/><circle cx="5" cy="19" r="3" fill="currentColor"/><circle cx="19" cy="19" r="3" fill="currentColor"/><path d="M12 8v4l-7 7M12 12l7 7" ${N} ${S} stroke-width="2" ${R}/>`),
-    // nest: nested boxes (put inside another box!)
-    'nest': svg(`<rect x="2" y="2" width="20" height="20" rx="3" ${N} ${S} stroke-width="2"/><rect x="7" y="7" width="13" height="13" rx="2" ${N} ${S} stroke-width="2"/>`),
-    // swap: crossing arrows (switch places!)
-    'swap': svg(`<path d="M5 8h14M16 5l3 3-3 3" ${N} ${S} stroke-width="2" ${R}/><path d="M19 16H5M8 13l-3 3 3 3" ${N} ${S} stroke-width="2" ${R}/>`),
-    // pair: two converge into one (team up!)
-    'pair': svg(`<circle cx="5" cy="5" r="3" fill="currentColor"/><circle cx="19" cy="5" r="3" fill="currentColor"/><path d="M5 8v4l7 5 7-5V8" ${N} ${S} stroke-width="2" ${R}/><circle cx="12" cy="19" r="3" fill="currentColor"/>`),
-    // fst: arrow left to dot (pick the left one!)
-    'fst': svg(`<path d="M20 12H8M12 8l-4 4 4 4" ${N} ${S} stroke-width="2.5" ${R}/><circle cx="4" cy="12" r="3" fill="currentColor"/>`),
-    // snd: arrow right to dot (pick the right one!)
-    'snd': svg(`<path d="M4 12h12M12 8l4 4-4 4" ${N} ${S} stroke-width="2.5" ${R}/><circle cx="20" cy="12" r="3" fill="currentColor"/>`),
-
-    // ── Parameters (your starting ingredients!) ──
-    // z: glowing orb (the raw material you're working with!)
-    'z': svg('<circle cx="12" cy="12" r="9" fill="currentColor" opacity="0.25"/><circle cx="12" cy="12" r="6" fill="currentColor" opacity="0.4"/><circle cx="12" cy="12" r="3" fill="currentColor"/>'),
-    // ad/bd/cd: potion bottles (full, half, empty!)
-    'ad': svg(`<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 6l-2 4v10a2 2 0 002 2h8a2 2 0 002-2V10l-2-4z"/>`),
-    'bd': svg(`<rect x="8" y="2" width="8" height="4" rx="1" ${N} ${S} stroke-width="2"/><path d="M8 6l-2 4v10a2 2 0 002 2h8a2 2 0 002-2V10l-2-4z" ${N} ${S} stroke-width="2"/><rect x="6" y="14" width="12" height="8" rx="2" fill="currentColor" opacity="0.5"/>`),
-    'cd': svg(`<rect x="8" y="2" width="8" height="4" rx="1" ${N} ${S} stroke-width="2"/><path d="M8 6l-2 4v10a2 2 0 002 2h8a2 2 0 002-2V10l-2-4z" ${N} ${S} stroke-width="2"/>`),
-
-    // Type variables — null means stay as text
-    'a': null, 'b': null, 'c': null, 'd': null,
-  };
-  // Gecko abbreviation aliases
-  map['Ze'] = map['Zero'];
-  map['He'] = map['Hero'];
-  return map;
-})();
-
-// Function names are reused across levels with different types. Semantic icons
-// are scoped to a level so a pictogram never promises another level's operation.
-const LEVEL_ICONS = (() => {
-  const shield = '<path d="M12 2 4 6v7c0 4.5 3.3 7.4 8 9 4.7-1.6 8-4.5 8-9V6Z"/>';
-  // The same swept-back quills and pointed ear as Hero, outlined as a container.
-  const hedgehog = '<path d="m16.5 2 2 4c1.6 1.3 2.1 3.1 2 5.2l2 .8v2l-2 .3C19 19.5 15.7 21 11.2 19.7L6 22l1.1-4.4L2 18.5l3.2-4.6L1 12.5l5-3.4L3 6h7.2c1.8-1.2 3.4-1.3 4.8-.5Z"/>';
-  const outline = body => `<g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
-  // Identical payload marks: only the surrounding type constructor changes.
-  const value = '<circle cx="12" cy="12" r="3.2" fill="#fbbf24" stroke="#92400e" stroke-width="1.2"/>';
-  const icon = (label, body, viewBox = '0 0 24 24') =>
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="1em" height="1em" role="img" aria-label="${label}"><title>${label}</title>${body}</svg>`;
-  const zero = icon('Zero wrapper', outline(shield));
-  const hero = icon('Hero wrapper', outline(hedgehog));
-  return {
-    1: {
-      Zero: zero, Ze: zero, Hero: hero, He: hero,
-      z: icon('z: a Zero containing a value', outline(shield) + value),
-      f: icon('f: change Zero to Hero, keeping the same value',
-        `<g transform="translate(1 1)">${outline(shield)}${value}</g>
-         ${outline('<path d="M12 27v7a3 3 0 0 0 3 3h8m-4-4 4 4-4 4"/>')}
-         <g transform="translate(24 24)">${outline(hedgehog)}${value}</g>`, '0 0 49 49'),
-    },
-  };
-})();
+// Render type patterns from each level's actual signatures, including function arguments.
+const { icons: LEVEL_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, legend: ICON_LEGEND } =
+  createSemanticIcons(LEVELS, parseType, flattenApp, typeToString);
 
 function symbolDisplay(name, fallbackHtml, fixedWidthCh) {
   if (!iconMode) return fallbackHtml != null ? fallbackHtml : escHtml(name);
   const semantic = LEVEL_ICONS[LEVELS[currentLevel].level]?.[name];
-  const svg = semantic || ICON_MAP[name];
+  const svg = semantic;
   if (!svg) return fallbackHtml != null ? fallbackHtml : escHtml(name);
   const w = fixedWidthCh ? `width:${fixedWidthCh}ch;` : '';
   return `<span class="icon-sym${semantic ? ' semantic-icon' : ''}" title="${escHtml(name)}" style="${w}">${svg}</span>`;
