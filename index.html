@@ -131,6 +131,9 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 /* Icon mode */
 .icon-sym { display:inline-flex; align-items:center; vertical-align:baseline; line-height:1; }
 .icon-sym svg { display:block; fill:currentColor; }
+.func-card .type-name > .semantic-icon svg { width: 48px; height: 48px; }
+.editor-icons .editor-overlay .semantic-icon svg { width: 44px; height: 44px; }
+.icon-explanation { margin-top: 6px; font-size: 12px; line-height: 1.4; color: #475569; }
 .gecko-body .icon-sym svg { height:12px; width:12px; }
 .editor-slot-label .icon-sym svg { height:9px; width:9px; }
 
@@ -1079,6 +1082,7 @@ function render() {
               ${isOperatorName(f.name) ? '<span class="operator-badge">Operator</span>' : ''}
               <div class="type-sig">${renderTypeSig(f.name, f.sig)}</div>
               ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
+              ${iconMode && level.level === 1 ? '<p class="icon-explanation">Changes the wrapper; keeps the value. The dot represents <code>a</code>.</p>' : ''}
             </div>
           `).join('')}
           <h2 style="margin-top:12px"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208ZM76,88a12,12,0,1,1,12,12A12,12,0,0,1,76,88Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,128Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,168Zm88-80H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Z"/></svg> Available Parameters</h2>
@@ -1088,6 +1092,7 @@ function render() {
             return params.map(p => `
               <div class="func-card" draggable="true" data-func-name="${p}">
                 <div class="type-sig"><span class="type-name">${symbolDisplay(p, escHtml(p))}</span></div>
+                ${iconMode && level.level === 1 ? '<p class="icon-explanation">A Zero with a value inside.</p>' : ''}
               </div>
             `).join('');
           })()}
@@ -2629,12 +2634,38 @@ const ICON_MAP = (() => {
   return map;
 })();
 
+// Function names are reused across levels with different types. Semantic icons
+// are scoped to a level so a pictogram never promises another level's operation.
+const LEVEL_ICONS = (() => {
+  const shield = '<path d="M12 2 4 6v7c0 4.5 3.3 7.4 8 9 4.7-1.6 8-4.5 8-9V6Z"/>';
+  // The same swept-back quills and pointed ear as Hero, outlined as a container.
+  const hedgehog = '<path d="m16.5 2 2 4c1.6 1.3 2.1 3.1 2 5.2l2 .8v2l-2 .3C19 19.5 15.7 21 11.2 19.7L6 22l1.1-4.4L2 18.5l3.2-4.6L1 12.5l5-3.4L3 6h7.2c1.8-1.2 3.4-1.3 4.8-.5Z"/>';
+  const outline = body => `<g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
+  // Identical payload marks: only the surrounding type constructor changes.
+  const value = '<circle cx="12" cy="12" r="3.2" fill="#fbbf24" stroke="#92400e" stroke-width="1.2"/>';
+  const icon = (label, body, viewBox = '0 0 24 24') =>
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="1em" height="1em" role="img" aria-label="${label}"><title>${label}</title>${body}</svg>`;
+  const zero = icon('Zero wrapper', outline(shield));
+  const hero = icon('Hero wrapper', outline(hedgehog));
+  return {
+    1: {
+      Zero: zero, Ze: zero, Hero: hero, He: hero,
+      z: icon('z: a Zero containing a value', outline(shield) + value),
+      f: icon('f: change Zero to Hero, keeping the same value',
+        `<g transform="translate(1 1)">${outline(shield)}${value}</g>
+         ${outline('<path d="M12 27v7a3 3 0 0 0 3 3h8m-4-4 4 4-4 4"/>')}
+         <g transform="translate(24 24)">${outline(hedgehog)}${value}</g>`, '0 0 49 49'),
+    },
+  };
+})();
+
 function symbolDisplay(name, fallbackHtml, fixedWidthCh) {
   if (!iconMode) return fallbackHtml != null ? fallbackHtml : escHtml(name);
-  const svg = ICON_MAP[name];
+  const semantic = LEVEL_ICONS[LEVELS[currentLevel].level]?.[name];
+  const svg = semantic || ICON_MAP[name];
   if (!svg) return fallbackHtml != null ? fallbackHtml : escHtml(name);
   const w = fixedWidthCh ? `width:${fixedWidthCh}ch;` : '';
-  return `<span class="icon-sym" title="${escHtml(name)}" style="${w}">${svg}</span>`;
+  return `<span class="icon-sym${semantic ? ' semantic-icon' : ''}" title="${escHtml(name)}" style="${w}">${svg}</span>`;
 }
 
 function renderGeckoArrow(sig) {
