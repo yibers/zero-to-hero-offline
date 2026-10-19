@@ -174,9 +174,9 @@ test.describe('phone rows', () => {
     await page.getByRole('button',{name:'+ Add row',exact:true}).tap();
     const t = await touch(page);
     // Both rows must be visible during the gesture.
-    await page.locator('#program-rows').evaluate(el=>{el.style.minHeight='330px';el.scrollTop=0;});
-    const from = await center(page.locator('.program-row').first().locator('[data-name="f"]'));
+    await page.locator('#program-rows').evaluate(el=>{el.style.minHeight='470px';el.scrollTop=0;});
     const to = await center(row(page,1));
+    const from = await center(page.locator('.program-row').first().locator('[data-name="f"]'));
     await t.drag(from,to);
     await expect(row(page,0)).toHaveValue('z'); await expect(row(page,1)).toHaveValue('f');
     await t.drag(await center(page.locator('.program-row').nth(1).locator('[data-name="f"]')),{x:8,y:10});

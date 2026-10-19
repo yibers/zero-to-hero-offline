@@ -46,7 +46,8 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   function draw(type, x, y, w, h) {
     if (type.tag === 'var') {
       const size = Math.min(w, h);
-      return place(marks[type.name] || marks.a, x + (w - size) / 2, y + (h - size) / 2, size, size);
+      const mark = marks[type.name] || outline('<circle cx="12" cy="12" r="9"/>') + `<text x="12" y="16" text-anchor="middle" font-size="12" fill="currentColor">${escape(type.name)}</text>`;
+      return place(mark, x + (w - size) / 2, y + (h - size) / 2, size, size);
     }
     if (type.tag === 'fun') {
       const height = Math.min(h, w / 2);
@@ -204,5 +205,12 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     <p>Matching shapes show matching types within an icon. Read inputs above, result below.</p>
     <p>Shield = Zero. Hedgehog = Hero. Box = pair. Rounded box with an arrow = function.</p>
     <p>These are type patterns; matching shapes do not require equal values.</p></details>`;
-  return {icons, captions, descriptions, legend};
+  function renderType(signature, label = signature) {
+    const type = typeof signature === 'string' ? parseType(signature) : signature;
+    const width = weight(type) > 2 ? 128 : 64;
+    return svg(label, `<g class="result-shape">${draw(type, 2, 2, width - 4, 60)}</g>`)
+      .replace('viewBox="0 0 64 64"', `viewBox="0 0 ${width} 64"`)
+      .replace('width="1em" height="1em"', `width="${width}" height="64"`);
+  }
+  return {icons, captions, descriptions, legend, renderType};
 }

@@ -1087,7 +1087,7 @@ function render() {
               <div class="line-numbers" aria-hidden="true">1</div>
               <div class="editor-prefix" id="editor-prefix">${escHtml(level.lhs.trim())}</div>
             </div>
-            <div class="row-instructions">One operation per row. Use earlier results as inputs. The bottom row is your final answer.</div>
+            <div class="row-instructions">One call per row. Drop arguments into inputs; reuse results in later rows.</div>
             <div id="program-rows"></div>
             <div class="row-toolbar"><button type="button" id="add-row">+ Add row</button><button type="button" id="undo-rows" aria-label="Undo row edit">Undo</button><button type="button" id="redo-rows" aria-label="Redo row edit">Redo</button></div>
             <div id="row-notice" role="status"></div>
@@ -1586,7 +1586,7 @@ const geckoColors = {
 const varColor = 'rgb(239,177,177)';
 
 // Render type patterns from each level's actual signatures, including function arguments.
-const { icons: LEVEL_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, legend: ICON_LEGEND } =
+const { icons: LEVEL_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, legend: ICON_LEGEND, renderType: renderSemanticType } =
   createSemanticIcons(LEVELS, parseType, flattenApp, typeToString);
 
 function symbolDisplay(name, fallbackHtml, fixedWidthCh) {

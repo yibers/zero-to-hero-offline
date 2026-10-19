@@ -54,6 +54,31 @@ const RowProgram = (() => {
     if (tree.kind === 'app') return [...names(tree.fn), ...tree.args.flatMap(names)];
     return [tree.op, ...names(tree.left), ...names(tree.right)];
   }
+  // A slot contains a value (including a function value), never a nested call.
+  function call(code) {
+    try {
+      const tree = parse(code);
+      if (atomic(tree)) return { name: tree.name, args: [], infix: false };
+      if (count(tree) !== 1) return null;
+      return tree.kind === 'op'
+        ? { name: tree.op, args: [tree.left.name, tree.right.name], infix: true }
+        : { name: tree.fn.name, args: tree.args.map(arg => arg.name), infix: false };
+    } catch (_) { return null; }
+  }
+  function setArgument(code, index, name) {
+    const model = call(code);
+    if (!model || !Number.isInteger(index) || index < 0) throw Error('Choose a function first.');
+    if (name) {
+      const value = parse(name);
+      if (!atomic(value)) throw Error('Use an earlier result instead of a nested call.');
+      name = value.name;
+    }
+    while (model.args.length <= index) model.args.push('_');
+    model.args[index] = name || '_';
+    while (model.args.at(-1) === '_') model.args.pop();
+    if (model.infix && model.args.length === 2) return print({ kind: 'op', op: model.name, left: atom(model.args[0]), right: atom(model.args[1]) });
+    return print(model.args.length ? app(atom(model.name), model.args.map(atom)) : atom(model.name));
+  }
   // This deliberately accepts only the explicit, non-recursive let form emitted
   // by the editor. It is not a general Haskell layout/recursive-let parser.
   function parseLet(code) {
@@ -118,6 +143,7 @@ const RowProgram = (() => {
         if (/\bundefined\b/.test(row.expr)) throw Error('Using undefined is not allowed.');
         const tree = parse(row.expr);
         if (count(tree) > 1) throw Error('One operation per row. Move the nested call to an earlier row and use its result.');
+        if (names(tree).includes('_')) throw Error('Fill the empty input slot before using this result.');
         for (const name of names(tree)) {
           if (!available.has(name)) throw Error(/^r\d+$/.test(name)
             ? `${name} is not an earlier result. Use a row above this one.`
@@ -133,5 +159,5 @@ const RowProgram = (() => {
     const rows = program ? [...program.bindings, { expr: program.final }] : migrate(code);
     return rows.reduce((n, row) => n + count(parse(row.expr)), 0);
   }
-  return { parse, print, count, names, parseLet, source, migrate, validate, score };
+  return { parse, print, count, names, call, setArgument, parseLet, source, migrate, validate, score };
 })();

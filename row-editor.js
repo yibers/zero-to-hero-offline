@@ -26,8 +26,43 @@ function getRowError() {
   return index < 0 ? null : `Row ${index + 1}: ${errors[index]}`;
 }
 function rowSymbol(name, width) {
-  if (/^r\d+$/.test(name)) return `<span class="icon-sym row-ref" title="${escHtml(name)}"${width ? ` style="width:${width}ch"` : ''}><span>${escHtml(name)}</span></span>`;
+  if (/^r\d+$/.test(name)) {
+    const diagnostic = rowDiagnostics[getRows().findIndex(row => row.id === name)];
+    if (iconMode && diagnostic?.signature) return `<span class="icon-sym row-ref rendered-ref" title="${escHtml(name + ': ' + diagnostic.signature)}"${width ? ` style="width:${width}ch"` : ''}>${renderSemanticType(diagnostic.signature, name + ': ' + diagnostic.signature)}<small>${name}</small></span>`;
+    return `<span class="icon-sym row-ref" title="${escHtml(name)}"${width ? ` style="width:${width}ch"` : ''}><span>${escHtml(name)}</span></span>`;
+  }
   return symbolDisplay(name, null, width);
+}
+function rowTypeSignatures(types) {
+  const signatures = types.map(type => typeToString(type).replace(/SKOLEM/g, ''));
+  const used = new Set(signatures.join(' ').match(/\b[a-z]\b/g) || []), renamed = {};
+  let char = 97;
+  return signatures.map(signature => signature.replace(/_t\d+/g, variable => {
+    if (!renamed[variable]) {
+      while (used.has(String.fromCharCode(char))) char++;
+      renamed[variable] = String.fromCharCode(char++); used.add(renamed[variable]);
+    }
+    return renamed[variable];
+  }));
+}
+function diagnoseCall(code, env, params) {
+  const model = RowProgram.call(code);
+  if (!model) return null;
+  try {
+    let type = inferExpr(RowProgram.print({ kind: 'name', name: model.name }), env, params);
+    const inputs = [];
+    while (type?.tag === 'fun') { inputs.push(type.from); type = type.to; }
+    if (!inputs.length || model.args.length > inputs.length) return null;
+    let subst = {};
+    model.args.forEach((name, i) => {
+      if (name === '_') return;
+      try {
+        const actual = inferExpr(RowProgram.print({ kind: 'name', name }), env, params);
+        subst = unify(inputs[i], actual, subst) || subst;
+      } catch (_) { /* Keep editable slots even when an input is invalid. */ }
+    });
+    return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))) };
+  } catch (_) { return null; }
 }
 function diagnoseRows() {
   const level = LEVELS[currentLevel], rows = getRows();
@@ -42,22 +77,15 @@ function diagnoseRows() {
   }
   substCounter = 0;
   rowDiagnostics = rows.map((row, index) => {
+    const call = diagnoseCall(row.expr, env, params);
     try {
       if (errors[index]) throw Error(errors[index]);
       const type = inferExpr(row.expr, env, params);
       if (!type) throw Error('Incomplete expression.');
       env[row.id] = type;
-      let signature = typeToString(type).replace(/SKOLEM/g, '');
-      const vars = [...new Set(signature.match(/_t\d+/g) || [])];
-      const used = new Set(signature.match(/\b[a-z]\b/g) || []);
-      let char = 97;
-      for (const v of vars) {
-        while (used.has(String.fromCharCode(char))) char++;
-        const name = String.fromCharCode(char++); used.add(name); signature = signature.split(v).join(name);
-      }
-      return { type, signature };
+      return { type, signature: rowTypeSignatures([type])[0], call };
     } catch (e) {
-      return { error: errors[index] || normalizeTypeError(e.message) };
+      return { error: errors[index] || normalizeTypeError(e.message), call };
     }
   });
 }
@@ -110,7 +138,18 @@ function mountRowEditor() {
   function updateResults() {
     const rows = getRows();
     results.innerHTML = `<h2>Earlier results · row ${activeRow + 1}</h2><p class="results-hint">${activeRow ? 'Drag or tap a result to use it in this row.' : 'Add a row to use this result as an input.'}</p>` + rows.slice(0, activeRow).map((row, i) =>
-      `<button type="button" class="func-card result-card" draggable="true" data-func-name="${row.id}" aria-label="Use result ${row.id}">${rowSymbol(row.id)}<span>${rowDiagnostics[i]?.signature ? colorizeType(rowDiagnostics[i].signature) : 'Complete this row first'}</span></button>`).join('');
+      `<button type="button" class="func-card result-card" ${rowDiagnostics[i]?.signature ? `draggable="true" data-func-name="${row.id}"` : 'disabled'} aria-label="Use result ${row.id}">${rowSymbol(row.id)}<span>${rowDiagnostics[i]?.signature ? colorizeType(rowDiagnostics[i].signature) : 'Complete this row first'}</span></button>`).join('');
+  }
+  function paintInputs(row, call, index) {
+    const holder = row.querySelector('.call-inputs');
+    holder.hidden = !call;
+    row.querySelector('.row-call').classList.toggle('has-inputs', !!call);
+    if (!call) { holder.replaceChildren(); return; }
+    holder.innerHTML = `<div class="call-inputs-label">Inputs to <code>${escHtml(call.name)}</code><span>Drop inside · tap to choose</span></div><div class="input-slots">` + call.inputs.map((signature, slot) => {
+      const name = call.args[slot], filled = name && name !== '_';
+      return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}" aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${escHtml(signature)}">
+        <span class="input-number">${slot + 1}</span><span class="input-picture">${filled ? rowSymbol(name) : renderSemanticType(signature, 'Expected input: ' + signature)}</span><span class="input-caption">${filled ? escHtml(name) : 'Drop here'}</span></button>`;
+    }).join('') + '</div>';
   }
   function paint() {
     const rows = getRows();
@@ -120,10 +159,15 @@ function mountRowEditor() {
       drawOverlay(editor);
       const row = editor.closest('.program-row');
       const feedback = row.querySelector('.row-feedback'), diagnostic = rowDiagnostics[i];
+      paintInputs(row, diagnostic.call, i);
+      const handle = row.querySelector('.result-handle');
+      handle.disabled = !!diagnostic.error;
+      if (diagnostic.error) handle.removeAttribute('data-func-name');
+      else handle.dataset.funcName = rows[i].id;
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
       feedback.innerHTML = diagnostic.error
         ? `<span>${escHtml(rows[i].expr.trim() ? diagnostic.error : 'Drop or type an expression here.')}</span>`
-        : `<span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
+        : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row"><span class="result-caption">Result · ${rows[i].id}</span>${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
     });
     updateResults();
     document.getElementById('haskell-source').textContent = level.lhs.trim() + '\n  ' + RowProgram.source(rows).replace(/\n/g, '\n  ');
@@ -139,7 +183,7 @@ function mountRowEditor() {
     container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}" data-row="${index}" aria-label="Row ${index + 1}">
       <div class="row-heading"><span class="row-number">${index + 1}</span><button type="button" class="result-handle" draggable="true" data-func-name="${row.id}" title="Drag ${row.id} into a later row">${escHtml(row.id)}</button><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
       <details class="row-menu"><summary aria-label="Actions for row ${index + 1}">⋯</summary><div class="row-actions"><button type="button" data-action="insert" title="Insert a row above" aria-label="Insert row above ${index + 1}">+</button><button type="button" data-action="up" aria-label="Move row ${index + 1} up" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-action="down" aria-label="Move row ${index + 1} down" ${index === rows.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-action="remove" aria-label="Remove row ${index + 1}">×</button></div></details></div>
-      <div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div>
+      <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="call-inputs" hidden></div></div>
       <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></section>`).join('');
     paint();
   }
@@ -161,10 +205,17 @@ function mountRowEditor() {
     const editor = editors()[activeRow]; editor.focus({ preventScroll: true }); editor.setSelectionRange(editor.value.length, editor.value.length);
   }
   function removal(text, range, connectors = false) {
+    if (range.slot !== undefined) {
+      const changed = RowProgram.setArgument(text, range.slot, null);
+      let start = 0, end = text.length, changedEnd = changed.length;
+      while (start < end && start < changedEnd && text[start] === changed[start]) start++;
+      while (end > start && changedEnd > start && text[end - 1] === changed[changedEnd - 1]) { end--; changedEnd--; }
+      return { start, end, text: changed, delta: text.length - changed.length };
+    }
     let { start, end } = connectors ? functionRemovalRange(text, range, level) : range;
     if (start > 0 && /\s/.test(text[start - 1])) start--;
     else if (end < text.length && /\s/.test(text[end])) end++;
-    return { start, end, text: text.slice(0, start) + text.slice(end) };
+    return { start, end, text: text.slice(0, start) + text.slice(end), delta: end - start };
   }
   function inserted(text, position, name) {
     if (text.trim() === 'undefined') text = '';
@@ -188,9 +239,12 @@ function mountRowEditor() {
       const removed = removal(original, source, !!connector);
       next[source.index].expr = removed.text;
       if (source.index === rowIndex) {
-        if (pos >= removed.end) pos -= removed.end - removed.start;
+        if (connector && connector.start < removed.end && connector.end > removed.start) {
+          notice('Move this argument into an input slot or another row.'); return;
+        }
+        if (pos >= removed.end) pos -= removed.delta;
         if (connector && connector.start >= removed.end) {
-          connector = { ...connector, start: connector.start - (removed.end - removed.start), end: connector.end - (removed.end - removed.start) };
+          connector = { ...connector, start: connector.start - removed.delta, end: connector.end - removed.delta };
         }
       }
     }
@@ -200,6 +254,63 @@ function mountRowEditor() {
       next[rowIndex].expr = text.slice(0, connector.start) + `${left} ${connector.op ? connector.op + ' ' : ''}${right}` + text.slice(connector.end);
     } else next[rowIndex].expr = inserted(next[rowIndex].expr, pos, name);
     rememberRows(); rowPrograms[currentLevel] = next; activeRow = rowIndex; commit(); activate(rowIndex);
+  }
+  function slotAt(point) {
+    const slot = document.elementFromPoint(point.clientX, point.clientY)?.closest('.argument-slot');
+    return slot && container.contains(slot) ? slot : null;
+  }
+  function sourceForSlot(slot) {
+    const index = Number(slot.dataset.row), position = Number(slot.dataset.slot), call = RowProgram.call(getRows()[index].expr);
+    const name = call?.args[position];
+    if (!name || name === '_') return null;
+    const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
+    const token = ts[call.infix ? position * 2 : position + 1];
+    if (!token) return null;
+    return { ...token, name: RowProgram.print({ kind: 'name', name }), index, slot: position, node: slot };
+  }
+  function fillSlot(name, index, position, source) {
+    const next = structuredClone(getRows()), call = RowProgram.call(next[index].expr);
+    if (!call || !rowDiagnostics[index]?.call?.inputs[position]) return;
+    const value = name ? name.replace(/^\((.+)\)$/, '$1') : null;
+    if (value && !funcs.has(value) && !params.has(value) && !refNames().has(value)) return;
+    if (value && /^r\d+$/.test(value)) {
+      const from = next.findIndex(row => row.id === value);
+      if (from < 0 || from >= index) { notice('Use a result only in a row below it.'); return; }
+      if (rowDiagnostics[from]?.error) { notice('Complete that row before using its result.'); return; }
+    }
+    if (source) {
+      // A source token shown in the expression and its input slot are the same value.
+      const slotSource = source.slot !== undefined ? source : [...container.querySelectorAll(`.argument-slot[data-row="${source.index}"]`)]
+        .map(sourceForSlot).find(input => input && input.start === source.start && input.end === source.end);
+      if (source.index === index && slotSource?.slot === position) return;
+      if (source.index === index && !slotSource) { notice('Keep the function in place. Drag an argument or an earlier result into its input.'); return; }
+      next[source.index].expr = removal(next[source.index].expr, slotSource || source, true).text;
+    }
+    next[index].expr = RowProgram.setArgument(next[index].expr, position, value ? RowProgram.print({ kind: 'name', name: value }) : null);
+    if (JSON.stringify(next) === rowSnapshot()) return;
+    rememberRows(); rowPrograms[currentLevel] = next; activeRow = index; commit(); activate(index);
+  }
+  function chooseArgument(slot) {
+    const index = Number(slot.dataset.row), position = Number(slot.dataset.slot), snapshot = rowSnapshot();
+    const call = rowDiagnostics[index]?.call;
+    if (!call) return;
+    activate(index);
+    const dialog = document.createElement('dialog'); dialog.className = 'connection-picker argument-picker';
+    dialog.setAttribute('aria-label', `Choose input ${position + 1} of ${call.name}`);
+    dialog.innerHTML = `<h2>Choose input ${position + 1}</h2><p>For <code>${escHtml(call.name)}</code>. Functions can be inputs too.</p><div class="argument-choices"></div><button type="button" class="connection-cancel">Cancel</button>`;
+    const close = () => { dialog.close(); dialog.remove(); };
+    const choices = [...params, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error).map(row => row.id), ...level.funcs.map(f => f.name)];
+    for (const name of [...choices, null]) {
+      if (!name && !call.args[position]) continue;
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'argument-choice';
+      button.innerHTML = name ? `${rowSymbol(name.replace(/^\((.+)\)$/, '$1'))}<code>${escHtml(name)}</code>` : 'Clear input';
+      button.setAttribute('aria-label', name ? `Use input ${name}` : 'Clear input');
+      button.onclick = () => { close(); if (rowSnapshot() === snapshot) fillSlot(name, index, position); };
+      dialog.querySelector('.argument-choices').append(button);
+    }
+    dialog.querySelector('.connection-cancel').onclick = close;
+    dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
+    document.body.append(dialog); dialog.showModal();
   }
   function rowAt(point) {
     const hit = document.elementFromPoint(point.clientX, point.clientY);
@@ -241,13 +352,15 @@ function mountRowEditor() {
   }
   function clearIntent() {
     document.getElementById('drop-caret')?.remove();
-    container.querySelectorAll('.connection-target, .drag-over').forEach(n => n.classList.remove('connection-target', 'drag-over'));
+    container.querySelectorAll('.connection-target, .drag-over, .slot-target').forEach(n => n.classList.remove('connection-target', 'drag-over', 'slot-target'));
   }
   function showIntent(name, point, source) {
     clearIntent();
     const index = rowAt(point);
     ghost?.classList.toggle('removing', index === null && !!source);
     if (index === null) return;
+    const slot = slotAt(point);
+    if (slot) { slot.classList.add('slot-target'); return; }
     const target = targetFor(name, index, point, source);
     if (target) target.node.classList.add('connection-target');
     else {
@@ -278,7 +391,7 @@ function mountRowEditor() {
         let text = getRows()[index].expr, start = target.start, end = target.end;
         if (source?.index === index) {
           const removed = removal(text, source, true); text = removed.text;
-          if (removed.end <= start) { start -= removed.end - removed.start; end -= removed.end - removed.start; }
+          if (removed.end <= start) { start -= removed.delta; end -= removed.delta; }
         }
         const preview = text.slice(0, start) + `${left} ${op ? op + ' ' : ''}${right}` + text.slice(end);
         button.innerHTML = `<span class="connection-option-title">${op ? rowSymbol(op) + ' ' + escHtml(op) : 'No operator'}</span><code>${escHtml(preview)}</code>`;
@@ -295,6 +408,8 @@ function mountRowEditor() {
     choices(); dialog.showModal();
   }
   function drop(name, point, source) {
+    const slot = slotAt(point);
+    if (slot) { fillSlot(name, Number(slot.dataset.row), Number(slot.dataset.slot), source); return; }
     const index = rowAt(point);
     if (index === null) {
       if (source) { rememberRows(); getRows()[source.index].expr = removal(getRows()[source.index].expr, source, true).text; commit(); }
@@ -313,7 +428,7 @@ function mountRowEditor() {
     if (!drag?.moved || !lastPoint) return;
     const r = container.getBoundingClientRect();
     const hovered = rowAt(lastPoint);
-    const onToken = hovered !== null && hitToken(hovered, lastPoint);
+    const onToken = slotAt(lastPoint) || hovered !== null && hitToken(hovered, lastPoint);
     if (!onToken && lastPoint.clientX >= r.left && lastPoint.clientX <= r.right && time - lastScrollTime > 30) {
       const delta = lastPoint.clientY < r.top + 36 ? -14 : lastPoint.clientY > r.bottom - 36 ? 14 : 0;
       if (delta) { container.scrollTop += delta; showIntent(drag.name, lastPoint, drag.source); }
@@ -384,6 +499,8 @@ function mountRowEditor() {
     }
   });
   listen(container, 'click', e => {
+    const slot = e.target.closest('.argument-slot');
+    if (slot) { if (!suppressClick) chooseArgument(slot); return; }
     const button = e.target.closest('[data-action]');
     if (!button) return;
     const index = Number(button.closest('.program-row').dataset.row), rows = getRows(), action = button.dataset.action;
@@ -425,13 +542,14 @@ function mountRowEditor() {
     if (e.button !== 0 || e.target.closest('dialog')) return;
     const card = e.target.closest('[data-func-name]');
     const editor = e.target.closest('textarea.row-editor');
-    if (!card && !editor) return;
+    const slot = e.target.closest('.argument-slot');
+    if (!card && !editor && !slot) return;
     if (card && e.pointerType === 'mouse') return; // native HTML drag on desktop cards
-    const index = editor ? Number(editor.dataset.row) : null;
-    const source = editor ? hitToken(index, e) : null;
+    const index = editor ? Number(editor.dataset.row) : slot ? Number(slot.dataset.row) : null;
+    const source = slot ? sourceForSlot(slot) : editor ? hitToken(index, e) : null;
     if (!card && !source) return; // empty space is available for scrolling/editing
     e.preventDefault();
-    if (editor) activate(index);
+    if (editor || slot) activate(index);
     if (card) card.draggable = false;
     drag = { card, id: e.pointerId, name: card?.dataset.funcName || source.name, source, x: e.clientX, y: e.clientY, moved: false, snapshot: rowSnapshot() };
     ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost';
@@ -460,6 +578,8 @@ function mountRowEditor() {
     suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
     if (state.moved) {
       if (state.snapshot === rowSnapshot()) drop(state.name, e, state.source);
+    } else if (state.source?.slot !== undefined) {
+      chooseArgument(state.source.node);
     } else if (state.source) {
       const editor = editors()[state.source.index]; editor.focus({ preventScroll: true });
       const pos = caret(state.source.index, e).pos; editor.setSelectionRange(pos, pos);
@@ -474,7 +594,7 @@ function mountRowEditor() {
   listen(document, 'visibilitychange', () => { if (document.hidden) cleanupDrag(); });
   listen(document, 'contextmenu', e => { if (drag) e.preventDefault(); });
   listen(window, 'resize', () => editors().forEach(drawOverlay));
-  rowEditorCleanup = () => { cleanupDrag(); controller.abort(); results.remove(); rowEditorCleanup = null; };
+  rowEditorCleanup = () => { cleanupDrag(); controller.abort(); results.remove(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
   build();
   document.fonts.ready.then(() => { if (!controller.signal.aborted) editors().forEach(drawOverlay); });
 }
