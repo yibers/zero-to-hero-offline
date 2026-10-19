@@ -38,10 +38,8 @@ test('ordinary application stays literal in both modes; all level solutions stil
   await editor.fill('mkHero runZero z');
   expect(await page.evaluate(() => getCodeFromEditor())).toBe('mkHero runZero z');
   await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
-  const prefixGraph = await page.locator('#editor-tokens').innerHTML();
   await editor.fill('mkHero $ runZero z');
-  await expect(page.locator('#syntax-hint')).not.toHaveClass(/invalid/);
-  expect(await page.locator('#editor-tokens').innerHTML()).not.toBe(prefixGraph);
+  await expect(page.locator('.row-feedback')).toContainText('One operation per row');
   await editor.fill('mkHero runZero z');
   await page.evaluate(() => toggleIconMode());
   await expect(editor).toHaveValue('mkHero runZero z');
@@ -61,7 +59,8 @@ test('old implicit solutions migrate once, preserving all saved levels and prefe
     6: 'zeroToHero z = f2 z <*> (f1 z <*> f3 z)',
   }, completed: [1], optimal: [1] });
   const editor = page.locator('#code-editor');
-  await expect(editor).toHaveValue('f3 $ f1 z');
+  await expect(editor).toHaveValue('f1 z');
+  await expect(page.locator('textarea.row-editor').nth(1)).toHaveValue('f3 r1');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
   expect(saved.editorContents[1]).toBe('zeroToHero z = mkHero $ runZero z');
   expect(saved.editorContents[6]).toBe('zeroToHero z = f2 z <*> (f1 z <*> f3 z)');

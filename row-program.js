@@ -1,0 +1,137 @@
+// The row language is an acyclic subset of Haskell let: earlier bindings only.
+// Keep parsing separate from the UI so migration, validation and scoring agree.
+const RowProgram = (() => {
+  const ops = { '$': [0, 'right'], '>>=': [1, 'left'], '<$>': [4, 'left'], '<*>': [4, 'left'], '.': [9, 'right'] };
+  const atom = name => ({ kind: 'name', name });
+  const app = (fn, args) => fn.kind === 'app'
+    ? { kind: 'app', fn: fn.fn, args: [...fn.args, ...args] }
+    : { kind: 'app', fn, args };
+  function parse(code) {
+    const tokens = tokenizeExpr(code);
+    let i = 0;
+    const startsAtom = t => t === '(' || (t && typeof t === 'object' && t.type === 'ident');
+    function primary() {
+      const t = tokens[i++];
+      if (t && t.type === 'ident') return atom(t.name);
+      if (t === '(') {
+        if (ops[tokens[i]] && tokens[i + 1] === ')') {
+          const name = tokens[i]; i += 2; return atom(name);
+        }
+        const result = expression(0);
+        if (tokens[i++] !== ')') throw Error('Expected closing parenthesis.');
+        return result;
+      }
+      throw Error('Incomplete expression.');
+    }
+    function expression(min) {
+      let left = primary();
+      while (startsAtom(tokens[i])) left = app(left, [primary()]);
+      while (ops[tokens[i]] && ops[tokens[i]][0] >= min) {
+        const op = tokens[i++], [priority, assoc] = ops[op];
+        const right = expression(priority + (assoc === 'left' ? 1 : 0));
+        left = { kind: 'op', op, left, right };
+      }
+      return left;
+    }
+    const tree = expression(0);
+    if (i !== tokens.length) throw Error('Unexpected token. Check the row expression.');
+    return tree;
+  }
+  const atomic = tree => tree.kind === 'name';
+  function print(tree) {
+    if (atomic(tree)) return ops[tree.name] ? `(${tree.name})` : tree.name;
+    const child = t => atomic(t) ? print(t) : `(${print(t)})`;
+    if (tree.kind === 'app') return [child(tree.fn), ...tree.args.map(child)].join(' ');
+    return `${child(tree.left)} ${tree.op} ${child(tree.right)}`;
+  }
+  function count(tree) {
+    if (atomic(tree)) return 0;
+    if (tree.kind === 'app') return 1 + count(tree.fn) + tree.args.reduce((n, t) => n + count(t), 0);
+    return 1 + count(tree.left) + count(tree.right);
+  }
+  function names(tree) {
+    if (atomic(tree)) return [tree.name];
+    if (tree.kind === 'app') return [...names(tree.fn), ...tree.args.flatMap(names)];
+    return [tree.op, ...names(tree.left), ...names(tree.right)];
+  }
+  // This deliberately accepts only the explicit, non-recursive let form emitted
+  // by the editor. It is not a general Haskell layout/recursive-let parser.
+  function parseLet(code) {
+    if (!/^let\b/.test(code.trim())) return null;
+    const match = code.trim().match(/^let\s+([\s\S]*?)\bin\s+([\s\S]+)$/);
+    if (!match) throw Error('Incomplete let expression.');
+    const bindings = match[1].trim().split(/\n|;/).filter(s => s.trim()).map(line => {
+      const binding = line.trim().match(/^([a-z][A-Za-z0-9_']*)\s*=\s*(.+)$/);
+      if (!binding) throw Error('Each let row needs a name and an expression.');
+      return { id: binding[1], expr: binding[2] };
+    });
+    if (new Set(bindings.map(r => r.id)).size !== bindings.length) throw Error('Row names must be unique.');
+    return { bindings, final: match[2].trim() };
+  }
+  function source(rows) {
+    if (rows.length === 1) return rows[0].expr.trim();
+    return 'let\n' + rows.slice(0, -1).map(r => `  ${r.id} = ${r.expr.trim()}`).join('\n') + '\nin\n  ' + rows.at(-1).expr.trim();
+  }
+  function migrate(code) {
+    if (!code.trim() || code.trim() === 'undefined') return [{ id: 'r1', expr: '' }];
+    try {
+      const letProgram = parseLet(code);
+      if (letProgram) {
+        const used = new Set(letProgram.bindings.map(r => r.id));
+        let n = 1; while (used.has(`r${n}`)) n++;
+        return [...letProgram.bindings, { id: `r${n}`, expr: letProgram.final }];
+      }
+      const rows = [];
+      function normalize(tree) {
+        if (atomic(tree)) return tree;
+        if (tree.kind === 'app') return app(normalize(tree.fn), tree.args.map(normalize));
+        const left = normalize(tree.left), right = normalize(tree.right);
+        return tree.op === '$' ? app(left, [right]) : { ...tree, left, right };
+      }
+      function lower(tree, root = false) {
+        if (atomic(tree)) return tree;
+        const simple = tree.kind === 'app'
+          ? { ...tree, fn: lower(tree.fn), args: tree.args.map(t => lower(t)) }
+          : { ...tree, left: lower(tree.left), right: lower(tree.right) };
+        const row = { id: `r${rows.length + 1}`, expr: print(simple) };
+        rows.push(row);
+        return atom(row.id);
+      }
+      const tree = normalize(parse(code));
+      if (atomic(tree)) return [{ id: 'r1', expr: print(tree) }];
+      lower(tree, true);
+      return rows;
+    } catch (_) {
+      // Keep unfinished/invalid old work verbatim so the player can repair it.
+      return [{ id: 'r1', expr: code }];
+    }
+  }
+  function validate(rows, level) {
+    const available = new Set([
+      ...level.funcs.map(f => f.name.replace(/^\(|\)$/g, '')),
+      ...level.lhs.split('=')[0].trim().split(/\s+/).slice(1)
+    ]);
+    return rows.map(row => {
+      let error = null;
+      try {
+        if (!row.expr.trim() || row.expr.trim() === 'undefined') throw Error('Add an expression to this row.');
+        if (/\bundefined\b/.test(row.expr)) throw Error('Using undefined is not allowed.');
+        const tree = parse(row.expr);
+        if (count(tree) > 1) throw Error('One operation per row. Move the nested call to an earlier row and use its result.');
+        for (const name of names(tree)) {
+          if (!available.has(name)) throw Error(/^r\d+$/.test(name)
+            ? `${name} is not an earlier result. Use a row above this one.`
+            : `Unknown identifier: ${name}. Choose an available function or parameter.`);
+        }
+      } catch (e) { error = e.message; }
+      available.add(row.id);
+      return error;
+    });
+  }
+  function score(code) {
+    const program = parseLet(code);
+    const rows = program ? [...program.bindings, { expr: program.final }] : migrate(code);
+    return rows.reduce((n, row) => n + count(parse(row.expr)), 0);
+  }
+  return { parse, print, count, names, parseLet, source, migrate, validate, score };
+})();

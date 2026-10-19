@@ -40,6 +40,7 @@ test.describe('Phone touch dragging', () => {
   }
 
   async function center(locator) {
+    await locator.scrollIntoViewIfNeeded();
     const r = await locator.boundingBox();
     return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
   }
@@ -70,7 +71,7 @@ test.describe('Phone touch dragging', () => {
   test('insert function and parameter, solve, and retain the solution after reload', async ({ page }) => {
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
-    const end = await center(page.locator('.editor-wrap'));
+    const end = await center(page.locator('#code-editor'));
     await touch.drag(await center(page.locator('[data-func-name="f"]')), end);
     await expect(editor).toHaveValue('f');
     await expect(editor).not.toBeFocused();
@@ -107,7 +108,7 @@ test.describe('Phone touch dragging', () => {
     await touch.drag(await editorPoint(page, 2), { x: 20, y: 80 });
     await expect(editor).toHaveValue('f');
     await touch.drag(await editorPoint(page, 0), { x: 20, y: 80 });
-    await expect(editor).toHaveValue('undefined');
+    await expect(editor).toHaveValue('');
     await noDragUI(page);
   });
 
@@ -142,6 +143,7 @@ test.describe('Phone touch dragging', () => {
     await page.waitForTimeout(200);
     const icons = page.locator('#editor-overlay [title="f3"]');
     const first = await icons.first().boundingBox();
+    await icons.nth(2).scrollIntoViewIfNeeded();
     const second = await icons.nth(2).boundingBox();
     expect(second.y).toBeGreaterThan(first.y);
     await touch.drag(await center(page.locator('[data-func-name="f2"]')), {
@@ -151,26 +153,22 @@ test.describe('Phone touch dragging', () => {
     await noDragUI(page);
   });
 
-  test('icon drops follow scrolled lines without adding indentation', async ({ page }) => {
+  test('icon drops follow scrolled rows without adding indentation', async ({ page }) => {
     await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
-    const editor = page.locator('#code-editor');
-    await editor.fill('f1\nf2\nf3\nf1\nf2 z');
+    for (let i = 0; i < 5; i++) {
+      if (i) await page.getByRole('button', { name: '+ Add row', exact: true }).tap();
+      await page.locator('textarea.row-editor').nth(i).fill('f2 z');
+    }
+    const editor = page.locator('textarea.row-editor').last();
     await editor.blur();
-    await editor.evaluate(el => { el.scrollTop = el.scrollHeight; });
-    await expect.poll(() => page.locator('#editor-overlay').evaluate(el => el.scrollTop)).toBeGreaterThan(0);
-    await page.waitForTimeout(200);
-    const icon = await page.locator('#editor-overlay [title="f2"]').last().boundingBox();
-    const area = await editor.boundingBox();
-    expect(icon.y).toBeGreaterThanOrEqual(area.y);
-    expect(icon.y + icon.height).toBeLessThanOrEqual(area.y + area.height);
-    await touch.start(await center(page.locator('[data-func-name="f3"]')));
-    await touch.move({ x: icon.x + 1, y: icon.y + icon.height / 2 });
-    const caret = await page.locator('#drop-caret').boundingBox();
-    expect(caret.x).toBeCloseTo(icon.x, 0);
-    expect(Math.abs(caret.y - icon.y)).toBeLessThan(12);
-    await touch.end();
-    await expect(editor).toHaveValue('f1\nf2\nf3\nf1\nf3 f2 z');
+    const token = page.locator('.program-row').last().locator('[data-name="f2"]');
+    await token.scrollIntoViewIfNeeded();
+    expect(await page.locator('#program-rows').evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+    const point = await token.boundingBox();
+    await touch.drag(await center(page.locator('[data-func-name="f3"]')), { x: point.x + 1, y: point.y + point.height / 2 });
+    await expect(editor).toHaveValue('f3 f2 z');
+    await expect(page.locator('textarea.row-editor').first()).toHaveValue('f2 z');
     await noDragUI(page);
   });
 
@@ -193,7 +191,7 @@ test.describe('Phone touch dragging', () => {
     const z = await tile('z').boundingBox();
     const source = { x: z.x + z.width - 2, y: z.y + z.height / 2 };
     await touch.start(source);
-    const ghost = page.locator('#drag-out-ghost');
+    const ghost = page.locator('#touch-drag-ghost');
     await expect(ghost.locator('[title="z"] svg')).toBeVisible();
     await expect(tile('z')).toHaveClass(/drag-source/);
     const preview = await ghost.boundingBox();
@@ -209,7 +207,7 @@ test.describe('Phone touch dragging', () => {
     await touch.move({ x: 20, y: 80 });
     await expect(ghost.locator('[title="f1"] svg')).toBeVisible();
     await expect(ghost).toHaveClass(/removing/);
-    await expect(ghost).toContainText('Release to remove');
+    await expect(ghost).toContainText('Release outside to remove');
     await touch.end();
     await expect(editor).toHaveValue('z f2');
     await noDragUI(page);
@@ -241,7 +239,7 @@ test.describe('Phone touch dragging', () => {
     expect(tile.x).toBeGreaterThanOrEqual(area.x);
     expect(tile.x + tile.width).toBeLessThanOrEqual(area.x + area.width);
     await touch.drag({ x: tile.x + tile.width / 2, y: tile.y + tile.height / 2 }, { x: 20, y: 80 });
-    await expect(editor).toHaveValue('undefined');
+    await expect(editor).toHaveValue('');
   });
 
   test('adjacent touch insertion and reordering never add implicit connections', async ({ page }) => {
@@ -298,15 +296,20 @@ test.describe('Phone touch dragging', () => {
     expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(true);
     await page.reload();
     await expect(editor).toHaveValue('f3 $ f1 z');
-    // Moving an existing function onto another also offers a choice, without editing until chosen.
+    // Use one application in the row when checking a move between functions.
+    // The saved nested expression above is retained, with a row validation error.
+    await expect(page.locator('.row-feedback')).toContainText('One operation per row');
+    await editor.fill('f3 f1');
+    await editor.blur();
+    // Moving an existing function offers a choice without editing until chosen.
     await touch.drag(await center(tile('f1')), await center(tile('f3')));
     await expect(picker).toBeVisible();
     await picker.getByRole('button', { name: 'Cancel', exact: true }).tap();
-    await expect(editor).toHaveValue('f3 $ f1 z');
+    await expect(editor).toHaveValue('f3 f1');
     await noDragUI(page);
     await touch.drag(await center(tile('f1')), await center(tile('f3')));
     await picker.getByRole('button', { name: 'Use .', exact: true }).tap();
-    await expect(editor).toHaveValue('f3 . f1 z');
+    await expect(editor).toHaveValue('f3 . f1');
   });
 
   test('dragging functions out removes one adjacent explicit connector', async ({ page }) => {
@@ -338,14 +341,14 @@ test.describe('Phone touch dragging', () => {
   test('dropping a card outside the editor does not change the solution', async ({ page }) => {
     const touch = await gestures(page);
     await touch.drag(await center(page.locator('[data-func-name="f"]')), { x: 20, y: 80 });
-    await expect(page.locator('#code-editor')).toHaveValue('undefined');
+    await expect(page.locator('#code-editor')).toHaveValue('');
     await noDragUI(page);
   });
 
   test('cancelled or multi-finger drags make no edit and allow a later drag', async ({ page }) => {
     const touch = await gestures(page);
     const source = await center(page.locator('[data-func-name="f"]'));
-    const target = await center(page.locator('.editor-wrap'));
+    const target = await center(page.locator('#code-editor'));
     await touch.start(source);
     await touch.move(target);
     await touch.cancel();
@@ -353,7 +356,7 @@ test.describe('Phone touch dragging', () => {
     await touch.start(source);
     await touch.secondFinger(source, { x: 20, y: 80 });
     await touch.end();
-    await expect(page.locator('#code-editor')).toHaveValue('undefined');
+    await expect(page.locator('#code-editor')).toHaveValue('');
     await noDragUI(page);
     await touch.drag(source, target);
     await expect(page.locator('#code-editor')).toHaveValue('f');
@@ -371,7 +374,7 @@ test.describe('Phone touch dragging', () => {
     const editor = page.locator('#code-editor');
     const card = page.locator('[data-func-name="f"]');
     await card.tap();
-    await expect(editor).toHaveValue('undefined');
+    await expect(editor).toHaveValue('');
     await noDragUI(page);
     await editor.fill('f z');
     await editor.blur();
@@ -401,7 +404,7 @@ test.describe('Phone touch dragging', () => {
     for (let i = 1; i <= 6; i++) await touch.move({ x: from.x, y: from.y - i * 30 });
     await touch.end();
     await expect.poll(() => panel.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
-    await expect(page.locator('#code-editor')).toHaveValue('undefined');
+    await expect(page.locator('#code-editor')).toHaveValue('');
     await noDragUI(page);
   });
 
@@ -415,7 +418,7 @@ test.describe('Phone touch dragging', () => {
     await page.evaluate(() => toggleGecko());
     await touch.end();
     await noDragUI(page);
-    await touch.drag(await center(page.locator('[data-func-name="f"]')), await center(page.locator('.editor-wrap')));
+    await touch.drag(await center(page.locator('[data-func-name="f"]')), await center(page.locator('#code-editor')));
     await expect(editor).toHaveValue('f');
   });
 });

@@ -4,6 +4,15 @@ const path = require('path');
 
 const PAGE_URL = `file:///${path.resolve(__dirname, '..', 'index.html').replace(/\\/g, '/')}`;
 
+// Enter a complete expression through the new row UI when solving a level.
+async function enterSolution(page, expression) {
+  const rows = await page.evaluate(code => RowProgram.migrate(code), expression);
+  for (let i = 0; i < rows.length; i++) {
+    if (i) await page.getByRole('button', { name: '+ Add row', exact: true }).click();
+    await page.locator('textarea.row-editor').nth(i).fill(rows[i].expr);
+  }
+}
+
 test.describe('Zero to Hero', () => {
 
   test.beforeEach(async ({ page }) => {
@@ -28,8 +37,8 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('body')).toContainText('Gecko Graph');
     await expect(page.locator('body')).toContainText('Bypass');
     await expect(page.locator('textarea#code-editor')).toBeVisible();
-    // Editor pre-filled with "undefined"
-    await expect(page.locator('#code-editor')).toHaveValue(/undefined/);
+    // New rows start empty; the internal undefined placeholder is not displayed.
+    await expect(page.locator('#code-editor')).toHaveValue('');
   });
 
   test('shows initial inferred type as just "a"', async ({ page }) => {
@@ -78,7 +87,7 @@ test.describe('Zero to Hero', () => {
     await page.waitForTimeout(200);
 
     await expect(syntaxHint).toHaveClass(/invalid/);
-    await expect(syntaxHint).toContainText('not in the available functions');
+    await expect(syntaxHint).toContainText('Unknown identifier');
   });
 
   test('live type inference shows error for undefined usage', async ({ page }) => {
@@ -135,7 +144,7 @@ test.describe('Zero to Hero', () => {
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
-    await page.locator('#code-editor').fill('mkHero $ runZero z');
+    await enterSolution(page, 'mkHero $ runZero z');
     await page.waitForTimeout(200);
 
     await expect(page.locator('#syntax-hint')).toContainText('valid syntax');
@@ -183,9 +192,9 @@ test.describe('Zero to Hero', () => {
   });
 
   test('line numbers are shown in editor', async ({ page }) => {
-    const lineNums = page.locator('#line-numbers');
+    const lineNums = page.locator('.row-number').first();
     await expect(lineNums).toBeVisible();
-    await expect(lineNums).toContainText('2');
+    await expect(lineNums).toContainText('1');
     await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
   });
 
@@ -266,14 +275,14 @@ test.describe('Zero to Hero', () => {
     await page.waitForTimeout(200);
 
     // Solve level 2
-    await editor.fill('mkHero $ runZero z');
+    await enterSolution(page, 'mkHero $ runZero z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 3
-    await editor.fill('f3 $ f1 z');
+    await enterSolution(page, 'f3 $ f1 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -322,21 +331,21 @@ test.describe('Zero to Hero', () => {
     await page.waitForTimeout(200);
 
     // Solve level 2
-    await editor.fill('mkHero $ runZero z');
+    await enterSolution(page, 'mkHero $ runZero z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 3
-    await editor.fill('f3 $ f1 z');
+    await enterSolution(page, 'f3 $ f1 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 4
-    await editor.fill('f2 $ f4 z');
+    await enterSolution(page, 'f2 $ f4 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -397,19 +406,19 @@ test.describe('Zero to Hero', () => {
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
-    await editor.fill('mkHero $ runZero z');
+    await enterSolution(page, 'mkHero $ runZero z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
-    await editor.fill('f3 $ f1 z');
+    await enterSolution(page, 'f3 $ f1 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
-    await editor.fill('f2 $ f4 z');
+    await enterSolution(page, 'f2 $ f4 z');
     await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -441,7 +450,7 @@ test.describe('Zero to Hero', () => {
         const dt = new DataTransfer();
         dt.setData('text/plain', 'f1');
         const dropEvent = new DragEvent('drop', {
-          bubbles: true, cancelable: true, dataTransfer: dt
+          bubbles: true, cancelable: true, dataTransfer: dt, clientX: el.getBoundingClientRect().left + 8, clientY: el.getBoundingClientRect().top + 12
         });
         el.dispatchEvent(dropEvent);
       });
@@ -471,7 +480,7 @@ test.describe('Zero to Hero', () => {
 
   test('Ctrl+Backspace does not damage LHS', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await editor.fill('mkHero $ runZero z');
+    await enterSolution(page, 'mkHero $ runZero z');
     await page.waitForTimeout(100);
     await editor.click();
     await editor.press('End');
@@ -580,7 +589,7 @@ test.describe('Zero to Hero', () => {
         const dt = new DataTransfer();
         dt.setData('text/plain', 'f');
         el.dispatchEvent(new DragEvent('drop', {
-          bubbles: true, cancelable: true, dataTransfer: dt
+          bubbles: true, cancelable: true, dataTransfer: dt, clientX: el.getBoundingClientRect().left + 8, clientY: el.getBoundingClientRect().top + 12
         }));
       });
       await page.waitForTimeout(100);
@@ -686,8 +695,6 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
 
     // Ctrl+Z should be able to undo back to original
-    await page.keyboard.press('Control+z');
-    await page.waitForTimeout(100);
     await page.keyboard.press('Control+z');
     await page.waitForTimeout(100);
     await page.keyboard.press('Control+z');

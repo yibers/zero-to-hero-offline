@@ -27,9 +27,12 @@ This reimplements the game with no server dependencies:
 ### File structure
 
 ```
-index.html      — Main app (~50KB)
+index.html      — Main app and type checker
 levels.js       — 15 puzzle definitions
 semantic-icons.js — SVG type patterns and per-level action descriptions
+row-program.js  — Expression parsing, row validation, migration and scoring
+row-editor.js   — Row editing, references and mouse/touch interactions
+row-editor.css  — Row layout and responsive controls
 fonts/          — Exo, Fira Code, Orbitron (.ttf)
 fonts/LICENSE   — SIL Open Font License
 tests/          — Playwright + unit tests
@@ -46,7 +49,12 @@ tests/          — Playwright + unit tests
 
 ### Additional features
 
-- Touch drag-and-drop — drag a function/parameter card straight into the editor, or drag an editor token to reorder or remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
+- **One operation per row** — apply a function to its arguments, or use one infix operator. Nested calls belong in separate rows. Bare function/value references are also allowed.
+- Earlier results have stable names (`r1`, `r2`, …) and can be dragged or selected from the results pane. Results may themselves be functions. Each row shows its inferred type; the bottom row is the final answer.
+- Add rows with **+ Add row** or Enter. The row menu inserts, moves or removes rows; dependencies cannot be moved below their uses or deleted while referenced. Undo/redo covers typing, row changes and dragging.
+- **Haskell code** shows the generated non-recursive `let … in …` definition. Saved single-expression solutions automatically convert to rows, preserving their meaning. Unfinished expressions remain available to repair.
+- Conciseness compares the number of operations with a reference solution, including unused operations. Row names, whitespace and generated `let` syntax do not count.
+- Touch drag-and-drop — drag a function/parameter card straight into the editor, or drag an editor token within or between rows, or out to remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
 - Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments. Open “Icon key” for the shared shape legend.
 - Operator cards are marked with an “Operator” badge in both text and icon modes.
 - Drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
@@ -54,7 +62,7 @@ tests/          — Playwright + unit tests
 - Dragging a function out also removes an adjacent explicit connector.
 - A read-only function prefix on its own line, with a left-aligned solution playground below it
 - Editor contents persisted in localStorage
-- "Show optimal solution" link on non-optimal completion
+- "Show reference rows" on completion
 - "Try again" option to improve your solution
 
 ## Running

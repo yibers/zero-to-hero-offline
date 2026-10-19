@@ -15,14 +15,14 @@ async function loadProgress(page, progress) {
 
 test('prefix stays above a left-aligned playground and survives selecting all', async ({ page }) => {
   await loadProgress(page, { currentLevel: 0 });
-  const editor = page.getByRole('textbox', { name: 'Solution expression' });
+  const editor = page.getByRole('textbox', { name: 'Row 1 expression' });
   const prefix = page.locator('#editor-prefix');
   await expect(prefix).toHaveText('zeroToHero z =');
   await editor.fill('f z');
   const header = await prefix.boundingBox();
   const input = await editor.boundingBox();
   expect(input.y).toBeGreaterThanOrEqual(header.y + header.height);
-  expect(input.x).toBeCloseTo(header.x, 0);
+  expect(input.x).toBeLessThanOrEqual(header.x + 1);
   await editor.press('Control+a');
   await editor.press('Backspace');
   await expect(editor).toHaveValue('');
@@ -42,37 +42,31 @@ test('existing level 8 progress loads and preserves the extra parameters', async
   });
   const editor = page.locator('#code-editor');
   await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero ad bd cd z =');
-  await expect(editor).toHaveValue(solution);
+  await expect(page.locator('textarea.row-editor')).toHaveCount(5);
+  expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await expect(page.locator('#inferred-type')).toContainText('Hero');
   await page.getByText('Icons', { exact: true }).click();
   await page.getByText('Gecko Graph', { exact: true }).click();
-  await expect(editor).toHaveValue(solution);
+  await expect(page.locator('textarea.row-editor')).toHaveCount(5);
+  expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await page.reload();
-  await expect(editor).toHaveValue(solution);
+  await expect(page.locator('textarea.row-editor')).toHaveCount(5);
+  expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await page.getByRole('button', { name: 'Attempt', exact: true }).click();
   await expect(page.locator('#level-dialog')).toBeVisible();
 });
 
-test('multiline solutions retain their line breaks, highlighting, and saved progress', async ({ page }) => {
-  await loadProgress(page, { currentLevel: 0 });
-  const editor = page.locator('#code-editor');
-  await editor.fill('f\nz');
-  await expect(page.locator('#line-numbers')).toHaveText('23');
-  await expect(page.locator('#editor-overlay')).toHaveText('f\nz');
+test('Enter adds a new row and preserves both rows after refresh', async ({ page }) => {
+  await loadProgress(page, { currentLevel: 1 });
+  await page.locator('#code-editor').fill('runZero z');
+  await page.locator('#code-editor').press('Enter');
+  await expect(page.locator('textarea.row-editor')).toHaveCount(2);
+  await page.locator('textarea.row-editor').nth(1).fill('mkHero r1');
   await expect(page.locator('#inferred-type')).toContainText('Hero');
-  await editor.press('Control+Home');
-  await editor.press('ArrowRight');
-  await editor.press('ArrowRight');
-  expect(await editor.evaluate(el => el.selectionStart)).toBe(3);
-  await editor.press('ArrowLeft');
-  await editor.press('ArrowLeft');
-  expect(await editor.evaluate(el => el.selectionStart)).toBe(0);
-  await editor.blur();
   await page.reload();
-  await expect(editor).toHaveValue('f\nz');
+  await expect(page.locator('textarea.row-editor').nth(0)).toHaveValue('runZero z');
+  await expect(page.locator('textarea.row-editor').nth(1)).toHaveValue('mkHero r1');
   await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
-  expect(saved.editorContents[0]).toBe('zeroToHero z = f\nz');
   await page.getByRole('button', { name: 'Attempt', exact: true }).click();
   await expect(page.locator('#level-dialog')).toBeVisible();
 });

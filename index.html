@@ -226,6 +226,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-arrow-header svg { height: 10px; }
 .gecko-arrow-body { display: flex; }
 </style>
+<link rel="stylesheet" href="row-editor.css">
 </head>
 <body>
 
@@ -233,6 +234,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <script src="levels.js"></script>
 <script src="semantic-icons.js"></script>
+<script src="row-program.js"></script>
+<script src="row-editor.js"></script>
 <script>
 
 // ─── Haskell Type Parser & Unifier ───
@@ -472,7 +475,7 @@ function tokenizeExpr(code) {
     if (code[i] === ' ' || code[i] === '\n' || code[i] === '\r' || code[i] === '\t') { i++; continue; }
     if (code[i] === '(') { tokens.push('('); i++; continue; }
     if (code[i] === ')') { tokens.push(')'); i++; continue; }
-    if (code[i] === '$' && (i+1 >= code.length || code[i+1] === ' ')) { tokens.push('$'); i++; continue; }
+    if (code[i] === '$') { tokens.push('$'); i++; continue; }
     if (code[i] === '`') {
       let j = i + 1;
       while (j < code.length && code[j] !== '`') j++;
@@ -480,7 +483,7 @@ function tokenizeExpr(code) {
       i = j + 1;
       continue;
     }
-    if (code[i] === '.' && (i+1 >= code.length || code[i+1] === ' ')) { tokens.push('.'); i++; continue; }
+    if (code[i] === '.') { tokens.push('.'); i++; continue; }
     if (code.slice(i, i+3) === '>>=') { tokens.push('>>='); i += 3; continue; }
     if (code.slice(i, i+3) === '<$>') { tokens.push('<$>'); i += 3; continue; }
     if (code.slice(i, i+3) === '<*>') { tokens.push('<*>'); i += 3; continue; }
@@ -706,6 +709,19 @@ function findVars(type) {
 }
 
 function inferExpr(code, env, paramTypes) {
+  const program = RowProgram.parseLet(code);
+  if (program) {
+    const localEnv = { ...env };
+    const defined = new Set(Object.keys(paramTypes));
+    for (const binding of program.bindings) {
+      if (defined.has(binding.id) || Object.hasOwn(env, binding.id)) throw new Error('A row cannot shadow an available name.');
+      const type = inferExpr(binding.expr, localEnv, paramTypes);
+      if (!type) throw new Error('Incomplete expression.');
+      localEnv[binding.id] = type;
+      defined.add(binding.id);
+    }
+    return inferExpr(program.final, localEnv, paramTypes);
+  }
   const tokens = tokenizeExpr(code);
   let pos = 0;
 
@@ -871,6 +887,8 @@ let lastUserSolution = '';
 let completedLevels = new Set();
 let optimalLevels = new Set();
 let editorContents = {};
+let rowPrograms = {};
+let activeRow = 0;
 let geckoOn = true;
 let iconMode = false;
 let bypassCount = 0;
@@ -883,6 +901,11 @@ try {
     completedLevels = new Set(parsed.completed || []);
     optimalLevels = new Set(parsed.optimal || []);
     editorContents = parsed.editorContents || {};
+    if (parsed.rowVersion === 1 && parsed.rowPrograms && typeof parsed.rowPrograms === 'object') {
+      for (const [key, rows] of Object.entries(parsed.rowPrograms)) {
+        if (Array.isArray(rows) && rows.length && rows.every(r => r && /^r[1-9]\d*$/.test(r.id) && typeof r.expr === 'string') && new Set(rows.map(r => r.id)).size === rows.length) rowPrograms[key] = rows;
+      }
+    }
     currentLevel = Math.max(0, Math.min(parsed.currentLevel || 0, LEVELS.length - 1));
     bypassCount = parsed.bypassCount || 0;
     geckoOn = parsed.geckoOn !== false;
@@ -907,6 +930,8 @@ function saveProgress() {
     completed: [...completedLevels],
     optimal: [...optimalLevels],
     editorContents,
+    rowPrograms,
+    rowVersion: 1,
     currentLevel,
     bypassCount,
     geckoOn,
@@ -937,8 +962,8 @@ function render() {
 
     ${showLevelComplete ? (() => {
       const best = LEVELS[currentLevel].best;
-      const bestLen = best.replace(/\s+/g, '').length;
-      const userLen = lastUserSolution.replace(/\s+/g, '').length;
+      const bestLen = RowProgram.score(best);
+      const userLen = RowProgram.score(lastUserSolution);
       const isOptimal = userLen <= bestLen;
       return `
     <div class="dialog-overlay" id="level-dialog">
@@ -946,13 +971,10 @@ function render() {
         <h2 style="font-size:24px;font-weight:bold">Congratulations!</h2>
         <p style="margin:16px 0">You have completed this level.</p>
         <p style="margin:0 0 8px;font-size:14px;font-family:'Fira Code',monospace">${isOptimal
-          ? `<span style="color:#bbf7d0">Optimal!</span> Your solution (${userLen} chars) is the most concise.`
-          : `Your solution: ${userLen} chars. Most concise: ${bestLen} chars.`
+          ? `<span style="color:#bbf7d0">Optimal!</span> Your solution (${userLen} operations) uses no more operations than the reference.`
+          : `Your solution: ${userLen} operations. Reference: ${bestLen} operations.`
         }</p>
-        <p style="margin:0 0 16px;font-size:13px;font-family:'Fira Code',monospace;color:#d1d5db">${isOptimal
-          ? best
-          : `<span id="reveal-best"><a href="#" onclick="document.getElementById('reveal-best').innerHTML='${best}';return false" style="color:#93c5fd">Show optimal solution</a></span>`
-        }</p>
+        <details style="margin:0 0 16px"><summary>Show reference rows</summary><pre style="white-space:pre-wrap;margin-top:8px">${escHtml(RowProgram.source(RowProgram.migrate(best)))}</pre></details>
         <div style="display:flex;gap:8px">
           <button onclick="nextLevel()">Next level</button>
           ${!isOptimal ? `<button class="btn-secondary" onclick="tryAgain()">Try again</button>` : ''}
@@ -1003,7 +1025,8 @@ function render() {
           <li>5 additional monad levels (Functor, Applicative, Monad, MonadFish, MonadJoin)</li>
           <li>Fully self-contained &mdash; works offline, no server needed</li>
           <li>Progress, editor contents, and bypass points persist in localStorage</li>
-          <li>Optimal solution tracking and &ldquo;Show optimal solution&rdquo; on completion</li>
+          <li>One operation per row, reusable results, and a generated Haskell let definition</li>
+          <li>Conciseness by operation count, with reference rows on completion</li>
         </ul>
         <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
           All credit for the game design, puzzles, and GeckoGraph notation belongs to the original authors.
@@ -1064,15 +1087,11 @@ function render() {
               <div class="line-numbers" aria-hidden="true">1</div>
               <div class="editor-prefix" id="editor-prefix">${escHtml(level.lhs.trim())}</div>
             </div>
-            <div class="editor-container">
-              <div class="line-numbers" id="line-numbers" aria-hidden="true">2</div>
-              <div class="editor-area">
-                <div class="editor-overlay" id="editor-overlay"></div>
-                <textarea class="editor code" id="code-editor" rows="${iconMode ? 2 : 3}" spellcheck="false" aria-label="Solution expression" aria-describedby="editor-prefix"></textarea>
-              </div>
-            </div>
-            <div class="editor-drop-hint">${level.funcs.some(f => isOperatorName(f.name)) ? 'Drop beside to insert. Drop onto a function to choose an operator.' : 'Drag cards into the editor. Drag tokens out to remove them.'}</div>
-            ${geckoOn ? `<div id="editor-tokens" class="editor-tokens"></div>` : ''}
+            <div class="row-instructions">One operation per row. Use earlier results as inputs. The bottom row is your final answer.</div>
+            <div id="program-rows"></div>
+            <div class="row-toolbar"><button type="button" id="add-row">+ Add row</button><button type="button" id="undo-rows" aria-label="Undo row edit">Undo</button><button type="button" id="redo-rows" aria-label="Redo row edit">Redo</button></div>
+            <div id="row-notice" role="status"></div>
+            <details class="haskell-preview"><summary>Haskell code</summary><pre id="haskell-source"></pre></details>
           </div>
 
           <div class="gutter-row"></div>
@@ -1113,762 +1132,7 @@ function render() {
     </main>
   `;
 
-  // Wire up editor
-  const editor = document.getElementById('code-editor');
-  if (editor) {
-    editor.value = getEditorContent();
-    editor.addEventListener('input', onEditorInput);
-    // Only the solution is editable; the fixed prefix is a separate header.
-    editor.addEventListener('keydown', e => {
-      const { selectionStart: s, selectionEnd: end } = editor;
-      const text = editor.value;
-      // Ctrl/Meta key held
-      if (e.ctrlKey || e.metaKey) {
-        // Ctrl+Backspace: delete previous word but stop at start of the solution
-        // Let Meta+Backspace (macOS Cmd+Backspace) fall through to native behavior
-        if (e.key === 'Backspace' && !e.metaKey && s === end && s > 0) {
-          e.preventDefault();
-          // Find word boundary backwards (mimic browser Ctrl+Backspace)
-          let wordStart = s;
-          while (wordStart > 0 && /\s/.test(text[wordStart - 1])) wordStart--;
-          while (wordStart > 0 && !/\s/.test(text[wordStart - 1])) wordStart--;
-          editor.setSelectionRange(wordStart, s);
-          document.execCommand('insertText', false, '');
-          return;
-        }
-        if (e.key === 'Backspace' && !e.metaKey && s === end && s === 0) { e.preventDefault(); return; }
-        return;
-      }
-      // Auto-clear "undefined" placeholder when user starts typing
-      if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        const rhs = text.trim();
-        if (rhs === 'undefined') {
-          editor.setSelectionRange(0, text.length);
-          // Let the keystroke replace the selection naturally
-        }
-      }
-      // Token-level Backspace (no selection): delete entire token before cursor
-      if (e.key === 'Backspace' && s === end && s > 0) {
-        e.preventDefault();
-        // Find the token ending at or before cursor
-        let delEnd = s;
-        // If cursor is right at a punctuation char (parens, brackets — neither
-        // ident nor op nor whitespace), target it directly instead of skipping
-        // backwards past any preceding space into the previous token.
-        const _c = delEnd < text.length ? text[delEnd] : null;
-        const _isPunc = _c && !/\s/.test(_c) && !/[a-zA-Z0-9_']/.test(_c) && !/[!@#$%^&*\-+=<>?/|~:.\\]/.test(_c);
-        if (!_isPunc) {
-          // Skip whitespace backwards
-          while (delEnd > 0 && /\s/.test(text[delEnd - 1])) delEnd--;
-        }
-        const range = getTokenRange(text, delEnd);
-        if (range) {
-          let removeStart = range.start;
-          let removeEnd = range.end;
-          const hasBefore = removeStart > 0 && text[removeStart - 1] === ' ';
-          const hasAfter = removeEnd < text.length && text[removeEnd] === ' ';
-          // Remove one adjacent space, but not both (keep one if token is between other tokens)
-          if (hasBefore && hasAfter) {
-            removeStart--; // remove leading space only
-          } else if (hasAfter) {
-            removeEnd++; // remove trailing space
-          } else if (hasBefore) {
-            removeStart--; // remove leading space
-          }
-          editor.setSelectionRange(removeStart, removeEnd);
-          document.execCommand('insertText', false, '');
-        }
-        return;
-      }
-      // Prevent backspace at the start
-      if (e.key === 'Backspace' && s === end && s <= 0) { e.preventDefault(); return; }
-      // Token-level Delete (no selection): delete entire token after cursor
-      if (e.key === 'Delete' && s === end) {
-        e.preventDefault();
-        let delStart = s;
-        // Skip whitespace forward
-        while (delStart < text.length && /\s/.test(text[delStart])) delStart++;
-        if (delStart >= text.length) return;
-        const range = getTokenRange(text, delStart);
-        if (range) {
-          let removeEnd = range.end;
-          if (removeEnd < text.length && text[removeEnd] === ' ') removeEnd++;
-          editor.setSelectionRange(s, removeEnd);
-          document.execCommand('insertText', false, '');
-        }
-        return;
-      }
-      // Block ArrowLeft at start of the solution (with or without Shift)
-      if (e.key === 'ArrowLeft' && s <= 0 && !e.ctrlKey && !e.metaKey) {
-        e.preventDefault();
-        if (e.shiftKey) {
-          editor.setSelectionRange(0, end);
-        } else {
-          editor.setSelectionRange(0, 0);
-        }
-        return;
-      }
-      // Token-level ArrowLeft (no selection): jump to start of previous token
-      if (e.key === 'ArrowLeft' && s === end && !e.shiftKey && s > 0) {
-        e.preventDefault();
-        let target = s;
-        // Skip whitespace backwards
-        while (target > 0 && /\s/.test(text[target - 1])) target--;
-        // Find token at this position and jump to its start
-        const range = getTokenRange(text, target);
-        if (range) {
-          // If already at start of this token, skip past it to the previous one
-          if (range.start === s) {
-            const prev = range.start - 1;
-            const prevRange = getTokenRange(text, prev);
-            if (prevRange) {
-              editor.setSelectionRange(prevRange.start, prevRange.start);
-            } else {
-              editor.setSelectionRange(0, 0);
-            }
-          } else {
-            editor.setSelectionRange(range.start, range.start);
-          }
-        } else {
-          editor.setSelectionRange(0, 0);
-        }
-        return;
-      }
-      // Token-level ArrowRight (no selection): jump to end of next token
-      if (e.key === 'ArrowRight' && s === end && !e.shiftKey && s < text.length) {
-        e.preventDefault();
-        let target = s;
-        // Skip whitespace forward
-        while (target < text.length && /\s/.test(text[target])) target++;
-        // Find token at this position and jump to its end
-        const range = getTokenRange(text, target);
-        if (range) {
-          editor.setSelectionRange(range.end, range.end);
-        } else {
-          editor.setSelectionRange(text.length, text.length);
-        }
-        return;
-      }
-    });
-    editor.addEventListener('scroll', () => {
-      const lineNums = document.getElementById('line-numbers');
-      if (lineNums) lineNums.scrollTop = editor.scrollTop;
-      const overlay = document.getElementById('editor-overlay');
-      if (overlay) {
-        overlay.scrollTop = editor.scrollTop;
-        overlay.scrollLeft = editor.scrollLeft;
-      }
-    });
-    updateLineNumbers();
-    updateEditorOverlay();
-    // Run live check immediately
-    setTimeout(runLiveCheck, 0);
-
-    // Measure the displayed tokens so drops follow icons, wrapping, and scrolling.
-    const editorWrap = editor.closest('.editor-wrap');
-    let lastCaretStop = null;
-    function editorCaretStops() {
-      const overlay = document.getElementById('editor-overlay');
-      const rect = editor.getBoundingClientRect();
-      const style = getComputedStyle(editor);
-      const height = parseFloat(style.lineHeight);
-      const left = rect.left + parseFloat(style.paddingLeft) - editor.scrollLeft;
-      const top = rect.top + parseFloat(style.paddingTop) - editor.scrollTop;
-      const stops = [];
-      const add = (pos, x, y) => stops.push({
-        pos, x, y: top + Math.round((y - top) / height) * height, height
-      });
-      const range = document.createRange();
-      let offset = 0;
-      for (const node of overlay.childNodes) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          // Icon tile edges already provide the stops around spaces. Avoid
-          // placing an insertion marker inside their enlarged padding.
-          // Whitespace contributes source offsets, explicit newlines, and
-          // browser-created soft wraps just like the visible token spans.
-          for (let i = 0; i < node.length; i++) {
-            if (iconMode && node.textContent[i] !== '\n') continue;
-            range.setStart(node, i);
-            range.setEnd(node, i + 1);
-            const r = range.getBoundingClientRect();
-            if (r.height) {
-              add(offset + i, r.left, r.top);
-              if (node.textContent[i] === '\n') add(offset + i + 1, left, r.top + height);
-              else add(offset + i + 1, r.right, r.top);
-            }
-          }
-          offset += node.length;
-        } else {
-          const length = Number(node.dataset.codeLength);
-          const rects = Array.from(node.getClientRects());
-          if (rects.length) {
-            add(offset, rects[0].left, rects[0].top);
-            const end = rects[rects.length - 1];
-            add(offset + length, end.right, end.top);
-          }
-          offset += length;
-        }
-      }
-      return stops.length ? stops : [{ pos: 0, x: left, y: top, height }];
-    }
-    function snapToTokenBoundary(text, pos) {
-      if (pos <= 0 || pos >= text.length) return pos;
-      const isIdent = c => /[a-zA-Z0-9_']/.test(c);
-      const isOp = c => /[!@#$%^&*\-+=<>?/|~:.\\]/.test(c);
-      const before = text[pos - 1], after = text[pos];
-      let start = pos, end = pos;
-      if (isIdent(before) && isIdent(after)) {
-        while (start > 0 && isIdent(text[start - 1])) start--;
-        while (end < text.length && isIdent(text[end])) end++;
-      } else if (isOp(before) && isOp(after)) {
-        while (start > 0 && isOp(text[start - 1])) start--;
-        while (end < text.length && isOp(text[end])) end++;
-      } else {
-        return pos;
-      }
-      return (pos - start <= end - pos) ? start : end;
-    }
-    function caretPosFromPoint(cx, cy) {
-      let best = null, bestRowDistance = Infinity, bestColumnDistance = Infinity;
-      for (const stop of editorCaretStops()) {
-        const rowDistance = Math.abs(cy - (stop.y + stop.height / 2));
-        const columnDistance = Math.abs(cx - stop.x);
-        if (rowDistance < bestRowDistance - 1 ||
-            (Math.abs(rowDistance - bestRowDistance) <= 1 && columnDistance < bestColumnDistance)) {
-          best = stop;
-          bestRowDistance = rowDistance;
-          bestColumnDistance = columnDistance;
-        }
-      }
-      lastCaretStop = best;
-      return best.pos;
-    }
-    function showDropCaret(pos) {
-      const stop = lastCaretStop?.pos === pos ? lastCaretStop :
-        editorCaretStops().find(s => s.pos === pos);
-      if (!stop) return;
-      let caret = document.getElementById('drop-caret');
-      if (!caret) {
-        caret = document.createElement('div');
-        caret.id = 'drop-caret';
-        caret.className = 'drop-caret';
-        document.body.appendChild(caret);
-      }
-      caret.style.left = stop.x + 'px';
-      caret.style.top = stop.y + 'px';
-      caret.style.height = stop.height + 'px';
-    }
-    function removeDropCaret() {
-      const c = document.getElementById('drop-caret');
-      if (c) c.remove();
-    }
-
-    // Tile edges are insertion targets; the center offers an explicit connection.
-    // Use actual painted rectangles, including wraps and scrolling, in both modes.
-    const namedFunctions = new Set(level.funcs.map(f => f.name).filter(n => /^[a-zA-Z_]/.test(n)));
-    const operators = level.funcs.filter(f => isOperatorName(f.name));
-    let nativeDragName = '';
-    function clearConnectionTarget() {
-      document.querySelectorAll('#editor-overlay > .connection-target').forEach(n => n.classList.remove('connection-target'));
-    }
-    function connectionTargetFromPoint(name, point, sourceRange) {
-      if (!namedFunctions.has(name) || !operators.length) return null;
-      const area = editor.getBoundingClientRect();
-      if (point.clientX < area.left || point.clientX > area.right ||
-          point.clientY < area.top || point.clientY > area.bottom) return null;
-      let offset = 0;
-      for (const node of document.getElementById('editor-overlay').childNodes) {
-        const length = node.nodeType === Node.TEXT_NODE ? node.length : Number(node.dataset.codeLength);
-        const token = editor.value.slice(offset, offset + length);
-        if (node.nodeType !== Node.TEXT_NODE && namedFunctions.has(token) && sourceRange?.start !== offset) {
-          for (const r of node.getClientRects()) {
-            // Reserve a quarter of each side for insertion (at least 10px in icon mode).
-            const edge = iconMode ? Math.max(10, r.width * .25) : r.width * .25;
-            if (point.clientX > r.left + edge && point.clientX < r.right - edge &&
-                point.clientY >= r.top && point.clientY <= r.bottom) {
-              return { start: offset, end: offset + length, node };
-            }
-          }
-        }
-        offset += length;
-      }
-      return null;
-    }
-    function showDropIntent(name, point, pos, sourceRange) {
-      clearConnectionTarget();
-      const target = connectionTargetFromPoint(name, point, sourceRange);
-      if (target) {
-        removeDropCaret();
-        target.node.classList.add('connection-target');
-      } else showDropCaret(pos);
-    }
-    function connectionCode(original, name, target, sourceRange, op, swapped) {
-      let text = original, start = target.start, end = target.end;
-      if (sourceRange) {
-        let removal = functionRemovalRange(text, sourceRange, level);
-        let a = removal.start, b = removal.end;
-        if (a > 0 && text[a - 1] === ' ') a--;
-        else if (b < text.length && text[b] === ' ') b++;
-        text = text.slice(0, a) + text.slice(b);
-        if (b <= start) { start -= b - a; end -= b - a; }
-      }
-      const existing = text.slice(start, end);
-      const left = swapped ? name : existing, right = swapped ? existing : name;
-      return text.slice(0, start) + left + (op ? ' ' + op : '') + ' ' + right + text.slice(end);
-    }
-    function openConnectionPicker(name, target, sourceRange) {
-      const original = editor.value;
-      const existing = original.slice(target.start, target.end);
-      const dialog = document.createElement('dialog');
-      dialog.id = 'connection-picker';
-      dialog.className = 'connection-picker';
-      dialog.setAttribute('aria-labelledby', 'connection-title');
-      dialog.innerHTML = `<h2 id="connection-title">Choose an operator</h2>
-        <p>Preview the code, then choose how to connect these functions.</p>
-        <div class="connection-order"><span id="connection-order-label"></span><button type="button" id="connection-swap">Swap order</button></div>
-        <div class="connection-options"></div>
-        <button type="button" class="connection-cancel">Cancel</button>`;
-      document.body.appendChild(dialog);
-      let swapped = false;
-      const descriptions = { '$': 'Apply', '.': 'Compose', '<$>': 'Map', '<*>': 'Apply wrapped function', '>>=': 'Bind' };
-      const close = () => { dialog.close(); dialog.remove(); };
-      function choose(code) {
-        // A pending choice never edits the document, and stale choices are discarded.
-        if (!editor.isConnected || editor.value !== original) { close(); return; }
-        close();
-        const inputMode = editor.getAttribute('inputmode');
-        editor.setAttribute('inputmode', 'none');
-        editor.focus({ preventScroll: true });
-        editor.select();
-        document.execCommand('insertText', false, code);
-        setEditorContent(editor.value);
-        updateLineNumbers();
-        updateEditorOverlay();
-        saveProgress();
-        clearTimeout(liveCheckTimer);
-        liveCheckTimer = setTimeout(runLiveCheck, 100);
-        editor.blur();
-        if (inputMode === null) editor.removeAttribute('inputmode');
-        else editor.setAttribute('inputmode', inputMode);
-      }
-      function renderChoices() {
-        const left = swapped ? name : existing, right = swapped ? existing : name;
-        dialog.querySelector('#connection-order-label').innerHTML =
-          `<span class="connection-order-label">Left: ${symbolDisplay(left)} <span aria-hidden="true">→</span> Right: ${symbolDisplay(right)}</span>`;
-        const options = dialog.querySelector('.connection-options');
-        options.replaceChildren();
-        for (const f of [...operators, { name: '', sig: '' }]) {
-          const op = f.name.slice(1, -1);
-          const code = connectionCode(original, name, target, sourceRange, op, swapped);
-          const button = document.createElement('button');
-          button.type = 'button';
-          button.className = 'connection-option';
-          button.dataset.operator = op;
-          button.setAttribute('aria-label', op ? `Use ${op}` : 'Insert without operator');
-          button.innerHTML = `<span class="connection-option-title">${op ? symbolDisplay(op) + ' ' + escHtml(op) + ' · ' + escHtml(descriptions[op] || 'Connect') : 'No operator'}</span><code>${escHtml(code)}</code>`;
-          button.addEventListener('click', () => choose(code));
-          options.appendChild(button);
-        }
-      }
-      dialog.querySelector('#connection-swap').addEventListener('click', () => { swapped = !swapped; renderChoices(); });
-      dialog.querySelector('.connection-cancel').addEventListener('click', close);
-      dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
-      dialog.addEventListener('click', e => { if (e.target === dialog) {
-        const r = dialog.getBoundingClientRect();
-        if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) close();
-      } });
-      renderChoices();
-      editor.blur();
-      dialog.showModal();
-      dialog.querySelector('.connection-option').focus({ preventScroll: true });
-    }
-    function dropCard(name, point, pos) {
-      const target = connectionTargetFromPoint(name, point);
-      clearConnectionTarget();
-      if (target) openConnectionPicker(name, target);
-      else insertDroppedToken(name, pos);
-    }
-    document.querySelectorAll('.func-card[draggable]').forEach(card => {
-      card.addEventListener('dragstart', () => { nativeDragName = card.dataset.funcName; });
-      card.addEventListener('dragend', () => { nativeDragName = ''; clearConnectionTarget(); });
-    });
-    // Drop handling on editor
-    editor.addEventListener('dragover', e => {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'copy';
-      editorWrap.classList.add('drag-over');
-      const pos = Math.max(caretPosFromPoint(e.clientX, e.clientY), 0);
-      showDropIntent(nativeDragName, e, pos);
-    });
-    editor.addEventListener('dragleave', () => {
-      editorWrap.classList.remove('drag-over');
-      removeDropCaret();
-      clearConnectionTarget();
-    });
-    editor.addEventListener('drop', e => {
-      e.preventDefault();
-      editorWrap.classList.remove('drag-over');
-      removeDropCaret();
-      dropCard(e.dataTransfer.getData('text/plain'), e, caretPosFromPoint(e.clientX, e.clientY));
-    });
-    function insertDroppedToken(name, dropPos) {
-      const fname = name.replace(/^\(/, '').replace(/\)$/, '');
-      if (!fname) return;
-      editor.focus();
-      // Remove "undefined" and any surrounding whitespace from RHS
-      const rhsStart = 0;
-      const rhs = editor.value.slice(rhsStart).trim();
-      if (rhs === 'undefined') {
-        // Remove the placeholder before inserting the first token
-        const removeFrom = rhsStart;
-        const removeTo = editor.value.length;
-        editor.setSelectionRange(removeFrom, removeTo);
-        document.execCommand('insertText', false, '');
-      }
-      // Re-read text after potential removal, clamp pos into valid range
-      const text = editor.value;
-      let pos = Math.max(dropPos ?? text.length, rhsStart);
-      pos = Math.min(pos, text.length);
-      // Skip over existing whitespace so we don't double-space
-      while (pos < text.length && text[pos] === ' ') pos++;
-      const needSpace = pos > 0 && !/\s/.test(text[pos - 1]);
-      const needTrail = pos < text.length && !/\s/.test(text[pos]);
-      const insert = (needSpace ? ' ' : '') + fname + (needTrail ? ' ' : '');
-      editor.setSelectionRange(pos, pos);
-      document.execCommand('insertText', false, insert);
-      setEditorContent(editor.value);
-      updateLineNumbers();
-      updateEditorOverlay();
-      clearTimeout(liveCheckTimer);
-      liveCheckTimer = setTimeout(runLiveCheck, 100);
-    }
-
-    // Custom drag-out: auto-select token under cursor, drag to remove
-    function getTokenRange(text, pos) {
-      const isIdent = c => /[a-zA-Z0-9_']/.test(c);
-      const isOp = c => /[!@#$%^&*\-+=<>?/|~:.\\]/.test(c);
-      let idx = pos;
-      if (idx >= text.length || /\s/.test(text[idx])) idx = pos - 1;
-      if (idx < 0 || /\s/.test(text[idx])) return null;
-      let start = idx, end = idx + 1;
-      if (isIdent(text[idx])) {
-        while (start > 0 && isIdent(text[start - 1])) start--;
-        while (end < text.length && isIdent(text[end])) end++;
-      } else if (isOp(text[idx])) {
-        while (start > 0 && isOp(text[start - 1])) start--;
-        while (end < text.length && isOp(text[end])) end++;
-      }
-      return { start, end };
-    }
-    function tokenRangeFromPoint(cx, cy) {
-      if (!iconMode) return getTokenRange(editor.value, caretPosFromPoint(cx, cy));
-      let offset = 0;
-      for (const node of document.getElementById('editor-overlay').childNodes) {
-        const length = node.nodeType === Node.TEXT_NODE ? node.length : Number(node.dataset.codeLength);
-        if (node.nodeType !== Node.TEXT_NODE && Array.from(node.getClientRects()).some(r =>
-            cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom)) {
-          return { start: offset, end: offset + length };
-        }
-        offset += length;
-      }
-      return null;
-    }
-    function markDragSource(range) {
-      let offset = 0;
-      for (const node of document.getElementById('editor-overlay').childNodes) {
-        if (node.nodeType === Node.TEXT_NODE) offset += node.length;
-        else {
-          node.classList.toggle('drag-source', !!range && offset === range.start);
-          offset += Number(node.dataset.codeLength);
-        }
-      }
-    }
-    function createDragGhost(id, token) {
-      const ghost = document.createElement('div');
-      ghost.id = id;
-      ghost.className = 'touch-drag-ghost' + (iconMode ? ' icon-ghost' : '');
-      const name = token.replace(/^\((.+)\)$/, '$1');
-      ghost.innerHTML = symbolDisplay(name) + '<span class="drag-action">Release to remove</span>';
-      document.body.appendChild(ghost);
-      return ghost;
-    }
-    function positionDragGhost(ghost, point) {
-      // Lift the preview above the finger, and keep it inside the viewport.
-      ghost.style.left = Math.max(4, Math.min(point.clientX - ghost.offsetWidth / 2, innerWidth - ghost.offsetWidth - 4)) + 'px';
-      ghost.style.top = Math.max(4, point.clientY - ghost.offsetHeight - 24) + 'px';
-    }
-    let dragOutState = null;
-    editor.addEventListener('mousedown', e => {
-      if (e.button !== 0) return;
-      const pos = caretPosFromPoint(e.clientX, e.clientY);
-      const text = editor.value;
-      const range = tokenRangeFromPoint(e.clientX, e.clientY);
-      if (!range) return;
-      e.preventDefault();
-      editor.focus();
-      editor.setSelectionRange(range.start, range.end);
-      dragOutState = {
-        range, token: text.slice(range.start, range.end),
-        startX: e.clientX, startY: e.clientY,
-        dragging: false, origPos: pos
-      };
-    });
-    if (dragOutCleanup) dragOutCleanup();
-    const onDragOutMove = e => {
-      if (!dragOutState) return;
-      const dx = e.clientX - dragOutState.startX;
-      const dy = e.clientY - dragOutState.startY;
-      if (!dragOutState.dragging && dx * dx + dy * dy > 25) {
-        dragOutState.dragging = true;
-        if (!document.getElementById('drag-out-ghost')) createDragGhost('drag-out-ghost', dragOutState.token);
-        markDragSource(dragOutState.range);
-      }
-      if (dragOutState.dragging) {
-        const ghost = document.getElementById('drag-out-ghost');
-        // Show drop caret when hovering over editor
-        const rect = editor.getBoundingClientRect();
-        const overEditor = e.clientX >= rect.left && e.clientX <= rect.right &&
-                           e.clientY >= rect.top && e.clientY <= rect.bottom;
-        if (ghost) {
-          ghost.classList.toggle('removing', !overEditor);
-          positionDragGhost(ghost, e);
-        }
-        if (overEditor) {
-          let pos = caretPosFromPoint(e.clientX, e.clientY);
-          pos = snapToTokenBoundary(editor.value, pos);
-          pos = Math.max(pos, 0);
-          showDropIntent(dragOutState.token, e, pos, dragOutState.range);
-        } else {
-          removeDropCaret();
-          clearConnectionTarget();
-        }
-      }
-    };
-    const onDragOutUp = e => {
-      if (!dragOutState) return;
-      const ghost = document.getElementById('drag-out-ghost');
-      if (ghost) ghost.remove();
-      markDragSource(null);
-      removeDropCaret();
-      clearConnectionTarget();
-      if (dragOutState.dragging) {
-        const rect = editor.getBoundingClientRect();
-        const inside = e.clientX >= rect.left && e.clientX <= rect.right &&
-                       e.clientY >= rect.top && e.clientY <= rect.bottom;
-        const target = inside && connectionTargetFromPoint(dragOutState.token, e, dragOutState.range);
-        if (target) {
-          openConnectionPicker(dragOutState.token, target, dragOutState.range);
-          dragOutState = null;
-          return;
-        }
-        // When a function leaves the playground, remove its adjacent connector too.
-        const text = editor.value;
-        const removal = !inside
-          ? functionRemovalRange(text, dragOutState.range, LEVELS[currentLevel])
-          : dragOutState.range;
-        let { start, end } = removal;
-        if (start > 0 && text[start - 1] === ' ') start--;
-        else if (end < text.length && text[end] === ' ') end++;
-        const token = dragOutState.token;
-
-        if (inside) {
-          // Rearrange: compute drop position, adjust for removal offset
-          let dropTarget = caretPosFromPoint(e.clientX, e.clientY);
-          dropTarget = snapToTokenBoundary(editor.value, dropTarget);
-          dropTarget = Math.max(dropTarget, 0);
-          // If dropping at the same spot, do nothing
-          if (dropTarget >= start && dropTarget <= end) {
-            editor.setSelectionRange(dragOutState.origPos, dragOutState.origPos);
-          } else {
-            editor.focus();
-            // Remove original token first
-            editor.setSelectionRange(start, end);
-            document.execCommand('insertText', false, '');
-            // Adjust drop position for the removal
-            let insertAt = dropTarget > end ? dropTarget - (end - start) : dropTarget;
-            insertAt = Math.max(insertAt, 0);
-            const t = editor.value;
-            const needSpace = insertAt > 0 && !/\s/.test(t[insertAt - 1]);
-            const needTrail = insertAt < t.length && !/\s/.test(t[insertAt]);
-            const insert = (needSpace ? ' ' : '') + token + (needTrail ? ' ' : '');
-            editor.setSelectionRange(insertAt, insertAt);
-            document.execCommand('insertText', false, insert);
-            setEditorContent(editor.value);
-            updateLineNumbers();
-            updateEditorOverlay();
-            clearTimeout(liveCheckTimer);
-            liveCheckTimer = setTimeout(runLiveCheck, 100);
-          }
-        } else {
-          // Dragged outside editor — remove token
-          editor.focus();
-          editor.setSelectionRange(start, end);
-          document.execCommand('insertText', false, '');
-          // Restore "undefined" if RHS is now empty
-          const rhsStart = 0;
-          const rhs = editor.value.slice(rhsStart).trim();
-          if (!rhs) {
-            editor.setSelectionRange(rhsStart, editor.value.length);
-            document.execCommand('insertText', false, 'undefined');
-          }
-          setEditorContent(editor.value);
-          updateLineNumbers();
-          updateEditorOverlay();
-          clearTimeout(liveCheckTimer);
-          liveCheckTimer = setTimeout(runLiveCheck, 100);
-        }
-      } else {
-        editor.setSelectionRange(dragOutState.origPos, dragOutState.origPos);
-      }
-      dragOutState = null;
-    };
-    // Pick up a card or token immediately. A small movement threshold keeps
-    // taps from editing; gestures starting on the background can still scroll.
-    let touchState = null;
-    const touchListeners = new AbortController();
-    const touchOptions = { signal: touchListeners.signal, passive: false };
-    function clearTouchDrag() {
-      if (touchState) {
-        if (touchState.card) {
-          touchState.card.draggable = true;
-          touchState.card.classList.remove('dragging');
-        }
-        dragOutState = null;
-      }
-      touchState = null;
-      markDragSource(null);
-      clearConnectionTarget();
-      editor.classList.remove('touch-dragging');
-      editorWrap.classList.remove('drag-over');
-      document.getElementById('touch-drag-ghost')?.remove();
-      document.getElementById('drag-out-ghost')?.remove();
-      removeDropCaret();
-    }
-    function touchDropPosition(touch) {
-      const hit = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (!hit || !editorWrap.contains(hit)) return null;
-      return Math.max(caretPosFromPoint(touch.clientX, touch.clientY), 0);
-    }
-    function moveTouchDrag(touch) {
-      if (!touchState.card) {
-        onDragOutMove(touch);
-        return;
-      }
-      const ghost = document.getElementById('touch-drag-ghost');
-      positionDragGhost(ghost, touch);
-      const pos = touchDropPosition(touch);
-      editorWrap.classList.toggle('drag-over', pos !== null);
-      if (pos === null) { removeDropCaret(); clearConnectionTarget(); }
-      else showDropIntent(touchState.card.dataset.funcName, touch, pos);
-    }
-    document.addEventListener('touchstart', e => {
-      // A second finger cancels rather than committing an accidental edit.
-      if (e.touches.length !== 1) { clearTouchDrag(); return; }
-      const card = e.target.closest('.func-card[draggable]');
-      if (!card && e.target !== editor) return;
-      clearTouchDrag();
-      const touch = e.touches[0];
-      const pos = caretPosFromPoint(touch.clientX, touch.clientY);
-      const range = card ? null : tokenRangeFromPoint(touch.clientX, touch.clientY);
-      if (!card && (!range)) return;
-      touchState = {
-        id: touch.identifier, card, moved: false, value: editor.value,
-        startX: touch.clientX, startY: touch.clientY
-      };
-      // Disable the browser's own HTML drag for this gesture.
-      editor.classList.add('touch-dragging');
-      if (card) {
-        card.draggable = false;
-        card.classList.add('dragging');
-        createDragGhost('touch-drag-ghost', card.dataset.funcName);
-        moveTouchDrag(touch);
-      } else {
-        dragOutState = {
-          range, token: editor.value.slice(range.start, range.end),
-          startX: touch.clientX, startY: touch.clientY,
-          dragging: false, origPos: pos
-        };
-        markDragSource(range);
-        positionDragGhost(createDragGhost('drag-out-ghost', dragOutState.token), touch);
-      }
-    }, touchOptions);
-    document.addEventListener('touchmove', e => {
-      if (!touchState) return;
-      if (e.touches.length !== 1 || editor.value !== touchState.value) {
-        clearTouchDrag(); return;
-      }
-      const touch = Array.from(e.touches).find(t => t.identifier === touchState.id);
-      if (!touch) return;
-      // Claim the first move so the browser does not turn a drag into a scroll.
-      if (!e.cancelable) { clearTouchDrag(); return; }
-      e.preventDefault();
-      const dx = touch.clientX - touchState.startX;
-      const dy = touch.clientY - touchState.startY;
-      if (dx * dx + dy * dy > 25) touchState.moved = true;
-      if (touchState.moved) moveTouchDrag(touch);
-    }, touchOptions);
-    document.addEventListener('touchend', e => {
-      if (!touchState) return;
-      const touch = Array.from(e.changedTouches).find(t => t.identifier === touchState.id);
-      if (!touch) return;
-      if (touchState.moved) {
-        e.preventDefault(); // No emulated mouse click or keyboard after a drag.
-        const focused = document.activeElement === editor;
-        const inputMode = editor.getAttribute('inputmode');
-        editor.setAttribute('inputmode', 'none');
-        try {
-          if (editor.value === touchState.value) {
-            if (touchState.card) {
-              const pos = touchDropPosition(touch);
-              if (pos !== null) dropCard(touchState.card.dataset.funcName, touch, pos);
-            } else {
-              onDragOutUp(touch);
-            }
-          }
-        } finally {
-          if (!focused) editor.blur();
-          if (inputMode === null) editor.removeAttribute('inputmode');
-          else editor.setAttribute('inputmode', inputMode);
-          clearTouchDrag();
-        }
-      } else {
-        clearTouchDrag(); // A short tap retains normal caret/keyboard behavior.
-      }
-    }, touchOptions);
-    document.addEventListener('touchcancel', clearTouchDrag, touchOptions);
-    document.addEventListener('contextmenu', e => {
-      if (touchState) e.preventDefault();
-    }, touchOptions);
-    window.addEventListener('blur', clearTouchDrag, { signal: touchListeners.signal });
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) clearTouchDrag();
-    }, { signal: touchListeners.signal });
-    touchDragCleanup = () => {
-      clearTouchDrag();
-      touchListeners.abort();
-      touchDragCleanup = null;
-    };
-
-    document.addEventListener('mousemove', onDragOutMove);
-    document.addEventListener('mouseup', onDragOutUp);
-    dragOutCleanup = () => {
-      document.removeEventListener('mousemove', onDragOutMove);
-      document.removeEventListener('mouseup', onDragOutUp);
-    };
-  }
-
-  // Drag events on func-cards
-  document.querySelectorAll('.func-card[draggable]').forEach(card => {
-    card.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', card.dataset.funcName);
-      card.classList.add('dragging');
-    });
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      const c = document.getElementById('drop-caret');
-      if (c) c.remove();
-    });
-  });
+  mountRowEditor();
 }
 
 function getEditorContent(levelIndex = currentLevel) {
@@ -1887,6 +1151,7 @@ function getEditorContent(levelIndex = currentLevel) {
 
 function setEditorContent(value, levelIndex = currentLevel) {
   editorContents[levelIndex] = LEVELS[levelIndex].lhs.trim() + ' ' + value;
+  delete rowPrograms[levelIndex];
 }
 
 // Shared source tokens for connector cleanup and migration of old saved code.
@@ -1944,254 +1209,13 @@ function functionRemovalRange(text, range, level) {
 }
 
 function getCodeFromEditor() {
-  return getEditorContent().trim();
+  return RowProgram.source(getRows()).trim();
 }
 
 let liveCheckTimer = null;
 let attemptInProgress = false;
 let dragOutCleanup = null;
 let touchDragCleanup = null;
-
-function onEditorInput(e) {
-  const editor = e.target;
-  // Strip leading spaces from RHS and collapse consecutive spaces
-  if (!_normalizingSpaces) {
-    const rhs = editor.value;
-    // Remove leading spaces and collapse runs of 2+ spaces into single space
-    const trimmed = rhs.replace(/^ +/, '').replace(/ {2,}/g, ' ');
-    if (trimmed !== rhs) {
-      _normalizingSpaces = true;
-      const curRhsPos = editor.selectionStart;
-      // Delete extra spaces individually (right-to-left) to preserve undo
-      const deletePositions = [];
-      let inLeading = true;
-      for (let ci = 0; ci < rhs.length; ci++) {
-        if (inLeading && rhs[ci] === ' ') { deletePositions.push(ci); continue; }
-        inLeading = false;
-        if (rhs[ci] === ' ' && ci > 0 && rhs[ci - 1] === ' ') { deletePositions.push(ci); }
-      }
-      for (let di = deletePositions.length - 1; di >= 0; di--) {
-        const absPos = deletePositions[di];
-        editor.setSelectionRange(absPos, absPos + 1);
-        document.execCommand('delete');
-      }
-      // Recompute cursor position
-      let removed = 0;
-      inLeading = true;
-      for (let ci = 0; ci < rhs.length; ci++) {
-        if (ci >= curRhsPos) break;
-        if (inLeading && rhs[ci] === ' ') { removed++; continue; }
-        inLeading = false;
-        if (rhs[ci] === ' ' && ci > 0 && rhs[ci - 1] === ' ') { removed++; }
-      }
-      const newCur = Math.max(0, curRhsPos - removed);
-      editor.setSelectionRange(newCur, newCur);
-      _normalizingSpaces = false;
-    }
-  }
-
-  // Auto-space: insert spaces between adjacent ident↔op token boundaries
-  if (!_autoSpacing) {
-    const _isId = c => /[a-zA-Z0-9_']/.test(c);
-    const _isOp = c => /[!@#$%^&*\-+=<>?/|~:.\\]/.test(c);
-    const rhsRaw = editor.value;
-    let spaced = '';
-    let shift = 0;
-    const cRhsPos = editor.selectionStart;
-    for (let i = 0; i < rhsRaw.length; i++) {
-      if (i > 0) {
-        const p = rhsRaw[i - 1], c = rhsRaw[i];
-        if ((_isId(p) && _isOp(c)) || (_isOp(p) && _isId(c))) {
-          spaced += ' ';
-          if (i < cRhsPos) shift++;
-        }
-      }
-      spaced += rhsRaw[i];
-    }
-    if (spaced !== rhsRaw) {
-      _autoSpacing = true;
-      // Insert spaces at boundary points (right-to-left to preserve offsets)
-      const spacePositions = [];
-      let oi = 0, ni = 0;
-      while (oi < rhsRaw.length && ni < spaced.length) {
-        if (rhsRaw[oi] === spaced[ni]) { oi++; ni++; }
-        else if (spaced[ni] === ' ') { spacePositions.push(oi); ni++; }
-        else break;
-      }
-      for (let si = spacePositions.length - 1; si >= 0; si--) {
-        const absPos = spacePositions[si];
-        editor.setSelectionRange(absPos, absPos);
-        document.execCommand('insertText', false, ' ');
-      }
-      const newCur = cRhsPos + shift;
-      editor.setSelectionRange(newCur, newCur);
-      _autoSpacing = false;
-    }
-  }
-
-  // Semantic ident splitting: insert spaces between adjacent known tokens
-  // (e.g. "fz" → "f z" when f and z are both known tokens on this level)
-  if (!_autoSpacing) {
-    const _isId = c => /[a-zA-Z0-9_']/.test(c);
-    const level = LEVELS[currentLevel];
-    if (!_knownIdents || _knownIdentsLevel !== currentLevel) {
-      _knownIdents = new Set();
-      for (const func of level.funcs) {
-        const bare = func.name.replace(/^\(/, '').replace(/\)$/, '');
-        if (/^[a-zA-Z_]/.test(bare)) _knownIdents.add(bare);
-      }
-      const lhsParams = level.lhs.split('=')[0].trim().split(/\s+/).slice(1);
-      for (const p of lhsParams) _knownIdents.add(p);
-      _knownIdentsLevel = currentLevel;
-    }
-
-    const rhs = editor.value;
-    const cRhsPos = editor.selectionStart;
-    let newRhs = '';
-    let shift = 0;
-    let ri = 0;
-    while (ri < rhs.length) {
-      if (_isId(rhs[ri])) {
-        let runEnd = ri;
-        while (runEnd < rhs.length && _isId(rhs[runEnd])) runEnd++;
-        const run = rhs.slice(ri, runEnd);
-        // Greedy split into known tokens
-        const tokens = [];
-        let pos = 0;
-        let fullMatch = true;
-        while (pos < run.length) {
-          let matched = false;
-          for (let len = run.length - pos; len > 0; len--) {
-            if (_knownIdents.has(run.slice(pos, pos + len))) {
-              tokens.push(run.slice(pos, pos + len));
-              pos += len;
-              matched = true;
-              break;
-            }
-          }
-          if (!matched) { fullMatch = false; break; }
-        }
-        if (fullMatch && tokens.length > 1) {
-          let consumed = ri;
-          for (let t = 0; t < tokens.length; t++) {
-            if (t > 0) {
-              newRhs += ' ';
-              if (consumed < cRhsPos) shift++;
-            }
-            newRhs += tokens[t];
-            consumed += tokens[t].length;
-          }
-        } else {
-          newRhs += run;
-        }
-        ri = runEnd;
-      } else {
-        newRhs += rhs[ri];
-        ri++;
-      }
-    }
-    if (newRhs !== rhs) {
-      _autoSpacing = true;
-      // Insert spaces at split points (right-to-left to preserve offsets)
-      const splitPositions = [];
-      let oi = 0, ni = 0;
-      while (oi < rhs.length && ni < newRhs.length) {
-        if (rhs[oi] === newRhs[ni]) { oi++; ni++; }
-        else if (newRhs[ni] === ' ') { splitPositions.push(oi); ni++; }
-        else break;
-      }
-      for (let si = splitPositions.length - 1; si >= 0; si--) {
-        const absPos = splitPositions[si];
-        editor.setSelectionRange(absPos, absPos);
-        document.execCommand('insertText', false, ' ');
-      }
-      const newCur = cRhsPos + shift;
-      editor.setSelectionRange(newCur, newCur);
-      _autoSpacing = false;
-    }
-  }
-
-  setEditorContent(editor.value);
-  updateLineNumbers();
-  updateEditorOverlay();
-  // Debounce live type inference (100ms, matching the original)
-  clearTimeout(liveCheckTimer);
-  liveCheckTimer = setTimeout(runLiveCheck, 100);
-}
-
-let _overlayCache = { level: -1 };
-let _autoSpacing = false;
-let _normalizingSpaces = false;
-let _knownIdents = null;
-let _knownIdentsLevel = -1;
-function updateEditorOverlay() {
-  const overlay = document.getElementById('editor-overlay');
-  const editor = document.getElementById('code-editor');
-  if (!overlay || !editor) return;
-  const text = editor.value;
-
-  // Cache per-level derived data (only recomputed on level change)
-  if (_overlayCache.level !== currentLevel) {
-    const level = LEVELS[currentLevel];
-    const lhs = level.lhs.trim();
-    const paramList = lhs.split('=')[0].trim().split(/\s+/).slice(1);
-    const funcSigMap = {};
-    for (const f of level.funcs) {
-      const bare = f.name.replace(/^\(/, '').replace(/\)$/,'');
-      funcSigMap[bare] = f.sig;
-    }
-    const paramTypeMap = {};
-    const targetType = parseType(level.target);
-    let remaining = targetType;
-    for (const p of paramList) {
-      if (remaining && remaining.tag === 'fun') {
-        paramTypeMap[p] = remaining.from;
-        remaining = remaining.to;
-      }
-    }
-    _overlayCache = {
-      level: currentLevel, lhs,
-      funcNames: new Set(level.funcs.map(f => f.name)),
-      bareFuncs: new Set(level.funcs.map(f => f.name.replace(/^\(/, '').replace(/\)$/, ''))),
-      params: new Set(paramList),
-      funcSigMap, paramTypeMap,
-    };
-  }
-  const { funcNames, bareFuncs, params, funcSigMap, paramTypeMap } = _overlayCache;
-
-  let html = '';
-  const tokenSpan = (cls, content, length) =>
-    `<span class="${cls}" data-code-length="${length}">${content}</span>`;
-  // The empty-solution placeholder stays internal in icon mode.
-  const displayText = iconMode && text.trim() === 'undefined' ? '' : text;
-  const tokens = displayText.match(/[a-zA-Z_][a-zA-Z0-9_']*|[()[\]{}]|[!@#$%^&*\-+=<>?/|~:.\\]+|\s+|./g) || [];
-  for (const tok of tokens) {
-    if (/^\s+$/.test(tok)) { html += tok; }
-    else if (tok === 'undefined') { html += tokenSpan('token-undef', tok, tok.length); }
-    else if (bareFuncs.has(tok) || funcNames.has(`(${tok})`)) { html += tokenSpan('token-func', symbolDisplay(tok, null, tok.length), tok.length); }
-    else if (params.has(tok)) { html += tokenSpan('token-param', symbolDisplay(tok, null, tok.length), tok.length); }
-    else if (tok === '(' || tok === ')') { html += tokenSpan('token-paren', tok, tok.length); }
-    else { html += tokenSpan('token-unknown', escHtml(tok), tok.length); }
-  }
-  overlay.innerHTML = html;
-  overlay.scrollTop = editor.scrollTop;
-
-  // Build gecko token blocks below the editor
-  const tokensEl = document.getElementById('editor-tokens');
-  if (!tokensEl) return;
-
-  const rhs = text;
-
-  // Parse RHS into expression tree and render as nested gecko
-  try {
-    const tree = parseExprTree(rhs);
-    if (tree) {
-      tokensEl.innerHTML = renderExprTreeGecko(tree, funcSigMap, paramTypeMap, bareFuncs, params);
-      return;
-    }
-  } catch (e) { /* fall through to empty */ }
-  tokensEl.innerHTML = '';
-}
 
 // ─── Expression Tree Parser (for nested gecko rendering) ───
 
@@ -2509,7 +1533,8 @@ function runLiveCheck() {
     return;
   }
 
-  const result = liveInfer(level, code);
+  const rowError = getRowError();
+  const result = rowError ? { valid: false, error: rowError } : liveInfer(level, code);
 
   if (result.valid && result.typeSig) {
     if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', result.typeSig);
@@ -2674,7 +1699,8 @@ window.attempt = function() {
 
   // Small delay for UI feedback
   setTimeout(() => {
-    const result = typeCheck(level, code);
+    const rowError = getRowError();
+    const result = rowError ? { ok: false, msg: rowError } : typeCheck(level, code);
     if (result.ok) {
       statusBar.className = 'status-bar success';
       statusBar.textContent = 'Status: Success!';
@@ -2683,8 +1709,8 @@ window.attempt = function() {
       completedLevels.add(currentLevel);
       if (!wasCompleted) bypassCount++;
       lastUserSolution = code;
-      const bestLen = level.best.replace(/\s+/g, '').length;
-      if (code.replace(/\s+/g, '').length <= bestLen) optimalLevels.add(currentLevel);
+      const bestLen = RowProgram.score(level.best);
+      if (RowProgram.score(code) <= bestLen) optimalLevels.add(currentLevel);
       saveProgress();
 
       setTimeout(() => {
@@ -2694,9 +1720,7 @@ window.attempt = function() {
           showLevelComplete = true;
         }
         render();
-        // Restore editor content
-        const ed = document.getElementById('code-editor');
-        if (ed) ed.value = getEditorContent();
+
       }, 500);
     } else {
       statusBar.className = 'status-bar error';
@@ -2710,8 +1734,6 @@ window.attempt = function() {
 window.tryAgain = function() {
   showLevelComplete = false;
   render();
-  const ed = document.getElementById('code-editor');
-  if (ed) ed.value = getEditorContent();
 };
 
 window.nextLevel = function() {
@@ -2729,6 +1751,8 @@ window.resetGame = function() {
   completedLevels.clear();
   optimalLevels.clear();
   editorContents = {};
+  rowPrograms = {};
+  clearRowHistory();
   bypassCount = 0;
   saveProgress();
   render();
@@ -2738,31 +1762,22 @@ window.toggleGecko = function() {
   geckoOn = !geckoOn;
   saveProgress();
   render();
-  // Restore editor content after re-render
-  const ed = document.getElementById('code-editor');
-  if (ed) ed.value = getEditorContent();
 };
 
 window.toggleIconMode = function() {
   iconMode = !iconMode;
   saveProgress();
   render();
-  const ed = document.getElementById('code-editor');
-  if (ed) ed.value = getEditorContent();
 };
 
 window.showAboutDialog = function() {
   showAbout = true;
   render();
-  const ed = document.getElementById('code-editor');
-  if (ed) ed.value = getEditorContent();
 };
 
 window.dismissAbout = function() {
   showAbout = false;
   render();
-  const ed = document.getElementById('code-editor');
-  if (ed) ed.value = getEditorContent();
 };
 
 window.prevLevel = function() {
