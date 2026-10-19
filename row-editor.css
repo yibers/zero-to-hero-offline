@@ -77,12 +77,17 @@
 }
 
 /* The function owns its inputs; the result is a separate, reusable value. */
-.row-call.has-inputs { margin: 6px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; overflow: hidden; }
-.row-call.has-inputs .editor-area { background: #fff; }
-.call-inputs { padding: 6px; border-top: 1px solid #dbeafe; }
-.call-inputs[hidden] { display: none; }
-.call-inputs-label { display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap; font-size: 11px; color: #1e40af; margin-bottom: 5px; }
-.call-inputs-label > span { margin-left: auto; color: #64748b; font-size: 10px; }
+.row-call > [hidden], .row-code-toggle[hidden] { display: none; }
+.row-call.structured-call { margin: 0 6px 6px; }
+.function-block { border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
+.function-head { display: flex; align-items: center; gap: 8px; min-width: 64px; min-height: 56px; max-width: 100%; padding: 2px 5px 6px; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
+.function-head .icon-sym svg { width: 52px; height: 52px; }
+.function-head code { font-size: 12px; overflow-wrap: anywhere; }
+.function-head:focus-visible { outline: 2px solid #2563eb; border-radius: 6px; }
+.function-head.connection-target { outline: 3px solid #7c3aed; background: #ede9fe; border-radius: 8px; }
+.function-block .drag-source { opacity: .35; }
+.row-code-toggle { display: block; margin-left: auto; min-height: 32px; padding: 5px 9px; border: 0; background: transparent; color: #64748b; font: 11px 'Fira Code', monospace; cursor: pointer; }
+.row-code-toggle:hover { color: #1d4ed8; }
 .input-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
 .argument-slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 76px; min-width: 0; border: 2px dashed #93c5fd; border-radius: 8px; padding: 4px 7px; color: #1e40af; background: #f8fbff; font: inherit; cursor: pointer; touch-action: none; }
 .argument-slot.filled { border-style: solid; background: #fff; cursor: grab; }

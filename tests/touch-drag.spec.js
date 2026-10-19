@@ -234,8 +234,8 @@ test.describe('Phone touch dragging', () => {
     await touch.end();
     await expect(editor).toHaveValue('runZero');
     await noDragUI(page);
-    const tile = await page.locator('#editor-overlay > span:has([title="runZero"])').boundingBox();
-    const area = await editor.boundingBox();
+    const tile = await page.locator('.function-head[data-name="runZero"]').boundingBox();
+    const area = await page.locator('.function-block').boundingBox();
     expect(tile.x).toBeGreaterThanOrEqual(area.x);
     expect(tile.x + tile.width).toBeLessThanOrEqual(area.x + area.width);
     await touch.drag({ x: tile.x + tile.width / 2, y: tile.y + tile.height / 2 }, { x: 20, y: 80 });

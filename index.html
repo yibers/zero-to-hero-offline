@@ -1087,7 +1087,7 @@ function render() {
               <div class="line-numbers" aria-hidden="true">1</div>
               <div class="editor-prefix" id="editor-prefix">${escHtml(level.lhs.trim())}</div>
             </div>
-            <div class="row-instructions">One call per row. Drop arguments into inputs; reuse results in later rows.</div>
+            <div class="row-instructions">One call per row. ${iconMode ? 'Drop arguments inside the function; reuse results below.' : 'Use earlier results as inputs. The bottom row is your final answer.'}</div>
             <div id="program-rows"></div>
             <div class="row-toolbar"><button type="button" id="add-row">+ Add row</button><button type="button" id="undo-rows" aria-label="Undo row edit">Undo</button><button type="button" id="redo-rows" aria-label="Redo row edit">Redo</button></div>
             <div id="row-notice" role="status"></div>

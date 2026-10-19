@@ -69,6 +69,7 @@ test('old implicit solutions migrate once, preserving all saved levels and prefe
   expect(saved.iconMode).toBe(true);
   expect(saved.geckoOn).toBe(false);
   expect(saved.connectionVersion).toBe(1);
+  await page.getByRole('button', { name: 'Edit code for row 1', exact: true }).click();
   await editor.fill('f3 f1 z');
   await editor.blur();
   await page.reload();

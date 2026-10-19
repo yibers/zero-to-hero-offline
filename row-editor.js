@@ -98,6 +98,7 @@ function mountRowEditor() {
   const funcs = new Set(level.funcs.flatMap(f => [f.name, f.name.replace(/^\(|\)$/g, '')]));
   const params = new Set(level.lhs.split('=')[0].trim().split(/\s+/).slice(1));
   const operators = level.funcs.filter(f => isOperatorName(f.name));
+  const sourceRows = new Set();
   const editors = () => [...container.querySelectorAll('textarea')];
   const listen = (el, event, fn, extra = {}) => el.addEventListener(event, fn, { ...options, ...extra });
   const notice = text => { document.getElementById('row-notice').textContent = text; };
@@ -113,6 +114,7 @@ function mountRowEditor() {
   }
   function drawOverlay(editor) {
     const overlay = editor.previousElementSibling;
+    if (editor.closest('.editor-container').hidden) { overlay.replaceChildren(); return; }
     const text = editor.value;
     let end = 0, html = '';
     for (const token of tokens(text)) {
@@ -141,13 +143,22 @@ function mountRowEditor() {
       `<button type="button" class="func-card result-card" ${rowDiagnostics[i]?.signature ? `draggable="true" data-func-name="${row.id}"` : 'disabled'} aria-label="Use result ${row.id}">${rowSymbol(row.id)}<span>${rowDiagnostics[i]?.signature ? colorizeType(rowDiagnostics[i].signature) : 'Complete this row first'}</span></button>`).join('');
   }
   function paintInputs(row, call, index) {
-    const holder = row.querySelector('.call-inputs');
-    holder.hidden = !call;
-    row.querySelector('.row-call').classList.toggle('has-inputs', !!call);
-    if (!call) { holder.replaceChildren(); return; }
-    holder.innerHTML = `<div class="call-inputs-label">Inputs to <code>${escHtml(call.name)}</code><span>Drop inside · tap to choose</span></div><div class="input-slots">` + call.inputs.map((signature, slot) => {
+    const holder = row.querySelector('.function-block');
+    const structured = iconMode && !!call && !sourceRows.has(getRows()[index].id);
+    holder.hidden = !structured;
+    row.querySelector('.editor-container').hidden = structured;
+    row.querySelector('.row-call').classList.toggle('structured-call', structured);
+    const toggle = row.querySelector('.row-code-toggle');
+    toggle.hidden = !iconMode || !call;
+    toggle.textContent = structured ? 'Edit code' : 'Show block';
+    toggle.setAttribute('aria-label', `${structured ? 'Edit code' : 'Show block'} for row ${index + 1}`);
+    if (!structured) { holder.replaceChildren(); return; }
+    const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
+    const head = ts[call.infix ? 1 : 0];
+    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name)}<code>${escHtml(call.name)}</code></button><div class="input-slots">` + call.inputs.map((signature, slot) => {
       const name = call.args[slot], filled = name && name !== '_';
-      return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}" aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${escHtml(signature)}">
+      const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
+      return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${escHtml(signature)}">
         <span class="input-number">${slot + 1}</span><span class="input-picture">${filled ? rowSymbol(name) : renderSemanticType(signature, 'Expected input: ' + signature)}</span><span class="input-caption">${filled ? escHtml(name) : 'Drop here'}</span></button>`;
     }).join('') + '</div>';
   }
@@ -156,10 +167,10 @@ function mountRowEditor() {
     diagnoseRows();
     editors().forEach((editor, i) => {
       if (editor.value !== rows[i].expr) editor.value = rows[i].expr;
-      drawOverlay(editor);
       const row = editor.closest('.program-row');
       const feedback = row.querySelector('.row-feedback'), diagnostic = rowDiagnostics[i];
       paintInputs(row, diagnostic.call, i);
+      drawOverlay(editor);
       const handle = row.querySelector('.result-handle');
       handle.disabled = !!diagnostic.error;
       if (diagnostic.error) handle.removeAttribute('data-func-name');
@@ -183,7 +194,8 @@ function mountRowEditor() {
     container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}" data-row="${index}" aria-label="Row ${index + 1}">
       <div class="row-heading"><span class="row-number">${index + 1}</span><button type="button" class="result-handle" draggable="true" data-func-name="${row.id}" title="Drag ${row.id} into a later row">${escHtml(row.id)}</button><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
       <details class="row-menu"><summary aria-label="Actions for row ${index + 1}">⋯</summary><div class="row-actions"><button type="button" data-action="insert" title="Insert a row above" aria-label="Insert row above ${index + 1}">+</button><button type="button" data-action="up" aria-label="Move row ${index + 1} up" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-action="down" aria-label="Move row ${index + 1} down" ${index === rows.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-action="remove" aria-label="Remove row ${index + 1}">×</button></div></details></div>
-      <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="call-inputs" hidden></div></div>
+      <button type="button" class="row-code-toggle" data-action="code" hidden></button>
+      <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
       <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></section>`).join('');
     paint();
   }
@@ -202,7 +214,12 @@ function mountRowEditor() {
     history[direction === 'undo' ? 'redo' : 'undo'].push(rowSnapshot());
     rowPrograms[currentLevel] = JSON.parse(from.pop());
     commit(true);
-    const editor = editors()[activeRow]; editor.focus({ preventScroll: true }); editor.setSelectionRange(editor.value.length, editor.value.length);
+    focusRow(activeRow);
+  }
+  function focusRow(index) {
+    const editor = editors()[index];
+    if (editor.closest('.editor-container').hidden) editor.closest('.program-row').querySelector('.function-head').focus({ preventScroll: true });
+    else { editor.focus({ preventScroll: true }); editor.setSelectionRange(editor.value.length, editor.value.length); }
   }
   function removal(text, range, connectors = false) {
     if (range.slot !== undefined) {
@@ -318,22 +335,29 @@ function mountRowEditor() {
     return row && container.contains(row) ? Number(row.dataset.row) : null;
   }
   function hitToken(index, point) {
-    const overlay = editors()[index]?.previousElementSibling;
-    if (!overlay) return null;
-    for (const node of overlay.children) {
+    for (const node of visibleTokens(index)) {
       const r = node.getBoundingClientRect();
       if (point.clientX >= r.left && point.clientX <= r.right && point.clientY >= r.top && point.clientY <= r.bottom) return {
-        index, start: Number(node.dataset.start), end: Number(node.dataset.end), name: node.dataset.name, node, rect: r
+        ...(node.matches('.argument-slot') ? sourceForSlot(node) : {}),
+        index, start: Number(node.dataset.start), end: Number(node.dataset.end), name: node.dataset.name, node, rect: r, head: node.matches('.function-head')
       };
     }
     return null;
   }
+  function visibleTokens(index) {
+    const editor = editors()[index];
+    if (!editor) return [];
+    return editor.closest('.editor-container').hidden
+      ? editor.closest('.program-row').querySelectorAll('.function-head, .argument-slot.filled')
+      : editor.previousElementSibling.children;
+  }
   function caret(index, point) {
-    const editor = editors()[index], overlay = editor.previousElementSibling;
+    const editor = editors()[index];
     const style = getComputedStyle(editor), rect = editor.getBoundingClientRect();
     const height = parseFloat(style.lineHeight);
-    const stops = overlay.children.length ? [] : [{ pos: 0, x: rect.left + parseFloat(style.paddingLeft), y: rect.top + parseFloat(style.paddingTop), height }];
-    for (const node of overlay.children) {
+    const nodes = visibleTokens(index);
+    const stops = nodes.length ? [] : [{ pos: 0, x: rect.left + parseFloat(style.paddingLeft), y: rect.top + parseFloat(style.paddingTop), height }];
+    for (const node of nodes) {
       const r = node.getBoundingClientRect();
       stops.push({ pos: Number(node.dataset.start), x: r.left, y: r.top, height: r.height }, { pos: Number(node.dataset.end), x: r.right, y: r.top, height: r.height });
     }
@@ -468,6 +492,7 @@ function mountRowEditor() {
     if (!e.target.matches('textarea')) return;
     rememberRows();
     const index = Number(e.target.dataset.row);
+    sourceRows.add(getRows()[index].id);
     const cursor = normalizeInput(e.target.value.slice(0, e.target.selectionStart)).length;
     getRows()[index].expr = normalizeInput(e.target.value);
     activeRow = index; commit();
@@ -477,6 +502,9 @@ function mountRowEditor() {
     if (e.target.matches('textarea')) { e.target.previousElementSibling.scrollTop = e.target.scrollTop; e.target.previousElementSibling.scrollLeft = e.target.scrollLeft; }
   }, { capture: true });
   listen(container, 'keydown', e => {
+    if (!e.target.matches('textarea') && (e.ctrlKey || e.metaKey) && /^(z|y)$/i.test(e.key)) {
+      e.preventDefault(); historyMove(e.key.toLowerCase() === 'y' || e.shiftKey ? 'redo' : 'undo'); return;
+    }
     if (!e.target.matches('textarea')) return;
     const editor = e.target, index = Number(editor.dataset.row), start = editor.selectionStart, end = editor.selectionEnd;
     if ((e.ctrlKey || e.metaKey) && /^(z|y)$/i.test(e.key)) {
@@ -504,6 +532,11 @@ function mountRowEditor() {
     const button = e.target.closest('[data-action]');
     if (!button) return;
     const index = Number(button.closest('.program-row').dataset.row), rows = getRows(), action = button.dataset.action;
+    if (action === 'code') {
+      if (sourceRows.has(rows[index].id)) sourceRows.delete(rows[index].id);
+      else sourceRows.add(rows[index].id);
+      activeRow = index; paint(); focusRow(index); activate(index); return;
+    }
     if (action === 'insert') { newRow(index); return; }
     const depends = (row, id) => tokens(row.expr).some(t => t.name === id);
     if (action === 'remove') {
@@ -535,7 +568,7 @@ function mountRowEditor() {
     nativeName = card.dataset.funcName; e.dataTransfer.setData('text/plain', nativeName); card.classList.add('dragging');
   });
   listen(container, 'dragover', e => { e.preventDefault(); showIntent(nativeName, e); });
-  listen(container, 'drop', e => { e.preventDefault(); drop(e.dataTransfer.getData('text/plain'), e); cleanupDrag(); nativeName = ''; if (!document.getElementById('connection-picker')) { const editor = editors()[activeRow]; editor.focus({ preventScroll: true }); editor.setSelectionRange(editor.value.length, editor.value.length); } });
+  listen(container, 'drop', e => { e.preventDefault(); drop(e.dataTransfer.getData('text/plain'), e); cleanupDrag(); nativeName = ''; if (!document.getElementById('connection-picker')) focusRow(activeRow); });
   listen(document, 'dragend', () => { nativeName = ''; cleanupDrag(); });
   listen(document, 'pointerdown', e => {
     if (drag && e.pointerId !== drag.id) { cleanupDrag(); return; }
@@ -543,13 +576,14 @@ function mountRowEditor() {
     const card = e.target.closest('[data-func-name]');
     const editor = e.target.closest('textarea.row-editor');
     const slot = e.target.closest('.argument-slot');
-    if (!card && !editor && !slot) return;
+    const head = e.target.closest('.function-head');
+    if (!card && !editor && !slot && !head) return;
     if (card && e.pointerType === 'mouse') return; // native HTML drag on desktop cards
-    const index = editor ? Number(editor.dataset.row) : slot ? Number(slot.dataset.row) : null;
-    const source = slot ? sourceForSlot(slot) : editor ? hitToken(index, e) : null;
+    const index = Number((editor || slot || head)?.dataset.row);
+    const source = slot ? sourceForSlot(slot) : editor || head ? hitToken(index, e) : null;
     if (!card && !source) return; // empty space is available for scrolling/editing
     e.preventDefault();
-    if (editor || slot) activate(index);
+    if (editor || slot || head) activate(index);
     if (card) card.draggable = false;
     drag = { card, id: e.pointerId, name: card?.dataset.funcName || source.name, source, x: e.clientX, y: e.clientY, moved: false, snapshot: rowSnapshot() };
     ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost';
@@ -580,6 +614,8 @@ function mountRowEditor() {
       if (state.snapshot === rowSnapshot()) drop(state.name, e, state.source);
     } else if (state.source?.slot !== undefined) {
       chooseArgument(state.source.node);
+    } else if (state.source?.head) {
+      focusRow(state.source.index);
     } else if (state.source) {
       const editor = editors()[state.source.index]; editor.focus({ preventScroll: true });
       const pos = caret(state.source.index, e).pos; editor.setSelectionRange(pos, pos);
