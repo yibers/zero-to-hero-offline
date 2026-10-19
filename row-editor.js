@@ -103,7 +103,7 @@ function mountRowEditor() {
   const listen = (el, event, fn, extra = {}) => el.addEventListener(event, fn, { ...options, ...extra });
   const notice = text => { document.getElementById('row-notice').textContent = text; };
   let drag = null, ghost = null, nativeName = '', suppressClick = false, scrollFrame = null, lastPoint = null;
-  let lastScrollTime = 0;
+  let lastScrollTime = 0, scrollEdge = null;
   const results = document.createElement('section');
   results.id = 'available-results';
   document.querySelector('.right-panel').prepend(results);
@@ -155,11 +155,11 @@ function mountRowEditor() {
     if (!structured) { holder.replaceChildren(); return; }
     const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
     const head = ts[call.infix ? 1 : 0];
-    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name)}<code>${escHtml(call.name)}</code></button><div class="input-slots">` + call.inputs.map((signature, slot) => {
+    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name)}<code>${escHtml(call.name)}</code></button><div class="input-slots">` + call.inputs.map((_, slot) => {
       const name = call.args[slot], filled = name && name !== '_';
       const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
-      return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${escHtml(signature)}">
-        <span class="input-number">${slot + 1}</span><span class="input-picture">${filled ? rowSymbol(name) : renderSemanticType(signature, 'Expected input: ' + signature)}</span><span class="input-caption">${filled ? escHtml(name) : 'Drop here'}</span></button>`;
+      return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${filled ? escHtml(name) : 'Drop an argument here'}">
+        <span class="input-number">${slot + 1}</span>${filled ? `<span class="input-picture">${rowSymbol(name)}</span><span class="input-caption">${escHtml(name)}</span>` : ''}</button>`;
     }).join('') + '</div>';
   }
   function paint() {
@@ -453,16 +453,21 @@ function mountRowEditor() {
     const r = container.getBoundingClientRect();
     const hovered = rowAt(lastPoint);
     const onToken = slotAt(lastPoint) || hovered !== null && hitToken(hovered, lastPoint);
-    if (!onToken && lastPoint.clientX >= r.left && lastPoint.clientX <= r.right && time - lastScrollTime > 30) {
-      const delta = lastPoint.clientY < r.top + 36 ? -14 : lastPoint.clientY > r.bottom - 36 ? 14 : 0;
-      if (delta) { container.scrollTop += delta; showIntent(drag.name, lastPoint, drag.source); }
-      lastScrollTime = time;
+    const delta = !onToken && lastPoint.clientX >= r.left && lastPoint.clientX <= r.right
+      ? lastPoint.clientY < r.top + 36 ? -14 : lastPoint.clientY > r.bottom - 36 ? 14 : 0 : 0;
+    // Crossing the edge on the way to a small input must not move that input.
+    // Scroll only when the player rests the already-dragging finger at the edge.
+    if (!delta) scrollEdge = null;
+    else if (!scrollEdge || scrollEdge.delta !== delta || Math.hypot(lastPoint.clientX - scrollEdge.x, lastPoint.clientY - scrollEdge.y) > 12) {
+      scrollEdge = { x: lastPoint.clientX, y: lastPoint.clientY, delta, since: time };
+    } else if (time - scrollEdge.since >= 200 && time - lastScrollTime > 30) {
+      container.scrollTop += delta; showIntent(drag.name, lastPoint, drag.source); lastScrollTime = time;
     }
     scrollFrame = requestAnimationFrame(autoScroll);
   }
   function cleanupDrag() {
     if (scrollFrame) cancelAnimationFrame(scrollFrame);
-    scrollFrame = null; lastPoint = null;
+    scrollFrame = null; lastPoint = null; scrollEdge = null;
     ghost?.remove(); ghost = null;
     if (drag?.card) drag.card.draggable = true;
     drag = null;

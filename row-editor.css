@@ -88,17 +88,16 @@
 .function-block .drag-source { opacity: .35; }
 .row-code-toggle { display: block; margin-left: auto; min-height: 32px; padding: 5px 9px; border: 0; background: transparent; color: #64748b; font: 11px 'Fira Code', monospace; cursor: pointer; }
 .row-code-toggle:hover { color: #1d4ed8; }
-.input-slots { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
-.argument-slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 76px; min-width: 0; border: 2px dashed #93c5fd; border-radius: 8px; padding: 4px 7px; color: #1e40af; background: #f8fbff; font: inherit; cursor: pointer; touch-action: none; }
+.input-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.argument-slot { position: relative; display: flex; flex: 0 0 48px; flex-direction: column; align-items: center; justify-content: center; gap: 0; width: 48px; height: 48px; min-width: 0; border: 2px dashed #93c5fd; border-radius: 6px; padding: 2px; color: #1e40af; background: #f8fbff; font: inherit; cursor: pointer; touch-action: none; }
 .argument-slot.filled { border-style: solid; background: #fff; cursor: grab; }
 .argument-slot.slot-target { border-color: #2563eb; background: #dbeafe; box-shadow: inset 0 0 0 2px #60a5fa; }
 .argument-slot:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
-.input-number { position: absolute; top: 3px; left: 5px; font: 10px 'Fira Code', monospace; color: #64748b; }
-.input-picture { display: flex; justify-content: center; align-items: center; width: 100%; height: 44px; min-width: 0; }
-.input-picture svg, .input-picture .icon-sym svg { width: auto; height: 44px; max-width: 100%; }
-.input-picture > svg { opacity: .35; }
-.input-picture .icon-sym { max-width: 100%; }
-.input-caption { font: 11px 'Fira Code', monospace; color: #475569; overflow-wrap: anywhere; }
+.input-number { position: absolute; top: 2px; left: 3px; font: 8px 'Fira Code', monospace; color: #64748b; }
+.input-picture { display: flex; justify-content: center; align-items: center; width: 34px; height: 30px; min-width: 0; }
+.argument-slot .input-picture svg, .argument-slot .input-picture .row-ref.rendered-ref > svg { width: 32px; height: 30px; max-width: 32px; }
+.input-picture .icon-sym { max-width: 100%; height: 30px; }
+.input-caption { max-width: 100%; font: 8px/10px 'Fira Code', monospace; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-feedback { gap: 10px; }
 .row-result { flex-shrink: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 8px; padding: 4px 8px; cursor: grab; }
 .row-result svg { height: 56px; width: auto; max-width: 100%; }
@@ -114,8 +113,6 @@
 .argument-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 10px 0; }
 .argument-choice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 60px; padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; color: #1e40af; }
 .argument-choice svg { width: 48px; height: 48px; }
-.input-slots > .argument-slot:only-child { flex-direction: row; min-height: 58px; gap: 10px; }
-.input-slots > .argument-slot:only-child .input-picture { width: 80px; }
 @media (max-width:600px) {
   .result-card { flex-direction: column; align-items: flex-start; gap: 8px; }
   .result-card > span:last-child { width: 100%; }
