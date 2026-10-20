@@ -1103,7 +1103,7 @@ function render() {
         <div class="gutter-col"></div>
 
         <div class="right-panel" role="region" aria-label="Available functions">
-          ${level.funcs.map(f => `
+          ${level.funcs.filter(f => f.name !== '($)').map(f => `
             <div class="func-card" draggable="true" data-func-name="${f.name}">
               <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
               ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}

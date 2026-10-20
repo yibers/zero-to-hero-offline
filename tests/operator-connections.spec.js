@@ -188,7 +188,8 @@ test('the function pane presents operators as ordinary functions in both display
   for (const mode of [true, false]) {
     await page.evaluate(mode => { iconMode = mode; render(); }, mode);
     await expect(page.locator('.operator-badge, .func-card-operator')).toHaveCount(0);
-    for (const name of ['(<$>)', '(<*>)', '($)', '(.)']) {
+    await expect(page.locator('.right-panel [data-func-name="($)"]')).toHaveCount(0);
+    for (const name of ['(<$>)', '(<*>)', '(.)']) {
       await expect(page.locator(`.right-panel [data-func-name="${name}"]`)).toHaveClass('func-card');
     }
     await expect(page.locator('.right-panel [data-func-name="f1"]')).toHaveClass('func-card');
