@@ -93,28 +93,28 @@ test('function-valued results can be applied and reused polymorphically', async 
   await expect(page.locator('#level-dialog')).toBeVisible();
 });
 
-test('insertion keeps names stable, dependency-aware move/delete and undo work', async ({ page }) => {
+test('deleting dependent rows requires confirmation and undo restores the full program', async ({ page }) => {
   await open(page, 1);
   await load(page, 1, 'mkHero $ runZero z');
-  await page.getByLabel('Actions for row 2').click();
-  await page.getByRole('button', { name: 'Insert row above 2', exact: true }).click();
-  await expect(row(page, 2)).toHaveValue('mkHero r1');
-  expect(await page.evaluate(() => getRows().map(row => row.id))).toEqual(['r1', 'r3', 'r2']);
-  await page.getByRole('button', { name: 'Undo row edit' }).click();
+  await expect(page.locator('.row-menu')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Delete row 1', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete 2 rows?', exact: true });
+  await expect(dialog).toBeVisible();
   await expect(page.locator('.program-row')).toHaveCount(2);
-  await page.getByLabel('Actions for row 1').click();
-  await page.getByRole('button', { name: 'Remove row 1', exact: true }).click();
-  await expect(page.locator('#row-notice')).toContainText('used by another row');
-  await page.getByRole('button', { name: 'Move row 1 down', exact: true }).click();
-  await expect(page.locator('#row-notice')).toContainText('Keep a result above');
-  await fillRow(page, 1, 'z');
-  await page.getByRole('button', { name: 'Remove row 1', exact: true }).click();
+  await expect(page.locator('.program-row.delete-preview')).toHaveCount(2);
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.locator('.delete-preview')).toHaveCount(0);
+  await expect(row(page, 1)).toHaveValue('mkHero r1');
+  await page.getByRole('button', { name: 'Delete row 1', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Delete 2 rows', exact: true }).click();
   await expect(page.locator('.program-row')).toHaveCount(1);
-  await expect(row(page, 0)).toHaveValue('z');
+  await expect(row(page, 0)).toHaveValue('');
   await page.getByRole('button', { name: 'Undo row edit' }).click();
-  await expect(page.locator('.program-row')).toHaveCount(2);
+  await expect(row(page, 0)).toHaveValue('runZero z');
+  await expect(row(page, 1)).toHaveValue('mkHero r1');
   await page.getByRole('button', { name: 'Redo row edit' }).click();
   await expect(page.locator('.program-row')).toHaveCount(1);
+  await expect(row(page, 0)).toHaveValue('');
 });
 
 test('legacy saved progress migrates once without losing settings or completion', async ({ page }) => {

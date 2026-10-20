@@ -112,7 +112,7 @@ function mountRowEditor() {
   const listen = (el, event, fn, extra = {}) => el.addEventListener(event, fn, { ...options, ...extra });
   const notice = text => { document.getElementById('row-notice').textContent = text; };
   let drag = null, ghost = null, nativeName = '', suppressClick = false, scrollFrame = null, lastPoint = null;
-  let lastScrollTime = 0, scrollEdge = null;
+  let lastScrollTime = 0, scrollEdge = null, closeDeletePreview = null;
   const refNames = () => new Set(getRows().map(r => r.id));
   function tokens(text) {
     return [...text.matchAll(/\((?:\$|\.|<\$>|<\*>|>>=)\)|[a-zA-Z_][a-zA-Z0-9_']*|[!@#$%^&*\-+=<>?/|~:.\\]+|[^\s]/g)]
@@ -213,7 +213,7 @@ function mountRowEditor() {
     activeRow = Math.min(activeRow, rows.length - 1);
     container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" aria-label="Row ${index + 1}">
       <div class="row-heading"><span class="row-number">${index + 1}</span><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
-      <details class="row-menu"><summary aria-label="Actions for row ${index + 1}">⋯</summary><div class="row-actions"><button type="button" data-action="insert" title="Insert a row above" aria-label="Insert row above ${index + 1}">+</button><button type="button" data-action="up" aria-label="Move row ${index + 1} up" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-action="down" aria-label="Move row ${index + 1} down" ${index === rows.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-action="remove" aria-label="Remove row ${index + 1}">×</button></div></details></div>
+      <button type="button" class="row-delete" data-action="remove" aria-label="Delete row ${index + 1}" title="Delete row">×</button></div>
       <button type="button" class="row-code-toggle" data-action="code" hidden></button>
       <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
       <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></section>`).join('');
@@ -226,6 +226,63 @@ function mountRowEditor() {
     rows.splice(at, 0, { id: nextRowId(rows), expr: '' });
     activeRow = at; commit(true);
     editors()[at].scrollIntoView({ block: 'nearest' });
+  }
+  function confirmRowDeletion(index) {
+    closeDeletePreview?.();
+    const rows = getRows(), snapshot = rowSnapshot(), previewLevel = currentLevel;
+    const affected = new Set([rows[index].id]);
+    // Include indirect dependents as well as direct uses, with exact token names.
+    let changed;
+    do {
+      changed = false;
+      rows.slice(index + 1).forEach(row => {
+        if (!affected.has(row.id) && tokens(row.expr).some(token => affected.has(token.name))) {
+          affected.add(row.id); changed = true;
+        }
+      });
+    } while (changed);
+    const impacted = rows.map((row, i) => ({ ...row, index: i })).filter(row => affected.has(row.id));
+    const count = impacted.length, dependentCount = count - 1;
+    const title = `Delete ${count} ${count === 1 ? 'row' : 'rows'}?`;
+    const summary = dependentCount
+      ? `Row ${index + 1} and ${dependentCount} dependent ${dependentCount === 1 ? 'row' : 'rows'} will be deleted.`
+      : `Row ${index + 1} will be deleted.`;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'connection-picker row-delete-dialog';
+    dialog.setAttribute('aria-labelledby', 'row-delete-title');
+    dialog.setAttribute('aria-describedby', 'row-delete-summary');
+    dialog.innerHTML = `<h2 id="row-delete-title">${title}</h2><p id="row-delete-summary">${summary}</p>
+      <ol class="delete-preview-list" aria-label="Rows to delete">${impacted.map(row => {
+        const used = new Set(tokens(row.expr).map(token => token.name));
+        const dependencies = impacted.filter(other => used.has(other.id)).map(other => other.index + 1);
+        const reason = row.index === index ? 'Selected row' : `Uses ${dependencies.length === 1 ? 'row' : 'rows'} ${dependencies.join(', ')}`;
+        const expression = tokens(row.expr).map(token => rowSymbol(token.name.replace(/^\((.+)\)$/, '$1'))).join(' ');
+        return `<li class="delete-preview-item" data-delete-index="${row.index}"><div class="delete-preview-heading"><strong>Row ${row.index + 1}</strong><span>${reason}</span></div><div class="delete-preview-expression" role="img" aria-label="${escHtml(row.expr || 'Empty row')}">${expression || '<span>Empty row</span>'}</div></li>`;
+      }).join('')}</ol>
+      <p>You can undo this.</p><div class="delete-actions"><button type="button" class="delete-cancel">Cancel</button><button type="button" class="delete-confirm">Delete ${count === 1 ? 'row' : count + ' rows'}</button></div>`;
+    container.querySelectorAll('.program-row').forEach((node, i) => node.classList.toggle('delete-preview', affected.has(rows[i].id)));
+    const close = () => {
+      container.querySelectorAll('.delete-preview').forEach(node => node.classList.remove('delete-preview'));
+      dialog.close(); dialog.remove(); closeDeletePreview = null;
+    };
+    closeDeletePreview = close;
+    dialog.querySelector('.delete-cancel').onclick = close;
+    dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
+    dialog.querySelector('.delete-confirm').onclick = () => {
+      close();
+      if (currentLevel !== previewLevel || rowSnapshot() !== snapshot) {
+        notice('The rows changed. Review the deletion again.'); return;
+      }
+      rememberRows();
+      const remaining = rows.filter(row => !affected.has(row.id));
+      rowPrograms[currentLevel] = remaining.length ? remaining : [{ id: 'r1', expr: '' }];
+      affected.forEach(id => sourceRows.delete(id));
+      activeRow = Math.min(index, getRows().length - 1);
+      commit(true);
+      container.querySelectorAll('.row-delete')[activeRow]?.focus({ preventScroll: true });
+    };
+    document.body.append(dialog); dialog.showModal();
+    dialog.querySelector('.delete-cancel').focus();
   }
   function historyMove(direction) {
     const history = rowHistory.get(currentLevel), from = history?.[direction];
@@ -585,21 +642,7 @@ function mountRowEditor() {
       else sourceRows.add(rows[index].id);
       activeRow = index; paint(); focusRow(index); activate(index); return;
     }
-    if (action === 'insert') { newRow(index); return; }
-    const depends = (row, id) => tokens(row.expr).some(t => t.name === id);
-    if (action === 'remove') {
-      if (rows.some((row, i) => i !== index && depends(row, rows[index].id))) { notice(`${rows[index].id} is used by another row. Remove those references first.`); return; }
-      rememberRows();
-      if (rows.length === 1) rows[0].expr = '';
-      else rows.splice(index, 1);
-    } else {
-      const other = index + (action === 'up' ? -1 : 1);
-      if (other < 0 || other >= rows.length) return;
-      const earlier = Math.min(index, other), later = Math.max(index, other);
-      if (depends(rows[later], rows[earlier].id)) { notice('Keep a result above the rows that use it.'); return; }
-      rememberRows(); [rows[index], rows[other]] = [rows[other], rows[index]]; activeRow = other;
-    }
-    commit(true);
+    if (action === 'remove') confirmRowDeletion(index);
   });
   listen(document.getElementById('add-row'), 'click', () => newRow(getRows().length));
   listen(document.getElementById('undo-rows'), 'click', () => historyMove('undo'));
@@ -678,7 +721,7 @@ function mountRowEditor() {
   listen(document, 'visibilitychange', () => { if (document.hidden) cleanupDrag(); });
   listen(document, 'contextmenu', e => { if (drag) e.preventDefault(); });
   listen(window, 'resize', () => editors().forEach(drawOverlay));
-  rowEditorCleanup = () => { cleanupDrag(); controller.abort(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
+  rowEditorCleanup = () => { closeDeletePreview?.(); cleanupDrag(); controller.abort(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
   build();
   document.fonts.ready.then(() => { if (!controller.signal.aborted) editors().forEach(drawOverlay); });
 }

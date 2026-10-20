@@ -25,10 +25,6 @@
 .row-role { font-size: 11px; color: #64748b; flex: 1; }
 .editor-icons .program-row:not(.final-row) .row-role { display: none; }
 .program-row.final-row .row-role { color: #047857; font-weight: 600; }
-.row-actions { display: flex; margin-left: auto; }
-.row-actions button { border: 0; background: transparent; color: #475569; min-width: 32px; height: 36px; font-size: 18px; cursor: pointer; }
-.row-actions button:hover { background: #e2e8f0; }
-.row-actions button:disabled { opacity: .25; cursor: default; }
 .program-row .editor-container { padding-left: 0; }
 .program-row textarea.editor { min-height: 40px; overflow: hidden; touch-action: none; }
 .editor-icons .program-row textarea.editor { touch-action: none; }
@@ -60,28 +56,18 @@
 .status-output { max-height: 85px; }
 @media (max-width:600px) {
   .row-heading { gap: 4px; padding: 2px 5px; }
-  .row-role { flex-basis: calc(100% - 90px); }
-  .row-actions { width: 100%; justify-content: flex-end; }
-  .row-actions button { min-width: 44px; height: 40px; }
   #program-rows { padding: 6px; }
   .row-toolbar { flex-wrap: wrap; }
   .row-toolbar button { padding: 8px; }
   .row-gecko { display: none; }
 }
 
-.row-menu { margin-left: auto; position: relative; }
-.row-menu summary { cursor: pointer; list-style: none; min-width: 44px; height: 40px; display:flex; align-items:center; justify-content:center; font-size:24px; color:#64748b; }
-.row-menu[open] { z-index: 3; }
-.row-menu .row-actions { position:absolute; right:0; top:0; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:6px; width:max-content; }
-.row-menu[open] summary { margin-right:180px; }
-.row-actions button { min-width:44px; height:40px; }
 @media (max-width:600px) {
   nav { flex-wrap:wrap; gap:5px; }
   nav > div { flex-wrap:wrap; }
   nav > div:last-child { width:100%; justify-content:space-between; gap:6px !important; }
   nav .level-badge { padding:2px 6px; font-size:11px; }
   .row-role { flex-basis:auto; }
-  .row-actions { width:max-content; }
   main { height:calc(100dvh - 80px); }
   .left-panel { overflow-y:auto; }
 }
@@ -121,3 +107,21 @@
 .argument-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 10px 0; }
 .argument-choice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 60px; padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; color: #1e40af; }
 .argument-choice svg { width: 48px; height: 48px; }
+
+/* Deletion previews the entire dependency chain before changing the program. */
+.row-delete { margin-left: auto; flex-shrink: 0; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #64748b; font: 26px/1 sans-serif; cursor: pointer; touch-action: manipulation; }
+.row-delete:hover { color: #b91c1c; background: #fee2e2; }
+.row-delete:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+.program-row.delete-preview { border-color: #ef4444; box-shadow: 0 0 0 2px #ef4444; }
+.program-row.delete-preview .row-heading { background: #fee2e2; }
+.row-delete-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+.row-delete-dialog > h2, .row-delete-dialog > p, .delete-actions { flex-shrink: 0; }
+.delete-preview-list { flex: 0 1 auto; min-height: 0; list-style: none; margin: 14px 0; padding: 2px; max-height: 55dvh; overflow: auto; }
+.delete-preview-item { padding: 10px; margin-bottom: 8px; border: 1px solid #fecaca; border-radius: 8px; background: #fff7f7; }
+.delete-preview-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; font-size: 14px; }
+.delete-preview-heading > span { color: #9f1239; font-size: 12px; }
+.delete-preview-expression { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; overflow-wrap: anywhere; }
+.delete-preview-expression .icon-sym svg, .delete-preview-expression .row-ref.rendered-ref > svg { width: 40px; height: 40px; }
+.delete-actions { display: flex; gap: 10px; }
+.delete-actions button { flex: 1; }
+.row-delete-dialog .delete-confirm { color: white; border-color: #b91c1c; background: #b91c1c; }
