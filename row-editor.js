@@ -28,7 +28,12 @@ function getRowError() {
 function rowSymbol(name, width) {
   if (/^r\d+$/.test(name)) {
     const diagnostic = rowDiagnostics[getRows().findIndex(row => row.id === name)];
-    if (iconMode && diagnostic?.signature) return `<span class="icon-sym row-ref rendered-ref" title="${escHtml(name + ': ' + diagnostic.signature)}"${width ? ` style="width:${width}ch"` : ''}>${renderSemanticType(diagnostic.signature, name + ': ' + diagnostic.signature)}<small>${name}</small></span>`;
+    if (iconMode) {
+      const label = name + ': ' + (diagnostic?.signature || 'result unavailable');
+      const picture = diagnostic?.signature ? renderSemanticType(diagnostic.signature, label)
+        : `<svg viewBox="0 0 40 40" role="img" aria-label="${escHtml(label)}"><rect x="6" y="6" width="28" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/></svg>`;
+      return `<span class="icon-sym row-ref rendered-ref" title="${escHtml(label)}"${width ? ` style="width:${width}ch"` : ''}>${picture}</span>`;
+    }
     return `<span class="icon-sym row-ref" title="${escHtml(name)}"${width ? ` style="width:${width}ch"` : ''}><span>${escHtml(name)}</span></span>`;
   }
   return symbolDisplay(name, null, width);
@@ -155,11 +160,11 @@ function mountRowEditor() {
     if (!structured) { holder.replaceChildren(); return; }
     const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
     const head = ts[call.infix ? 1 : 0];
-    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name)}<code>${escHtml(call.name)}</code></button><div class="input-slots">` + call.inputs.map((_, slot) => {
+    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name)}</button><div class="input-slots">` + call.inputs.map((_, slot) => {
       const name = call.args[slot], filled = name && name !== '_';
       const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
       return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${filled ? escHtml(name) : 'Drop an argument here'}">
-        <span class="input-number">${slot + 1}</span>${filled ? `<span class="input-picture">${rowSymbol(name)}</span><span class="input-caption">${escHtml(name)}</span>` : ''}</button>`;
+        <span class="input-number">${slot + 1}</span>${filled ? `<span class="input-picture">${rowSymbol(name)}</span>` : ''}</button>`;
     }).join('') + '</div>';
   }
   function paint() {
@@ -172,13 +177,15 @@ function mountRowEditor() {
       paintInputs(row, diagnostic.call, i);
       drawOverlay(editor);
       const handle = row.querySelector('.result-handle');
+      handle.innerHTML = iconMode ? rowSymbol(rows[i].id) : escHtml(rows[i].id);
+      handle.setAttribute('aria-label', `Drag result ${rows[i].id}`);
       handle.disabled = !!diagnostic.error;
       if (diagnostic.error) handle.removeAttribute('data-func-name');
       else handle.dataset.funcName = rows[i].id;
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
       feedback.innerHTML = diagnostic.error
         ? `<span>${escHtml(rows[i].expr.trim() ? diagnostic.error : 'Drop or type an expression here.')}</span>`
-        : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row"><span class="result-caption">Result · ${rows[i].id}</span>${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
+        : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row"><span class="result-caption">${iconMode ? 'Result' : 'Result · ' + rows[i].id}</span>${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
     });
     updateResults();
     document.getElementById('haskell-source').textContent = level.lhs.trim() + '\n  ' + RowProgram.source(rows).replace(/\n/g, '\n  ');
@@ -314,13 +321,13 @@ function mountRowEditor() {
     activate(index);
     const dialog = document.createElement('dialog'); dialog.className = 'connection-picker argument-picker';
     dialog.setAttribute('aria-label', `Choose input ${position + 1} of ${call.name}`);
-    dialog.innerHTML = `<h2>Choose input ${position + 1}</h2><p>For <code>${escHtml(call.name)}</code>. Functions can be inputs too.</p><div class="argument-choices"></div><button type="button" class="connection-cancel">Cancel</button>`;
+    dialog.innerHTML = `<h2>Choose input ${position + 1}</h2><p>For ${rowSymbol(call.name)}. Functions can be inputs too.</p><div class="argument-choices"></div><button type="button" class="connection-cancel">Cancel</button>`;
     const close = () => { dialog.close(); dialog.remove(); };
     const choices = [...params, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error).map(row => row.id), ...level.funcs.map(f => f.name)];
     for (const name of [...choices, null]) {
       if (!name && !call.args[position]) continue;
       const button = document.createElement('button'); button.type = 'button'; button.className = 'argument-choice';
-      button.innerHTML = name ? `${rowSymbol(name.replace(/^\((.+)\)$/, '$1'))}<code>${escHtml(name)}</code>` : 'Clear input';
+      button.innerHTML = name ? rowSymbol(name.replace(/^\((.+)\)$/, '$1')) : 'Clear input';
       button.setAttribute('aria-label', name ? `Use input ${name}` : 'Clear input');
       button.onclick = () => { close(); if (rowSnapshot() === snapshot) fillSlot(name, index, position); };
       dialog.querySelector('.argument-choices').append(button);
@@ -418,7 +425,7 @@ function mountRowEditor() {
           if (removed.end <= start) { start -= removed.delta; end -= removed.delta; }
         }
         const preview = text.slice(0, start) + `${left} ${op ? op + ' ' : ''}${right}` + text.slice(end);
-        button.innerHTML = `<span class="connection-option-title">${op ? rowSymbol(op) + ' ' + escHtml(op) : 'No operator'}</span><code>${escHtml(preview)}</code>`;
+        button.innerHTML = `<span class="connection-option-title">${op ? rowSymbol(op) : 'No operator'}</span><span class="connection-preview">${iconMode ? tokens(preview).map(token => rowSymbol(token.name)).join(' ') : `<code>${escHtml(preview)}</code>`}</span>`;
         button.onclick = () => {
           close();
           if (rowSnapshot() === snapshot) mutateDrop(name, index, target.start, source, { ...target, op, swapped });

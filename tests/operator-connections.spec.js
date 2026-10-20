@@ -15,6 +15,8 @@ async function load(page, progress = {}) {
   await page.evaluate(() => document.fonts.ready);
 }
 const tile = (page, name) => page.locator(`#editor-overlay > span:has([title="${name}"])`);
+const previewNames = (picker, operator) => picker.getByRole('button', { name: `Use ${operator}`, exact: true })
+  .locator('.connection-preview > .icon-sym').evaluateAll(icons => icons.map(icon => icon.getAttribute('title')));
 const center = async locator => {
   const r = await locator.boundingBox();
   return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
@@ -104,8 +106,8 @@ test('native mouse drop at an edge inserts; center opens available operators wit
   await expect(picker).toBeVisible();
   await expect(editor).toHaveValue('f3 z');
   await expect(picker.locator('[data-operator]')).toHaveCount(3);
-  await expect(picker.getByRole('button', { name: 'Use $', exact: true })).toContainText('f3 $ f1 z');
-  await expect(picker.getByRole('button', { name: 'Use .', exact: true })).toContainText('f3 . f1 z');
+  expect(await previewNames(picker, '$')).toEqual(['f3', '$', 'f1', 'z']);
+  expect(await previewNames(picker, '.')).toEqual(['f3', '.', 'f1', 'z']);
   await picker.getByRole('button', { name: 'Use $', exact: true }).click();
   await expect(editor).toHaveValue('f3 $ f1 z');
   expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(true);
@@ -127,9 +129,9 @@ test('picker supports swap, no operator, Escape, and cancellation without duplic
   const picker = page.locator('#connection-picker');
   await expect(picker).toBeVisible();
   await expect(editor).toHaveValue('f1 f3 z');
-  await expect(picker.getByRole('button', { name: 'Use $', exact: true })).toContainText('f3 $ f1 z');
+  expect(await previewNames(picker, '$')).toEqual(['f3', '$', 'f1', 'z']);
   await picker.getByRole('button', { name: 'Swap order' }).click();
-  await expect(picker.getByRole('button', { name: 'Use $', exact: true })).toContainText('f1 $ f3 z');
+  expect(await previewNames(picker, '$')).toEqual(['f1', '$', 'f3', 'z']);
   await picker.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(editor).toHaveValue('f1 f3 z');
   await expect(page.locator('.connection-target, .drag-source, #drag-out-ghost')).toHaveCount(0);
