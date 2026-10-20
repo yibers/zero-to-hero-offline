@@ -185,25 +185,30 @@ function mountRowEditor() {
     const state = JSON.stringify([rows.length, last.id, last.expr, diagnostic?.signature, diagnostic?.error]);
     const changed = state !== readyRowState;
     readyRowState = state;
-    const hasEmptyRow = rows.some(row => !row.expr.trim());
-    const solved = !hasEmptyRow && rowDiagnostics.every(row => !row.error)
+    const solved = rowDiagnostics.every(row => !row.error)
       && typeCheck(level, RowProgram.source(rows)).ok;
+    container.querySelectorAll('.program-row:not(.ready-row)').forEach((row, index) => {
+      row.classList.toggle('final-row', solved && index === rows.length - 1);
+    });
     let ready = container.querySelector('.ready-row');
-    if (hasEmptyRow || solved) { ready?.remove(); return; }
-    // This drop target is not part of the program until it receives a value.
-    // It must not change the final expression, validation, scoring or undo.
+    if (!last.expr.trim() || solved) { ready?.remove(); return; }
+    const created = !ready;
+    // Always offer the next step below the last expression, even if an earlier
+    // row was cleared. Keep the empty step out of the source until it is used,
+    // so it cannot replace the result or affect validation, scoring or undo.
     if (!ready) {
-      ready = document.createElement('button');
-      ready.type = 'button'; ready.className = 'ready-row';
-      ready.setAttribute('aria-label', 'New function row');
-      ready.title = 'Drop a function here';
-      ready.innerHTML = '<span aria-hidden="true">+</span>';
+      ready = document.createElement('section');
+      ready.className = 'program-row ready-row';
+      ready.tabIndex = -1;
+      ready.innerHTML = '<div class="row-heading"><span class="row-number"></span></div><div class="row-call"><button type="button" class="empty-row-drop" aria-label="New function row">Drop a function here</button></div>';
       container.append(ready);
     }
     ready.dataset.row = rows.length;
+    ready.setAttribute('aria-label', `Row ${rows.length + 1}`);
+    ready.querySelector('.row-number').textContent = rows.length + 1;
     // Row outputs can grow after a drop. Reveal the next target after layout,
     // without moving keyboard focus or interrupting an earlier-row edit.
-    if (changed) requestAnimationFrame(() => {
+    if (changed || created) requestAnimationFrame(() => {
       if (ready.isConnected && !controller.signal.aborted) ready.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   }
@@ -264,7 +269,7 @@ function mountRowEditor() {
         return `<li class="delete-preview-item" data-delete-index="${row.index}"><div class="delete-preview-heading"><strong>Row ${row.index + 1}</strong><span>${reason}</span></div><div class="delete-preview-expression" role="img" aria-label="${escHtml(row.expr || 'Empty row')}">${expression || '<span>Empty row</span>'}</div></li>`;
       }).join('')}</ol>
       <p>You can undo this.</p><div class="delete-actions"><button type="button" class="delete-cancel">Cancel</button><button type="button" class="delete-confirm">Delete ${count === 1 ? 'row' : count + ' rows'}</button></div>`;
-    container.querySelectorAll('.program-row').forEach((node, i) => node.classList.toggle('delete-preview', affected.has(rows[i].id)));
+    container.querySelectorAll('.program-row:not(.ready-row)').forEach((node, i) => node.classList.toggle('delete-preview', affected.has(rows[i].id)));
     const close = () => {
       container.querySelectorAll('.delete-preview').forEach(node => node.classList.remove('delete-preview'));
       dialog.close(); dialog.remove(); closeDeletePreview = null;

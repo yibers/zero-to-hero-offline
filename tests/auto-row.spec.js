@@ -32,6 +32,10 @@ test('one empty row is ready until the actual target is solved; changes and refr
   await expect(ready(page)).toHaveCount(0); // The initial row is already empty.
   await page.locator('[data-func-name="f"]').dragTo(row(page));
   await expect(ready(page)).toBeVisible();
+  await expect(page.locator('.program-row')).toHaveCount(2);
+  await expect(page.locator('.program-row').last()).toHaveAccessibleName('Row 2');
+  await expect(page.locator('.program-row').last().locator('.row-number')).toHaveText('2');
+  await expect(page.locator('.final-row')).toHaveCount(0);
   expect(await page.evaluate(() => getCodeFromEditor())).toBe('f');
   await choose(page, 0, 'z');
   await expect(ready(page)).toHaveCount(0);
@@ -52,20 +56,27 @@ test('one empty row is ready until the actual target is solved; changes and refr
 });
 
 test('dropping into the spare row adds one step, preserves scoring, and is one undo action', async ({ page }) => {
-  await open(page, 1, 'runZero z');
-  await page.locator('[data-func-name="mkHero"]').dragTo(ready(page));
+  await open(page, 1);
+  await page.locator('[data-func-name="runZero"]').dragTo(row(page));
+  await choose(page, 0, 'z');
   await expect(page.locator('.program-row')).toHaveCount(2);
+  await expect(page.locator('.program-row').last()).toHaveAccessibleName('Row 2');
+  await expect(row(page)).not.toBeFocused();
+  await page.locator('[data-func-name="mkHero"]').dragTo(ready(page));
+  await expect(page.locator('.program-row')).toHaveCount(3);
   await expect(row(page, 1)).toHaveValue('mkHero');
   await expect(ready(page)).toHaveCount(1);
   await choose(page, 1, 'r1');
   await expect(ready(page)).toHaveCount(0);
+  await expect(page.locator('.program-row')).toHaveCount(2);
+  await expect(page.locator('.program-row').last()).toHaveClass(/final-row/);
   expect(await page.evaluate(() => ({ code: getCodeFromEditor(), score: RowProgram.score(getCodeFromEditor()), error: getRowError() })))
     .toEqual({ code: 'let\n  r1 = runZero z\nin\n  mkHero r1', score: 2, error: null });
   await page.getByRole('button', { name: 'Undo row edit' }).click();
   await expect(row(page, 1)).toHaveValue('mkHero');
   await expect(ready(page)).toHaveCount(1);
   await page.getByRole('button', { name: 'Undo row edit' }).click();
-  await expect(page.locator('.program-row')).toHaveCount(1);
+  await expect(page.locator('.program-row')).toHaveCount(2);
   await expect(ready(page)).toHaveCount(1);
   await page.getByRole('button', { name: 'Redo row edit' }).click();
   await expect(row(page, 1)).toHaveValue('mkHero');
@@ -76,7 +87,7 @@ test('dropping into the spare row adds one step, preserves scoring, and is one u
   await expect(ready(page)).toHaveCount(0);
 });
 
-test('a spare target can be tapped and an existing empty row is reused without duplication', async ({ page }) => {
+test('a trailing empty row is reused, but clearing an earlier row does not hide the next step', async ({ page }) => {
   await open(page, 1, 'runZero z');
   await ready(page).click();
   await expect(row(page, 1)).toHaveValue('');
@@ -86,8 +97,17 @@ test('a spare target can be tapped and an existing empty row is reused without d
   await row(page, 1).fill('mkHero');
   await expect(ready(page)).toHaveCount(1);
   await dragFunctionOut(page);
-  await expect(ready(page)).toHaveCount(0);
-  await expect(page.locator('.program-row')).toHaveCount(2);
+  await expect(row(page, 0)).toHaveValue('');
+  await expect(ready(page)).toHaveCount(1);
+  await expect(page.locator('.program-row')).toHaveCount(3);
+  await expect(page.locator('.program-row').last()).toHaveAccessibleName('Row 3');
+  await page.reload();
+  await expect(ready(page)).toBeVisible();
+  await page.locator('[data-func-name="runZero"]').dragTo(ready(page));
+  await expect(row(page, 2)).toHaveValue('runZero');
+  await expect(page.locator('.program-row')).toHaveCount(4);
+  await page.getByRole('button', { name: 'Undo row edit' }).click();
+  await expect(page.locator('.program-row')).toHaveCount(3);
 });
 
 test('every solved reference has no spare row; wrong types and invalid row programs still have one', async ({ page }) => {
@@ -110,12 +130,12 @@ test.describe('phone automatic rows', () => {
   test('the next row stays visible after outputs grow, and returns on undo after solving', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 760 });
     await open(page, 1, 'let\n  r1 = runZero z\nin\n  mkHero z');
-    await expect(ready(page)).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.ready-row')).toBeInViewport({ ratio: 1 });
     await expect(row(page, 1)).not.toBeFocused();
     await choose(page, 1, 'r1');
     await expect(ready(page)).toHaveCount(0);
     await page.getByRole('button', { name: 'Undo row edit' }).tap();
-    await expect(ready(page)).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.ready-row')).toBeInViewport({ ratio: 1 });
     await expect(row(page, 1)).not.toBeFocused();
   });
 
@@ -140,10 +160,10 @@ test.describe('phone automatic rows', () => {
     const from = await center(page.locator('[data-func-name="mkHero"]')), to = await center(ready(page));
     await send('touchStart', [from]);
     await send('touchMove', [to]);
-    await expect(ready(page)).toHaveClass(/drag-over/);
+    await expect(page.locator('.ready-row')).toHaveClass(/drag-over/);
     await expect(page.locator('#touch-drag-ghost')).not.toHaveClass(/removing/);
     await send('touchCancel', []);
-    await expect(page.locator('.program-row')).toHaveCount(1);
+    await expect(page.locator('.program-row')).toHaveCount(2);
     await expect(ready(page)).toHaveCount(1);
     await send('touchStart', [from]);
     for (let i = 1; i <= 8; i++) await send('touchMove', [{ x: from.x+(to.x-from.x)*i/8, y: from.y+(to.y-from.y)*i/8 }]);
@@ -151,7 +171,7 @@ test.describe('phone automatic rows', () => {
     await expect(row(page, 1)).toHaveValue('mkHero');
     await expect(row(page, 1)).not.toBeFocused();
     await expect(ready(page)).toHaveCount(1);
-    await expect(ready(page)).toBeInViewport({ ratio: 1 });
+    await expect(page.locator('.ready-row')).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: '/tmp/zth-auto-row-phone.png' });
     await choose(page, 1, 'r1');
     await expect(ready(page)).toHaveCount(0);

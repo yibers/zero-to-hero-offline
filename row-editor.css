@@ -15,9 +15,9 @@
 .parameter-icon:hover { background: #d1fae5; border-color: #6ee7b7; }
 .parameter-icon:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
 .program-row { border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 10px; overflow: hidden; }
-.ready-row { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 80px; margin-bottom: 10px; border: 2px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; color: #94a3b8; font: 32px 'Fira Code', monospace; cursor: pointer; }
-.ready-row:hover, .ready-row.drag-over { border-color: #3b82f6; background: #dbeafe; color: #2563eb; }
-.ready-row:focus-visible { outline: 2px solid #2563eb; outline-offset: -4px; }
+.empty-row-drop { display: block; width: calc(100% - 12px); min-height: 80px; margin: 6px; padding: 8px; border: 2px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; color: #64748b; font: inherit; font-size: 12px; cursor: pointer; }
+.empty-row-drop:hover, .ready-row.drag-over .empty-row-drop { border-color: #3b82f6; background: #dbeafe; color: #2563eb; }
+.empty-row-drop:focus-visible { outline: 2px solid #2563eb; outline-offset: -4px; }
 .program-row.active-row { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
 .program-row.final-row { border-bottom: 3px solid #10b981; }
 .row-heading { display: flex; align-items: center; gap: 7px; background: #f8fafc; padding: 3px 8px; flex-wrap: wrap; }

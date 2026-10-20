@@ -163,7 +163,7 @@ test.describe('Phone touch dragging', () => {
     }
     const editor = page.locator('textarea.row-editor').last();
     await editor.blur();
-    const token = page.locator('.program-row').last().locator('[data-name="f2"]');
+    const token = page.locator('.program-row:not(.ready-row)').last().locator('[data-name="f2"]');
     await token.scrollIntoViewIfNeeded();
     expect(await page.locator('#program-rows').evaluate(el => el.scrollTop)).toBeGreaterThan(0);
     const point = await token.boundingBox();
