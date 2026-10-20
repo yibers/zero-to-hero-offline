@@ -79,8 +79,8 @@ test.describe('Phone touch dragging', () => {
     await expect(editor).toHaveValue('f z');
     await expect(page.locator('#inferred-type')).toContainText('Hero');
     await noDragUI(page);
-    await page.getByRole('button', { name: 'Attempt', exact: true }).tap();
-    await expect(page.locator('#level-dialog')).toBeVisible();
+
+    await expect(page.locator('#status-bar')).toHaveClass(/success/);
     await page.reload();
     await expect(editor).toHaveValue('f z');
   });

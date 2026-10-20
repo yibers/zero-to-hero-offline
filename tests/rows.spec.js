@@ -27,7 +27,7 @@ async function load(page, level, code) {
 test('every reference solution migrates to valid single-operation rows and still solves', async ({ page }) => {
   await open(page);
   const results = await page.evaluate(() => LEVELS.map(level => {
-    const rows = RowProgram.migrate(level.best), source = RowProgram.source(rows);
+    const rows = RowProgram.migrate(level.solution), source = RowProgram.source(rows);
     return { level: level.level, valid: RowProgram.validate(rows, level).every(x => !x), solves: typeCheck(level, source).ok, inferred: liveInfer(level, source).valid, score: RowProgram.score(source) === rows.length };
   }));
   for (const result of results) expect(result).toEqual({ level: result.level, valid: true, solves: true, inferred: true, score: true });
@@ -46,9 +46,9 @@ test('level 2 builds with a result reference, generates let, solves and survives
   await page.reload();
   await expect(row(page, 0)).toHaveValue('runZero z');
   await expect(row(page, 1)).toHaveValue('mkHero r1');
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
-  await expect(page.locator('#level-dialog')).toBeVisible();
-  await expect(page.locator('#level-dialog')).toContainText('2 operations');
+
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
+  await expect(page.locator('#status-output')).toContainText('every available function is used');
 });
 
 test('nested calls and applied operands are rejected, but f x y and function values are allowed', async ({ page }) => {
@@ -57,12 +57,12 @@ test('nested calls and applied operands are rejected, but f x y and function val
   await expect(page.locator('.row-feedback')).not.toContainText('One operation');
   await row(page, 0).fill('f2 (f1 z)');
   await expect(page.locator('.row-feedback')).toContainText('One operation per row');
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
+
   await expect(page.locator('#status-output')).toContainText('One operation per row');
   await load(page, 6, '');
   await row(page, 0).fill('f2 z <*> f3 z');
   await expect(page.locator('.row-feedback')).toContainText('One operation per row');
-  await row(page, 0).fill('(.) f2 f1');
+  await row(page, 0).fill('(<*>) f2 f1');
   expect(await page.evaluate(() => RowProgram.validate(getRows(), LEVELS[currentLevel]))).toEqual([null]);
 });
 
@@ -76,8 +76,8 @@ test('self and forward references are rejected and changing an earlier row updat
   await expect(page.locator('.row-feedback').last()).toContainText('Hero');
   await fillRow(page, 0, 'mkHero z');
   await expect(page.locator('.row-feedback').last()).toContainText('Hero');
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
-  await expect(page.locator('#status-bar')).toContainText('Failed');
+
+  await expect(page.locator('#status-bar')).toContainText('Not solved');
 });
 
 test('function-valued results can be applied and reused polymorphically', async ({ page }) => {
@@ -93,8 +93,8 @@ test('function-valued results can be applied and reused polymorphically', async 
   await row(page, 1).fill('runZero z');
   await page.locator('#add-row').evaluate(button => button.click());
   await row(page, 2).fill('r1 r2');
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
-  await expect(page.locator('#level-dialog')).toBeVisible();
+
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
 });
 
 test('deleting dependent rows requires confirmation and undo restores the full program', async ({ page }) => {
@@ -133,7 +133,7 @@ test('legacy saved progress migrates once without losing settings or completion'
   expect(await page.evaluate(() => typeCheck(LEVELS[6], getCodeFromEditor()).ok)).toBe(true);
   await page.getByText('Icons', { exact: true }).click();
   await page.reload();
-  expect(await page.evaluate(() => ({ count: getRows().length, completed: [...completedLevels], bypassCount, geckoOn, iconMode }))).toEqual({ count: 5, completed: [0,1], bypassCount: 2, geckoOn: false, iconMode: false });
+  expect(await page.evaluate(() => ({ count: getRows().length, completed: [...completedLevels], bypassCount, geckoOn, iconMode }))).toEqual({ count: 5, completed: [6], bypassCount: 3, geckoOn: false, iconMode: false });
 });
 
 test('unfinished legacy expressions are retained with an actionable error', async ({ page }) => {
@@ -173,8 +173,8 @@ test.describe('phone rows', () => {
     await expect(row(page,1)).toHaveValue('mkHero r1');
     await expect(row(page,1)).not.toBeFocused();
     await page.reload(); await expect(row(page,1)).toHaveValue('mkHero r1');
-    await page.getByRole('button',{name:'Attempt',exact:true}).tap();
-    await expect(page.locator('#level-dialog')).toBeVisible();
+
+    await expect(page.locator('#status-bar')).toHaveClass(/success/);
   });
   test('tokens move between rows, drag out, and undo restores them', async ({ page }) => {
     await open(page, 0, true);

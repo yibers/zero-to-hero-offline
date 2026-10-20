@@ -217,7 +217,7 @@ function mountRowEditor() {
     const changed = state !== readyRowState;
     readyRowState = state;
     const solved = rowDiagnostics.every(row => !row.error)
-      && typeCheck(level, RowProgram.source(rows)).ok;
+      && checkSolution(level, RowProgram.source(rows)).ok;
     container.querySelectorAll('.program-row:not(.ready-row)').forEach((row, index) => {
       row.classList.toggle('final-row', solved && index === rows.length - 1);
     });

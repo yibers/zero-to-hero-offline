@@ -78,8 +78,8 @@ const path = require('path');
     const inferred = await p.locator('#inferred-type').textContent();
     console.log('Inferred type:', inferred);
 
-    // Call attempt via evaluate to avoid race
-    await p.evaluate(() => attempt());
+    // Run the live check via evaluate to avoid race
+    await p.evaluate(() => runLiveCheck());
     await p.waitForTimeout(800);
     const status = await p.locator('#status-bar').textContent();
     console.log('Status:', status);

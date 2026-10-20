@@ -221,10 +221,11 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=69235dc9e3ea"></script>
+<script src="levels.js?v=c7dafedf33a2"></script>
 <script src="semantic-icons.js?v=bcfd232c750b"></script>
 <script src="row-program.js?v=c84c05a60c11"></script>
-<script src="row-editor.js?v=042a001d20dd"></script>
+<script src="puzzle-rules.js?v=f05229b9ca19"></script>
+<script src="row-editor.js?v=ff06547953e4"></script>
 <script src="text-editor.js?v=8b64fa28133a"></script>
 <script>
 
@@ -593,7 +594,7 @@ function liveInfer(levelData, code) {
   }
 }
 
-// ─── Type Checker (full check for Attempt) ───
+// ─── Target type checker (completion also checks required function usage) ───
 
 function typeCheck(levelData, code) {
   substCounter = 0;
@@ -871,11 +872,8 @@ function inferExpr(code, env, paramTypes) {
 let currentLevel = 0;
 let showIntro = true;
 let showComplete = false;
-let showLevelComplete = false;
 let showAbout = false;
-let lastUserSolution = '';
 let completedLevels = new Set();
-let optimalLevels = new Set();
 let editorContents = {};
 let rowPrograms = {};
 let textDrafts = {};
@@ -890,7 +888,6 @@ try {
   if (saved) {
     const parsed = JSON.parse(saved);
     completedLevels = new Set(parsed.completed || []);
-    optimalLevels = new Set(parsed.optimal || []);
     editorContents = parsed.editorContents || {};
     if (parsed.textDrafts && typeof parsed.textDrafts === 'object') {
       for (const [key, value] of Object.entries(parsed.textDrafts)) {
@@ -917,14 +914,25 @@ try {
         }
       }
     }
-    if (parsed.connectionVersion !== 1) saveProgress();
+    // Recheck old achievements against the current learning requirements;
+    // keep all saved work and preferences so it can still be edited.
+    if (parsed.completionVersion !== 1) {
+      completedLevels = new Set([...completedLevels].filter(index => {
+        if (!LEVELS[index]) return false;
+        try {
+          const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index])
+            : RowProgram.source(RowProgram.migrate(getEditorContent(index))));
+          return checkSolution(LEVELS[index], code).ok;
+        } catch (_) { return false; }
+      }));
+    }
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 1) saveProgress();
   }
 } catch(e) {}
 
 function saveProgress() {
   localStorage.setItem('zth_progress', JSON.stringify({
     completed: [...completedLevels],
-    optimal: [...optimalLevels],
     editorContents,
     rowPrograms,
     textDrafts,
@@ -934,7 +942,8 @@ function saveProgress() {
     geckoOn,
     iconMode,
     showIntro: false,
-    connectionVersion: 1
+    connectionVersion: 1,
+    completionVersion: 1
   }));
 }
 
@@ -952,34 +961,11 @@ function render() {
         <p>Welcome to the game of Zero to Hero. In this game, you will complete each level by implementing
         the function "zeroToHero". This function converts a "Zero" type value to a "Hero" type value.
         The definition of "Zero" and "Hero" may vary from level to level.</p>
-        <p>Each level has a list of functions available. Make sure to use them, as they are the only functions you can use.</p>
+        <p>Use every available function at least once in the steps that produce your final result. Unused rows do not count. The level completes automatically when the result matches the goal and all functions have been used.</p>
         <br>
         <button onclick="dismissIntro()">OK</button>
       </div>
     </div>` : ''}
-
-    ${showLevelComplete ? (() => {
-      const best = LEVELS[currentLevel].best;
-      const bestLen = RowProgram.score(best);
-      const userLen = RowProgram.score(lastUserSolution);
-      const isOptimal = userLen <= bestLen;
-      return `
-    <div class="dialog-overlay" id="level-dialog">
-      <div class="dialog">
-        <h2 style="font-size:24px;font-weight:bold">Congratulations!</h2>
-        <p style="margin:16px 0">You have completed this level.</p>
-        <p style="margin:0 0 8px;font-size:14px;font-family:'Fira Code',monospace">${isOptimal
-          ? `<span style="color:#bbf7d0">Optimal!</span> Your solution (${userLen} operations) uses no more operations than the reference.`
-          : `Your solution: ${userLen} operations. Reference: ${bestLen} operations.`
-        }</p>
-        <details style="margin:0 0 16px"><summary>Show reference rows</summary><pre style="white-space:pre-wrap;margin-top:8px">${escHtml(RowProgram.source(RowProgram.migrate(best)))}</pre></details>
-        <div style="display:flex;gap:8px">
-          <button onclick="nextLevel()">Next level</button>
-          ${!isOptimal ? `<button class="btn-secondary" onclick="tryAgain()">Try again</button>` : ''}
-        </div>
-      </div>
-    </div>`;
-    })() : ''}
 
     ${showComplete ? `
     <div class="dialog-overlay" id="complete-dialog">
@@ -1024,7 +1010,7 @@ function render() {
           <li>Fully self-contained &mdash; works offline, no server needed</li>
           <li>Progress, editor contents, and bypass points persist in localStorage</li>
           <li>One operation per row, reusable results, and a generated Haskell let definition</li>
-          <li>Conciseness by operation count, with reference rows on completion</li>
+          <li>Automatic completion: reach the target and use every available function in the final solution</li>
         </ul>
         <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
           All credit for the game design, puzzles, and GeckoGraph notation belongs to the original authors.
@@ -1036,9 +1022,8 @@ function render() {
     <nav>
       <div style="display:flex;gap:4px">
         <button onclick="prevLevel()" ${currentLevel === 0 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg> Prev</button>
-        <button onclick="attempt()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M8 5v14l11-7z"/></svg> Attempt</button>
-        <button onclick="bypass()" ${bypassCount === 0 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg> Bypass (${bypassCount})</button>
-        ${completedLevels.has(currentLevel) && currentLevel < LEVELS.length - 1 ? `<button onclick="nextLevel()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg> Next</button>` : ''}
+        <button id="bypass-button" onclick="bypass()" ${bypassCount === 0 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg> Bypass (${bypassCount})</button>
+        <button id="next-level" onclick="nextLevel()" ${completedLevels.has(currentLevel) ? '' : 'hidden'}>${currentLevel === LEVELS.length - 1 ? 'Finish' : 'Next level'}</button>
       </div>
       <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${level.name}</div>
       <div style="display:flex;align-items:center;gap:12px">
@@ -1054,7 +1039,7 @@ function render() {
             <div class="gecko-toggle-knob"></div>
           </div>
         </div>
-        <span class="level-badge">${completedLevels.has(currentLevel) ? (optimalLevels.has(currentLevel) ? '<span title="Solved optimally" style="color:#22c55e">&#9733; </span>' : '<span title="Solved" style="color:#9ca3af">&#10003; </span>') : ''}Level ${level.level} / ${LEVELS.length}</span>
+        <span class="level-badge" id="level-badge">${completedLevels.has(currentLevel) ? '<span title="Solved" style="color:#22c55e">&#10003; </span>' : ''}Level ${level.level} / ${LEVELS.length}</span>
         <button onclick="showAboutDialog()" title="About" style="background:#475569;color:#d1d5db;border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:13px;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:0">?</button>
       </div>
     </nav>
@@ -1075,7 +1060,7 @@ function render() {
           <div class="code-block">
             <div class="type-sig" id="inferred-type" style="font-size:1rem">${renderTypeSig('zeroToHero', 'a')}</div>
             ${geckoOn ? `<div id="inferred-gecko" style="margin-top:4px">${renderGeckoLeafVar('a')}</div>` : ''}
-            <div class="syntax-hint" id="syntax-hint">Your definition has valid syntax, but it may still fail to type check.</div>
+            <div class="syntax-hint" id="syntax-hint">Your definition has valid syntax. Completion also requires the target type and every available function.</div>
           </div>
 
           <div class="gutter-row"></div>
@@ -1103,7 +1088,7 @@ function render() {
         <div class="gutter-col"></div>
 
         <div class="right-panel${iconMode ? ' icon-palette' : ''}" role="region" aria-label="Available functions">
-          ${level.funcs.filter(f => f.name !== '($)').map(f => `
+          ${level.funcs.map(f => `
             <div class="func-card" draggable="true" data-func-name="${f.name}">
               <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
               ${geckoOn ? `<div class="palette-gecko" style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
@@ -1205,7 +1190,6 @@ function getCodeFromEditor() {
 }
 
 let liveCheckTimer = null;
-let attemptInProgress = false;
 let dragOutCleanup = null;
 let touchDragCleanup = null;
 
@@ -1509,15 +1493,14 @@ function runLiveCheck() {
   const inferredEl = document.getElementById('inferred-type');
   const geckoEl = document.getElementById('inferred-gecko');
   const hintEl = document.getElementById('syntax-hint');
-  // Only update status bar if no attempt is in progress
-  const statusBar = attemptInProgress ? null : document.getElementById('status-bar');
-  const statusOutput = attemptInProgress ? null : document.getElementById('status-output');
+  const statusBar = document.getElementById('status-bar');
+  const statusOutput = document.getElementById('status-output');
 
   if (!code || code === 'undefined') {
     if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', 'a');
     if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
     if (hintEl) {
-      hintEl.textContent = 'Your definition has valid syntax, but it may still fail to type check.';
+      hintEl.textContent = 'Your definition has valid syntax. Completion also requires the target type and every available function.';
       hintEl.className = 'syntax-hint';
     }
     if (statusBar) { statusBar.className = 'status-bar checking'; statusBar.textContent = 'Status: Init'; }
@@ -1534,11 +1517,19 @@ function runLiveCheck() {
       try { geckoEl.innerHTML = renderGeckoArrow(result.typeSig); } catch(e) {}
     }
     if (hintEl) {
-      hintEl.textContent = 'Your definition has valid syntax, but it may still fail to type check.';
+      hintEl.textContent = 'Your definition has valid syntax. Completion also requires the target type and every available function.';
       hintEl.className = 'syntax-hint';
     }
-    if (statusBar) { statusBar.className = 'status-bar checking'; statusBar.textContent = 'Status: Checking'; }
-    if (statusOutput) statusOutput.textContent = 'Syntax OK. Click Attempt to verify.';
+    const solution = checkSolution(level, code);
+    if (statusBar) {
+      statusBar.className = 'status-bar ' + (solution.ok ? 'success' : 'error');
+      statusBar.textContent = solution.ok ? 'Status: Success!' : 'Status: Not solved';
+    }
+    if (statusOutput) {
+      statusOutput.textContent = solution.msg;
+      if (solution.ok) statusOutput.innerHTML += `<details><summary>Show reference rows</summary><pre>${escHtml(level.solution)}</pre></details>`;
+    }
+    if (solution.ok) recordCompletion();
   } else {
     if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', 'a');
     if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
@@ -1669,72 +1660,25 @@ window.dismissIntro = function() {
   render();
 };
 
-window.attempt = function() {
-  const code = getCodeFromEditor();
-  const level = LEVELS[currentLevel];
-
-  const statusBar = document.getElementById('status-bar');
-  const statusOutput = document.getElementById('status-output');
-
-  if (!code || code === 'undefined') {
-    statusBar.className = 'status-bar checking';
-    statusBar.textContent = 'Status: No changes';
-    statusOutput.textContent = 'You did not make any changes.';
-    return;
-  }
-
-  // Prevent live check from overwriting attempt status
-  clearTimeout(liveCheckTimer);
-  attemptInProgress = true;
-
-  statusBar.className = 'status-bar checking';
-  statusBar.textContent = 'Status: Checking...';
-
-  // Small delay for UI feedback
-  setTimeout(() => {
-    const rowError = getRowError();
-    const result = rowError ? { ok: false, msg: rowError } : typeCheck(level, code);
-    if (result.ok) {
-      statusBar.className = 'status-bar success';
-      statusBar.textContent = 'Status: Success!';
-      statusOutput.textContent = result.msg;
-      const wasCompleted = completedLevels.has(currentLevel);
-      completedLevels.add(currentLevel);
-      if (!wasCompleted) bypassCount++;
-      lastUserSolution = code;
-      const bestLen = RowProgram.score(level.best);
-      if (RowProgram.score(code) <= bestLen) optimalLevels.add(currentLevel);
-      saveProgress();
-
-      setTimeout(() => {
-        if (currentLevel === LEVELS.length - 1) {
-          showComplete = true;
-        } else {
-          showLevelComplete = true;
-        }
-        render();
-
-      }, 500);
-    } else {
-      statusBar.className = 'status-bar error';
-      statusBar.textContent = 'Status: Failed';
-      statusOutput.textContent = result.msg;
-    }
-    attemptInProgress = false;
-  }, 100);
-};
-
-window.tryAgain = function() {
-  showLevelComplete = false;
-  render();
-};
-
-window.nextLevel = function() {
-  showLevelComplete = false;
-  if (currentLevel < LEVELS.length - 1) {
-    currentLevel++;
+function recordCompletion() {
+  if (!completedLevels.has(currentLevel)) {
+    completedLevels.add(currentLevel);
+    bypassCount++;
     saveProgress();
   }
+  const next = document.getElementById('next-level');
+  if (next) next.hidden = false;
+  const badge = document.getElementById('level-badge');
+  if (badge) badge.innerHTML = `<span title="Solved" style="color:#22c55e">&#10003; </span>Level ${currentLevel + 1} / ${LEVELS.length}`;
+  const bypassButton = document.getElementById('bypass-button');
+  if (bypassButton) { bypassButton.disabled = bypassCount === 0; bypassButton.textContent = `Bypass (${bypassCount})`; }
+}
+
+window.nextLevel = function() {
+  if (!completedLevels.has(currentLevel)) return;
+  if (currentLevel === LEVELS.length - 1) showComplete = true;
+  else currentLevel++;
+  saveProgress();
   render();
 };
 
@@ -1742,7 +1686,6 @@ window.resetGame = function() {
   showComplete = false;
   currentLevel = 0;
   completedLevels.clear();
-  optimalLevels.clear();
   editorContents = {};
   rowPrograms = {};
   textDrafts = {};

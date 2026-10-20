@@ -48,7 +48,7 @@ test('ordinary application stays literal in both modes; all level solutions stil
   await page.evaluate(() => toggleIconMode());
   await expect(editor).toHaveValue('mkHero runZero z');
   const failures = await page.evaluate(() => LEVELS.flatMap(l => {
-    const result = typeCheck(l, l.best);
+    const result = typeCheck(l, l.solution);
     return result.ok ? [] : [{ level: l.level, result }];
   }));
   expect(failures).toEqual([]);
@@ -66,8 +66,8 @@ test('old implicit solutions migrate once, preserving all saved levels and prefe
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
   expect(saved.editorContents[1]).toBe('zeroToHero z = mkHero $ runZero z');
   expect(saved.editorContents[6]).toBe('zeroToHero z = f2 z <*> (f1 z <*> f3 z)');
-  expect(saved.completed).toEqual([1]);
-  expect(saved.optimal).toEqual([1]);
+  expect(saved.completed).toEqual([1, 2]);
+  expect(saved.optimal).toBeUndefined();
   expect(saved.iconMode).toBe(true);
   expect(saved.geckoOn).toBe(false);
   expect(saved.connectionVersion).toBe(1);
@@ -92,77 +92,77 @@ test('old text-mode solutions are not rewritten', async ({ page }) => {
 });
 
 test('native mouse drop at an edge inserts; center opens available operators with previews', async ({ page }) => {
-  await load(page, { currentLevel: 2 });
+  await load(page, { currentLevel: 11 });
   const editor = page.locator('#code-editor');
-  await editor.fill('f1 z');
+  await editor.fill('f z');
   await editor.blur();
-  await dropCard(page, 'f3', tile(page, 'f1'), true);
-  await expect(editor).toHaveValue('f3 f1 z');
-  expect(await page.evaluate(() => getCodeFromEditor())).toBe('f3 f1 z');
+  await dropCard(page, 'dup', tile(page, 'f'), true);
+  await expect(editor).toHaveValue('dup f z');
+  expect(await page.evaluate(() => getCodeFromEditor())).toBe('dup f z');
   await expect(page.locator('#connection-picker')).toHaveCount(0);
-  await editor.fill('f3 z');
+  await editor.fill('dup z');
   await editor.blur();
-  await dropCard(page, 'f1', tile(page, 'f3'));
+  await dropCard(page, 'f', tile(page, 'dup'));
   const picker = page.getByRole('dialog', { name: 'Choose an operator' });
   await expect(picker).toBeVisible();
-  await expect(editor).toHaveValue('f3 z');
-  await expect(picker.locator('[data-operator]')).toHaveCount(3);
-  expect(await previewNames(picker, '$')).toEqual(['f3', '$', 'f1', 'z']);
-  expect(await previewNames(picker, '.')).toEqual(['f3', '.', 'f1', 'z']);
-  await picker.getByRole('button', { name: 'Use $', exact: true }).click();
-  await expect(editor).toHaveValue('f3 $ f1 z');
-  expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(true);
+  await expect(editor).toHaveValue('dup z');
+  await expect(picker.locator('[data-operator]')).toHaveCount(2);
+  expect(await previewNames(picker, '>>=')).toEqual(['dup', '>>=', 'f', 'z']);
+  await picker.getByRole('button', { name: 'Use >>=', exact: true }).click();
+  await expect(editor).toHaveValue('dup >>= f z');
+  // The picker preserves operand order; this order is intentionally ill-typed.
+  expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(false);
   await page.reload();
-  await expect(editor).toHaveValue('f3 $ f1 z');
+  await expect(editor).toHaveValue('dup >>= f z');
 });
 
 test('picker supports swap, no operator, Escape, and cancellation without duplicating moved tokens', async ({ page }) => {
-  await load(page, { currentLevel: 2 });
+  await load(page, { currentLevel: 11 });
   const editor = page.locator('#code-editor');
-  await editor.fill('f1 f3 z');
+  await editor.fill('f dup z');
   await editor.blur();
-  const from = await center(tile(page, 'f1')), to = await center(tile(page, 'f3'));
+  const from = await center(tile(page, 'f')), to = await center(tile(page, 'dup'));
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 8 });
-  await expect(tile(page, 'f3')).toHaveClass(/connection-target/);
+  await expect(tile(page, 'dup')).toHaveClass(/connection-target/);
   await page.mouse.up();
   const picker = page.locator('#connection-picker');
   await expect(picker).toBeVisible();
-  await expect(editor).toHaveValue('f1 f3 z');
-  expect(await previewNames(picker, '$')).toEqual(['f3', '$', 'f1', 'z']);
+  await expect(editor).toHaveValue('f dup z');
+  expect(await previewNames(picker, '>>=')).toEqual(['dup', '>>=', 'f', 'z']);
   await picker.getByRole('button', { name: 'Swap order' }).click();
-  expect(await previewNames(picker, '$')).toEqual(['f1', '$', 'f3', 'z']);
+  expect(await previewNames(picker, '>>=')).toEqual(['f', '>>=', 'dup', 'z']);
   await picker.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await expect(editor).toHaveValue('f1 f3 z');
+  await expect(editor).toHaveValue('f dup z');
   await expect(page.locator('.connection-target, .drag-source, #drag-out-ghost')).toHaveCount(0);
-  await editor.fill('f3 z');
+  await editor.fill('dup z');
   await editor.blur();
-  await dropCard(page, 'f1', tile(page, 'f3'));
+  await dropCard(page, 'f', tile(page, 'dup'));
   await page.keyboard.press('Escape');
   await expect(picker).toHaveCount(0);
-  await expect(editor).toHaveValue('f3 z');
-  await dropCard(page, 'f1', tile(page, 'f3'));
+  await expect(editor).toHaveValue('dup z');
+  await dropCard(page, 'f', tile(page, 'dup'));
   await picker.getByRole('button', { name: 'Insert without operator' }).click();
-  await expect(editor).toHaveValue('f3 f1 z');
+  await expect(editor).toHaveValue('dup f z');
   await editor.press('Control+z');
-  await expect(editor).toHaveValue('f3 z');
+  await expect(editor).toHaveValue('dup z');
 });
 
 test('editor-token connections commit as one move and leave no orphan connector', async ({ page }) => {
-  await load(page, { currentLevel: 2 });
+  await load(page, { currentLevel: 11 });
   const editor = page.locator('#code-editor');
-  await editor.fill('f1 $ f3 z');
+  await editor.fill('f >>= dup z');
   await editor.blur();
-  const from = await center(tile(page, 'f1')), to = await center(tile(page, 'f3'));
+  const from = await center(tile(page, 'f')), to = await center(tile(page, 'dup'));
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
   await page.mouse.move(to.x, to.y, { steps: 8 });
   await page.mouse.up();
-  await page.getByRole('button', { name: 'Use $', exact: true }).click();
-  await expect(editor).toHaveValue('f3 $ f1 z');
+  await page.getByRole('button', { name: 'Use >>=', exact: true }).click();
+  await expect(editor).toHaveValue('dup >>= f z');
   await editor.press('Control+z');
-  await expect(editor).toHaveValue('f1 $ f3 z');
+  await expect(editor).toHaveValue('f >>= dup z');
 });
 
 test('later levels offer their operators, text mode works, and rendering cancels pending choices', async ({ page }) => {
@@ -171,8 +171,8 @@ test('later levels offer their operators, text mode works, and rendering cancels
   await editor.fill('f2 z');
   await editor.blur();
   await dropCard(page, 'f1', tile(page, 'f2'));
-  await expect(page.locator('#connection-picker [data-operator]')).toHaveCount(5);
-  for (const op of ['<$>', '<*>', '$', '.']) {
+  await expect(page.locator('#connection-picker [data-operator]')).toHaveCount(2);
+  for (const op of ['<*>']) {
     await expect(page.getByRole('button', { name: `Use ${op}`, exact: true })).toBeVisible();
   }
   await page.evaluate(() => toggleIconMode());
@@ -189,7 +189,7 @@ test('the function pane presents operators as ordinary functions in both display
     await page.evaluate(mode => { iconMode = mode; render(); }, mode);
     await expect(page.locator('.operator-badge, .func-card-operator')).toHaveCount(0);
     await expect(page.locator('.right-panel [data-func-name="($)"]')).toHaveCount(0);
-    for (const name of ['(<$>)', '(<*>)', '(.)']) {
+    for (const name of ['(<*>)']) {
       await expect(page.locator(`.right-panel [data-func-name="${name}"]`)).toHaveClass('func-card');
     }
     await expect(page.locator('.right-panel [data-func-name="f1"]')).toHaveClass('func-card');

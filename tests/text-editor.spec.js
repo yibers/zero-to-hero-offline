@@ -18,8 +18,8 @@ test('text mode shows one editable let/in program, with no row cards or row cont
   await expect(page.locator('.program-row, #add-row, #available-results, .haskell-preview')).toHaveCount(0);
   await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
   await expect(page.locator('.source-keyword')).toHaveText(['let', 'in']);
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
-  await expect(page.locator('#level-dialog')).toBeVisible();
+
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
 });
 
 test('named bindings, formatting, and edits survive refresh and both mode switches', async ({ page }) => {
@@ -96,7 +96,7 @@ test('binding errors and forward references do not solve; all reference programs
     await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
   }
   const failures = await page.evaluate(() => LEVELS.flatMap((level, index) => {
-    currentLevel = index; setEditorContent(level.best); render();
+    currentLevel = index; setEditorContent(level.solution); render();
     return getRowError() || !typeCheck(level, getCodeFromEditor()).ok ? [level.level] : [];
   }));
   expect(failures).toEqual([]);

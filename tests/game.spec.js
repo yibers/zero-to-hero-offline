@@ -103,35 +103,33 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('#status-output')).toContainText('did not make any changes');
   });
 
-  test('Attempt button completes level 1 with correct answer', async ({ page }) => {
+  test('Automatically completes level 1 with correct answer', async ({ page }) => {
     const editor = page.locator('#code-editor');
     await editor.fill('f z');
     await page.waitForTimeout(200);
 
-    await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
 
-    await expect(page.locator('body')).toContainText('Congratulations');
+    await expect(page.locator('body')).toContainText('Level complete!');
     await expect(page.locator('button', { hasText: 'Next level' })).toBeVisible();
   });
 
-  test('Attempt button shows failure for wrong answer', async ({ page }) => {
+  test('Automatically shows failure for wrong answer', async ({ page }) => {
     const editor = page.locator('#code-editor');
     await editor.fill('z');
     await page.waitForTimeout(200);
 
-    await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
 
     const statusBar = page.locator('#status-bar');
-    await expect(statusBar).toContainText('Failed');
-    await expect(page.locator('body')).not.toContainText('Congratulations');
+    await expect(statusBar).toContainText('Not solved');
+    await expect(page.locator('body')).not.toContainText('Level complete!');
   });
 
   test('can advance to level 2 after completing level 1', async ({ page }) => {
     const editor = page.locator('#code-editor');
     await editor.fill('f z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
 
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -143,7 +141,7 @@ test.describe('Zero to Hero', () => {
 
   test('level 2 correct solution: mkHero $ runZero z', async ({ page }) => {
     await page.locator('#code-editor').fill('f z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
@@ -153,9 +151,8 @@ test.describe('Zero to Hero', () => {
 
     await expect(page.locator('#syntax-hint')).toContainText('valid syntax');
 
-    await page.locator('button', { hasText: 'Attempt' }).click();
     await page.waitForTimeout(300);
-    await expect(page.locator('body')).toContainText('Congratulations');
+    await expect(page.locator('body')).toContainText('Level complete!');
   });
 
   test('live check updates in real-time as user types', async ({ page }) => {
@@ -237,20 +234,20 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('#syntax-hint')).toContainText('undefined is not allowed');
   });
 
-  test('Attempt rejects undefined inside expression', async ({ page }) => {
+  test('Automatically rejects undefined inside expression', async ({ page }) => {
     const editor = page.locator('#code-editor');
     await editor.fill('f undefined');
     await page.waitForTimeout(200);
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
-    await expect(page.locator('#status-bar')).toContainText('Failed');
+    await expect(page.locator('#status-bar')).toContainText('Not solved');
   });
 
   test('bypass button decrements count', async ({ page }) => {
     // Solve level 1 to earn 1 bypass point
     const editor = page.locator('#code-editor');
     await editor.fill('f z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
@@ -273,21 +270,21 @@ test.describe('Zero to Hero', () => {
 
     // Solve level 1
     await editor.fill('f z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 2
     await enterSolution(page, 'mkHero $ runZero z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 3
     await enterSolution(page, 'f3 $ f1 z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
@@ -329,28 +326,28 @@ test.describe('Zero to Hero', () => {
 
     // Solve level 1
     await editor.fill('f z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 2
     await enterSolution(page, 'mkHero $ runZero z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 3
     await enterSolution(page, 'f3 $ f1 z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     // Solve level 4
     await enterSolution(page, 'f2 $ f4 z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
@@ -386,25 +383,25 @@ test.describe('Zero to Hero', () => {
     const editor = page.locator('#code-editor');
 
     await editor.fill('f z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     await enterSolution(page, 'mkHero $ runZero z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     await enterSolution(page, 'f3 $ f1 z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
 
     await enterSolution(page, 'f2 $ f4 z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
     await page.locator('button', { hasText: 'Next level' }).click();
     await page.waitForTimeout(200);
@@ -770,7 +767,7 @@ test.describe('Zero to Hero', () => {
     // Solve level 1
     const editor = page.locator('#code-editor');
     await editor.fill('f z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
 
     // Should have 1 bypass point
@@ -784,7 +781,7 @@ test.describe('Zero to Hero', () => {
 
     // Re-solve level 1
     await page.locator('#code-editor').fill('f z');
-    await page.locator('button', { hasText: 'Attempt' }).click();
+
     await page.waitForTimeout(300);
 
     // Should still have 1 bypass point, not 2

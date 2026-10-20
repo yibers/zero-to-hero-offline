@@ -58,8 +58,8 @@ test('existing level 8 progress loads and preserves the extra parameters', async
   await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(4);
   await expect(page.locator('textarea.row-editor')).toHaveCount(5);
   expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
-  await expect(page.locator('#level-dialog')).toBeVisible();
+
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
 });
 
 test('Enter adds a source line and preserves the let program after refresh', async ({ page }) => {
@@ -76,8 +76,8 @@ test('Enter adds a source line and preserves the let program after refresh', asy
   await expect(editor).toHaveValue(source);
   await expect(page.locator('.program-row')).toHaveCount(0);
   await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
-  await expect(page.locator('#level-dialog')).toBeVisible();
+
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
 });
 
 test('operators containing equals do not prevent dropping at the start', async ({ page }) => {

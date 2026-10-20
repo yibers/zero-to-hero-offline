@@ -14,7 +14,7 @@ for (const phone of [false, true]) {
         for (const gecko of [false, true]) {
           geckoOn = gecko;
           LEVELS.forEach((level, index) => {
-            currentLevel = index; setEditorContent(level.best); render();
+            currentLevel = index; setEditorContent(level.solution); render();
             for (const atom of document.querySelectorAll('.type-atom, .type-placeholder')) {
               const box = atom.getBoundingClientRect();
               if (Math.abs(box.width - 15) > .01 || Math.abs(box.height - 15) > .01)
@@ -40,7 +40,7 @@ for (const phone of [false, true]) {
       await page.goto(URL);
       const sizes = await page.evaluate(() => {
         showIntro = false; iconMode = true; geckoOn = false; currentLevel = 13;
-        setEditorContent(LEVELS[currentLevel].best); render();
+        setEditorContent(LEVELS[currentLevel].solution); render();
         return ['a', 'Hero a', 'Hero (Hero a)', 'Hero (a, (a, a))'].map(type => {
           const holder = document.createElement('div'); holder.innerHTML = renderSemanticType(type);
           const svg = holder.firstElementChild;
@@ -72,7 +72,7 @@ test('diagrams reflow when a pane narrows and expand again when it widens', asyn
   await page.goto(URL);
   await page.evaluate(() => {
     showIntro = false; iconMode = true; geckoOn = false; currentLevel = 13;
-    setEditorContent(LEVELS[currentLevel].best); render();
+    setEditorContent(LEVELS[currentLevel].solution); render();
   });
   const diagram = page.locator('.icon-palette .func-card svg[data-diagram-type]').last();
   const wide = await diagram.boundingBox();

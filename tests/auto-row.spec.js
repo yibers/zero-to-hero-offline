@@ -40,7 +40,7 @@ test('one empty row is ready until the actual target is solved; changes and refr
   await choose(page, 0, 'z');
   await expect(ready(page)).toHaveCount(0);
   expect(await page.evaluate(() => typeCheck(LEVELS[currentLevel], getCodeFromEditor()).ok)).toBe(true);
-  expect(await page.evaluate(() => completedLevels.has(currentLevel))).toBe(false);
+  expect(await page.evaluate(() => completedLevels.has(currentLevel))).toBe(true);
   await choose(page, 0, null);
   await expect(ready(page)).toBeVisible();
   await page.reload();
@@ -82,8 +82,8 @@ test('dropping into the spare row adds one step, preserves scoring, and is one u
   await expect(row(page, 1)).toHaveValue('mkHero');
   await page.locator('.program-row:not(.ready-row)').first().press('Control+Shift+z');
   await expect(ready(page)).toHaveCount(0);
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
-  await expect(page.locator('#level-dialog')).toBeVisible();
+
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
   await expect(ready(page)).toHaveCount(0);
 });
 
@@ -114,7 +114,7 @@ test('a trailing empty row is reused, and clearing an earlier row removes it and
 test('every solved reference has no spare row; wrong types and invalid row programs still have one', async ({ page }) => {
   await open(page);
   const failures = await page.evaluate(() => LEVELS.flatMap((level, index) => {
-    currentLevel = index; setEditorContent(level.best); render();
+    currentLevel = index; setEditorContent(level.solution); render();
     return document.querySelector('.ready-row') || !typeCheck(level, getCodeFromEditor()).ok ? [index + 1] : [];
   }));
   expect(failures).toEqual([]);
@@ -175,7 +175,7 @@ test.describe('phone automatic rows', () => {
     await page.reload();
     await expect(page.locator('.program-row')).toHaveCount(2);
     await expect(ready(page)).toHaveCount(0);
-    await page.getByRole('button', { name: 'Attempt', exact: true }).tap();
-    await expect(page.locator('#level-dialog')).toBeVisible();
+
+    await expect(page.locator('#status-bar')).toHaveClass(/success/);
   });
 });

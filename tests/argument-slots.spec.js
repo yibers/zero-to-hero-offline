@@ -41,8 +41,8 @@ test('drop an argument inside a function, without a connector, and render its ou
   await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of f: z');
   await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Result r1: Hero a');
   await expect(page.locator('.row-result svg circle')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Attempt', exact: true }).click();
-  await expect(page.locator('#level-dialog')).toBeVisible();
+
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
 });
 
 test('arguments appear once inside the function rectangle and code editing is a separate view', async ({ page }) => {
@@ -74,15 +74,15 @@ test('arguments appear once inside the function rectangle and code editing is a 
 });
 
 test('dropping on the function head still opens the operator chooser', async ({ page }) => {
-  await open(page, 2, 'f1 z');
-  await mouseDrag(page, page.locator('.right-panel [data-func-name="f3"]'), page.locator('.function-head'));
+  await open(page, 11, 'f z');
+  await mouseDrag(page, page.locator('.right-panel [data-func-name="dup"]'), page.locator('.function-head'));
   await expect(page.getByRole('dialog', { name: 'Choose an operator' })).toBeVisible();
-  await page.getByRole('button', { name: 'Use $', exact: true }).click();
-  await expect(row(page)).toHaveValue('f1 $ f3 z');
+  await page.getByRole('button', { name: 'Use >>=', exact: true }).click();
+  await expect(row(page)).toHaveValue('f >>= dup z');
 });
 
 test('dragging a function out clears its whole call in block and code views; undo restores it', async ({ page }) => {
-  for (const [level, code, headName] of [[7, 'fmap cd z', 'fmap'], [7, 'fmap _ z', 'fmap'], [2, 'f3 . f1', '.']]) {
+  for (const [level, code, headName] of [[7, 'fmap cd z', 'fmap'], [7, 'fmap _ z', 'fmap'], [11, 'z >>= dup', '>>=']]) {
     for (const codeView of [false, true]) {
       await open(page, level, codeView ? '' : code);
       if (codeView) await row(page).fill(code);
@@ -117,28 +117,26 @@ test('fill a later input first, keep the hole through reload, then supply a func
 });
 
 test('slots accept ordinary functions and operators as values, and partial application stays valid', async ({ page }) => {
-  await open(page, 2, '(.)');
-  await choose(page, 0, 0, 'f3');
-  await choose(page, 0, 1, 'f1');
-  await expect(row(page)).toHaveValue('(.) f3 f1');
-  await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Result r1: Zero a -> Hero (a, a)');
-  await choose(page, 0, 2, 'z');
-  await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Result r1: Hero (a, a)');
-  await fillRow(page, 0, '($)');
-  await choose(page, 0, 0, '(.)');
-  await expect(row(page)).toHaveValue('($) (.)');
+  await open(page, 12, 'let r1 = f z in (<$>)');
+  await choose(page, 1, 0, 'swap');
+  await expect(row(page, 1)).toHaveValue('(<$>) swap');
+  await choose(page, 1, 1, 'r1');
+  await expect(page.locator('.row-result').last().locator('svg')).toHaveAttribute('aria-label', 'Result r2: Hero (b, a)');
+  await open(page, 14, 'pair');
+  await choose(page, 0, 0, '(<*>)');
+  await expect(row(page)).toHaveValue('pair (<*>)');
   expect(await page.evaluate(() => getRowError())).toBe(null);
 });
 
 test('replace and clear infix inputs without deleting their operator', async ({ page }) => {
-  await open(page, 1, '');
-  await fillRow(page, 0, 'mkHero $ z');
-  await choose(page, 0, 1, 'runZero');
-  await expect(row(page)).toHaveValue('mkHero $ runZero');
+  await open(page, 11, '');
+  await fillRow(page, 0, 'z >>= dup');
+  await choose(page, 0, 1, 'f');
+  await expect(row(page)).toHaveValue('z >>= f');
   await choose(page, 0, 0, null);
-  await expect(row(page)).toHaveValue('_ $ runZero');
-  await choose(page, 0, 0, 'mkHero');
-  await expect(row(page)).toHaveValue('mkHero $ runZero');
+  await expect(row(page)).toHaveValue('_ >>= f');
+  await choose(page, 0, 0, 'z');
+  await expect(row(page)).toHaveValue('z >>= f');
 });
 
 test('rendered results update dependent rows and are removed when inference fails', async ({ page }) => {
@@ -175,7 +173,7 @@ test('all reference solutions render every row including tuples, nested Heroes, 
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   const results = await page.evaluate(() => LEVELS.map((level, index) => {
-    currentLevel = index; setEditorContent(level.best); render();
+    currentLevel = index; setEditorContent(level.solution); render();
     return { level: index + 1, expected: getRows().length, rendered: document.querySelectorAll('.row-result .result-shape').length, valid: !getRowError() };
   }));
   expect(errors).toEqual([]);
@@ -244,8 +242,8 @@ test.describe('phone input slots', () => {
     await expect(row(page, 1)).not.toBeFocused();
     await page.reload();
     await expect(row(page, 1)).toHaveValue('mkHero r1');
-    await page.getByRole('button', { name: 'Attempt', exact: true }).tap();
-    await expect(page.locator('#level-dialog')).toBeVisible();
+
+    await expect(page.locator('#status-bar')).toHaveClass(/success/);
   });
   test('move a filled input between slots, preserve argument position, and cancel without changes', async ({ page }) => {
     await open(page, 14, 'pair f g');
