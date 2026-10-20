@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "scripts": {
     "test": "playwright test",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "version:assets": "node scripts/version-assets.js"
   },
   "keywords": [],
   "author": "",

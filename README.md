@@ -58,7 +58,6 @@ tests/          — Playwright + unit tests
 - Conciseness compares the number of operations with a reference solution, including unused operations. Row names, whitespace and generated `let` syntax do not count.
 - Touch drag-and-drop — drag a function/parameter card straight into the editor, in either mode. In icon mode, drag an editor token within or between rows, or out to remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
 - Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments.
-- Operator cards are marked with an “Operator” badge in both text and icon modes.
 - In icon mode, drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
 - Saved solutions from the earlier automatic-chaining editor retain their meaning through a one-time conversion to explicit `$` connectors.
 - Dragging a row's main function out in icon mode clears that row's arguments too; undo restores the whole call. Dragging an argument out clears only that input. In unstructured expressions, dragging a function out also removes an adjacent explicit connector.
@@ -70,6 +69,8 @@ tests/          — Playwright + unit tests
 ## Running
 
 Open `index.html` in a browser. That's it.
+
+Before publishing JavaScript or CSS changes, run `npm run version:assets`. This updates the file versions in `index.html` so browsers load the matching assets instead of an older cached editor.
 
 ## Testing
 

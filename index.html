@@ -159,8 +159,6 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .touch-drag-ghost .drag-action { display: none; font: 12px 'Exo', sans-serif; }
 .touch-drag-ghost.removing { background: #b91c1c; }
 .touch-drag-ghost.removing .drag-action { display: block; }
-.operator-badge { display: inline-block; margin-bottom: 6px; padding: 2px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font: 600 11px 'Exo', sans-serif; }
-.func-card-operator { border-left: 3px solid #a78bfa; }
 .func-card.dragging { opacity: 0.4; cursor: grabbing; }
 .editor-wrap.drag-over { outline: 2px solid #60a5fa; }
 .editor-wrap.drag-over textarea { cursor: copy; }
@@ -217,17 +215,17 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-arrow-header svg { height: 10px; }
 .gecko-arrow-body { display: flex; }
 </style>
-<link rel="stylesheet" href="row-editor.css">
+<link rel="stylesheet" href="row-editor.css?v=da00432f2699">
 </head>
 <body>
 
 <div id="app"></div>
 
-<script src="levels.js"></script>
-<script src="semantic-icons.js"></script>
-<script src="row-program.js"></script>
-<script src="row-editor.js"></script>
-<script src="text-editor.js"></script>
+<script src="levels.js?v=69235dc9e3ea"></script>
+<script src="semantic-icons.js?v=68f37f664b2a"></script>
+<script src="row-program.js?v=c84c05a60c11"></script>
+<script src="row-editor.js?v=fdf541853967"></script>
+<script src="text-editor.js?v=8b64fa28133a"></script>
 <script>
 
 // ─── Haskell Type Parser & Unifier ───
@@ -1106,8 +1104,7 @@ function render() {
 
         <div class="right-panel" role="region" aria-label="Available functions">
           ${level.funcs.map(f => `
-            <div class="func-card${isOperatorName(f.name) ? ' func-card-operator' : ''}" draggable="true" data-func-name="${f.name}">
-              ${isOperatorName(f.name) ? '<span class="operator-badge">Operator</span>' : ''}
+            <div class="func-card" draggable="true" data-func-name="${f.name}">
               <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
               ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
               ${iconMode ? `<p class="icon-explanation" title="${escHtml(ICON_DESCRIPTIONS[level.level][f.name])}">${escHtml(ICON_CAPTIONS[level.level][f.name])}</p>` : ''}

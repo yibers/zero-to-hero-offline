@@ -183,15 +183,14 @@ test('later levels offer their operators, text mode works, and rendering cancels
   await expect(editor).toHaveValue('f1 f2 z');
 });
 
-test('the function pane marks only operators in both display modes', async ({ page }) => {
+test('the function pane presents operators as ordinary functions in both display modes', async ({ page }) => {
   await load(page, { currentLevel: 6 });
   for (const mode of [true, false]) {
     await page.evaluate(mode => { iconMode = mode; render(); }, mode);
-    await expect(page.locator('.right-panel .operator-badge')).toHaveCount(4);
+    await expect(page.locator('.operator-badge, .func-card-operator')).toHaveCount(0);
     for (const name of ['(<$>)', '(<*>)', '($)', '(.)']) {
-      await expect(page.locator(`[data-func-name="${name}"] .operator-badge`)).toHaveText('Operator');
+      await expect(page.locator(`.right-panel [data-func-name="${name}"]`)).toHaveClass('func-card');
     }
-    await expect(page.locator('[data-func-name="f1"] .operator-badge')).toHaveCount(0);
-    await expect(page.locator('[data-func-name="z"] .operator-badge')).toHaveCount(0);
+    await expect(page.locator('.right-panel [data-func-name="f1"]')).toHaveClass('func-card');
   }
 });
