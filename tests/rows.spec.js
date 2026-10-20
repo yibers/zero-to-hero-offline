@@ -165,10 +165,10 @@ test.describe('phone rows', () => {
     await row(page, 0).fill('runZero z');
     await page.locator('#add-row').evaluate(button => button.click());
     await row(page, 1).fill('mkHero'); await row(page, 1).blur();
+    // Return to the normal icon layout after setting up the expressions.
+    await page.evaluate(() => render());
+    const to = await center(page.locator('.argument-slot[data-row="1"][data-slot="0"]'));
     const from = await center(page.locator('.row-result[data-func-name="r1"]'));
-    const to = await center(row(page, 1));
-    // Right edge inserts next to the function instead of opening the picker.
-    const bounds = await row(page,1).boundingBox(); to.x = bounds.x+bounds.width-12;
     await (await touch(page)).drag(from,to);
     await expect(row(page,1)).toHaveValue('mkHero r1');
     await expect(row(page,1)).not.toBeFocused();
@@ -188,7 +188,8 @@ test.describe('phone rows', () => {
     await t.drag(from,to);
     await expect(row(page,0)).toHaveValue('z'); await expect(row(page,1)).toHaveValue('f');
     await t.drag(await center(page.locator('.program-row').nth(1).locator('[data-name="f"]')),{x:8,y:10});
-    await expect(row(page,1)).toHaveValue('');
+    await expect(page.locator('textarea.row-editor')).toHaveCount(1);
+    await expect(page.locator('.ready-row')).toHaveCount(1);
     await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     await expect(row(page,1)).toHaveValue('f');
   });

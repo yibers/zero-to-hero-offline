@@ -87,7 +87,7 @@ test('dropping into the spare row adds one step, preserves scoring, and is one u
   await expect(ready(page)).toHaveCount(0);
 });
 
-test('a trailing empty row is reused, but clearing an earlier row does not hide the next step', async ({ page }) => {
+test('a trailing empty row is reused, and clearing an earlier row removes it and keeps the next step', async ({ page }) => {
   await open(page, 1, 'runZero z');
   await ready(page).click();
   await expect(row(page, 1)).toHaveValue('');
@@ -97,17 +97,18 @@ test('a trailing empty row is reused, but clearing an earlier row does not hide 
   await row(page, 1).fill('mkHero');
   await expect(ready(page)).toHaveCount(1);
   await dragFunctionOut(page);
-  await expect(row(page, 0)).toHaveValue('');
+  await expect(row(page, 0)).toHaveValue('mkHero');
+  await expect(page.locator('textarea.row-editor')).toHaveCount(1);
   await expect(ready(page)).toHaveCount(1);
-  await expect(page.locator('.program-row')).toHaveCount(3);
-  await expect(page.locator('.program-row').last()).toHaveAccessibleName('Row 3');
+  await expect(page.locator('.program-row')).toHaveCount(2);
+  await expect(page.locator('.program-row').last()).toHaveAccessibleName('Row 2');
   await page.reload();
   await expect(ready(page)).toBeVisible();
   await page.locator('[data-func-name="runZero"]').dragTo(ready(page));
-  await expect(row(page, 2)).toHaveValue('runZero');
-  await expect(page.locator('.program-row')).toHaveCount(4);
-  await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
+  await expect(row(page, 1)).toHaveValue('runZero');
   await expect(page.locator('.program-row')).toHaveCount(3);
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
+  await expect(page.locator('.program-row')).toHaveCount(2);
 });
 
 test('every solved reference has no spare row; wrong types and invalid row programs still have one', async ({ page }) => {

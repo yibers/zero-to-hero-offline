@@ -235,9 +235,26 @@ function mountRowEditor() {
     }
   }
   function nextRowId(rows) {
+    // A removed row may still be referenced by unfinished steps. Never silently
+    // reconnect those inputs to an unrelated new row with the same name.
+    const used = new Set(rows.flatMap(row => [row.id, ...tokens(row.expr).map(token => token.name)]));
     let n = 1;
-    while (rows.some(row => row.id === `r${n}`)) n++;
+    while (used.has(`r${n}`)) n++;
     return `r${n}`;
+  }
+  function removeEmptyRows() {
+    const rows = getRows(), selected = rows[activeRow]?.id;
+    const remaining = rows.filter(row => row.expr.trim());
+    // Keep a starting drop area when the whole program is empty. Otherwise
+    // paintReadyRow supplies the one spare row without adding it to the source.
+    if (!remaining.length) remaining.push(rows[activeRow] || rows[0]);
+    if (remaining.length === rows.length) return false;
+    const kept = new Set(remaining.map(row => row.id));
+    rows.forEach(row => { if (!kept.has(row.id)) sourceRows.delete(row.id); });
+    rowPrograms[currentLevel] = remaining;
+    const selectedIndex = remaining.findIndex(row => row.id === selected);
+    activeRow = selectedIndex >= 0 ? selectedIndex : Math.min(activeRow, remaining.length - 1);
+    return true;
   }
   function build() {
     const rows = getRows();
@@ -249,12 +266,16 @@ function mountRowEditor() {
       <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></div></section>`).join('');
     paint();
   }
-  function commit(rebuild = false) { persistRows(); notice(''); rebuild ? build() : paint(); }
+  function commit(rebuild = false, keepNewDropArea = false) {
+    const removed = !keepNewDropArea && removeEmptyRows();
+    persistRows(); notice('');
+    rebuild || removed ? build() : paint();
+  }
   function newRow(at) {
     rememberRows();
     const rows = getRows();
     rows.splice(at, 0, { id: nextRowId(rows), expr: '' });
-    activeRow = at; commit(true);
+    activeRow = at; commit(true, true);
     editors()[at].closest('.program-row').scrollIntoView({ block: 'nearest' });
     focusRow(at);
   }
@@ -378,7 +399,7 @@ function mountRowEditor() {
       const left = connector.swapped ? name : target, right = connector.swapped ? target : name;
       next[rowIndex].expr = text.slice(0, connector.start) + `${left} ${connector.op ? connector.op + ' ' : ''}${right}` + text.slice(connector.end);
     } else next[rowIndex].expr = inserted(next[rowIndex].expr, pos, name);
-    rememberRows(); rowPrograms[currentLevel] = next; activeRow = rowIndex; commit(createsRow); activate(rowIndex);
+    rememberRows(); rowPrograms[currentLevel] = next; activeRow = rowIndex; commit(createsRow); activate(activeRow);
   }
   function slotAt(point) {
     const slot = document.elementFromPoint(point.clientX, point.clientY)?.closest('.argument-slot');
@@ -413,7 +434,7 @@ function mountRowEditor() {
     }
     next[index].expr = RowProgram.setArgument(next[index].expr, position, value ? RowProgram.print({ kind: 'name', name: value }) : null);
     if (JSON.stringify(next) === rowSnapshot()) return;
-    rememberRows(); rowPrograms[currentLevel] = next; activeRow = index; commit(); activate(index);
+    rememberRows(); rowPrograms[currentLevel] = next; activeRow = index; commit(); activate(activeRow);
   }
   function chooseArgument(slot) {
     const index = Number(slot.dataset.row), position = Number(slot.dataset.slot), snapshot = rowSnapshot();
@@ -761,6 +782,7 @@ function mountRowEditor() {
   listen(document, 'contextmenu', e => { if (drag) e.preventDefault(); });
   listen(window, 'resize', () => editors().forEach(drawOverlay));
   rowEditorCleanup = () => { closeDeletePreview?.(); cleanupDrag(); controller.abort(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
+  if (removeEmptyRows()) persistRows();
   build();
   document.fonts.ready.then(() => { if (!controller.signal.aborted) editors().forEach(drawOverlay); });
 }
