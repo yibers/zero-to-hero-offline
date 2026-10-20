@@ -14,6 +14,7 @@
 .row-number { font-size: 11px; color: #64748b; }
 .result-handle { color: #5b21b6; background: #ede9fe; border: 1px solid #c4b5fd; border-radius: 7px; padding: 6px 10px; font: bold 14px 'Fira Code',monospace; min-height: 40px; cursor: grab; touch-action: none; }
 .row-role { font-size: 11px; color: #64748b; flex: 1; }
+.editor-icons .program-row:not(:last-child) .row-role { display: none; }
 .program-row:last-child .row-role { color: #047857; font-weight: 600; }
 .row-actions { display: flex; margin-left: auto; }
 .row-actions button { border: 0; background: transparent; color: #475569; min-width: 32px; height: 36px; font-size: 18px; cursor: pointer; }
