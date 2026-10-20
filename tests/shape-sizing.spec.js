@@ -15,7 +15,7 @@ for (const phone of [false, true]) {
           geckoOn = gecko;
           LEVELS.forEach((level, index) => {
             currentLevel = index; setEditorContent(level.best); render();
-            for (const atom of document.querySelectorAll('.type-atom')) {
+            for (const atom of document.querySelectorAll('.type-atom, .type-placeholder')) {
               const box = atom.getBoundingClientRect();
               if (Math.abs(box.width - 15) > .01 || Math.abs(box.height - 15) > .01)
                 failures.push({ level: level.level, type: atom.dataset.type, width: box.width, height: box.height });
@@ -60,8 +60,8 @@ for (const phone of [false, true]) {
         return { callCenter: call.y + call.height / 2, resultCenter: result.y + result.height / 2,
           callBottom: call.bottom, resultTop: result.top, rightInset: row.getBoundingClientRect().right - result.right };
       });
-      if (phone) expect(positions.resultTop).toBeGreaterThan(positions.callBottom);
-      else expect(positions.callCenter).toBeCloseTo(positions.resultCenter, 1);
+      // Specializing a placeholder to a nested type may wrap even on desktop.
+      expect(Math.abs(positions.callCenter - positions.resultCenter) < .05 || positions.resultTop > positions.callBottom).toBe(true);
       expect(positions.rightInset).toBeLessThan(10);
     });
   });

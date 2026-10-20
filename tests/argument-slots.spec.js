@@ -221,10 +221,12 @@ test.describe('phone input slots', () => {
     const to = await center(slot(page, 0, 0));
     await t.drag(await center(page.locator('#editor-prefix [data-func-name="bd"]')), to);
     await expect(row(page)).toHaveValue('fmap bd');
+    await expect(page.locator('.function-head .type-atom[data-type="b"]')).toHaveCount(2);
     await t.drag(await center(page.locator('#editor-prefix [data-func-name="cd"]')), await center(slot(page, 0, 0)));
     await expect(row(page)).toHaveValue('fmap cd');
     await t.drag(await center(slot(page, 0, 0)), { x: 8, y: 10 });
     await expect(row(page)).toHaveValue('fmap');
+    await expect(page.locator('.function-head .type-atom')).toHaveCount(0);
     await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     await expect(row(page)).toHaveValue('fmap cd');
     await expect(page.locator('.slot-target, #touch-drag-ghost')).toHaveCount(0);

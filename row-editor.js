@@ -28,13 +28,21 @@ function getRowError() {
   const index = errors.findIndex(Boolean);
   return index < 0 ? null : `Row ${index + 1}: ${errors[index]}`;
 }
-function rowSymbol(name, width) {
+function rowSymbol(name, width, diagram = null) {
+  if (iconMode && diagram) {
+    const label = name + ': ' + rowTypeSignatures([diagram.type])[0];
+    const picture = diagram.arity === undefined
+      ? renderSemanticType(diagram.type, label, diagram.variables)
+      : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables);
+    const reference = /^r\d+$/.test(name) ? ' row-ref rendered-ref' : '';
+    return `<span class="icon-sym semantic-icon${reference}" title="${escHtml(label)}">${picture}</span>`;
+  }
   const reference = getRows().findIndex(row => row.id === name);
   if (reference >= 0 || /^r\d+$/.test(name)) {
     const diagnostic = rowDiagnostics[reference];
     if (iconMode) {
       const label = name + ': ' + (diagnostic?.signature || 'result unavailable');
-      const picture = diagnostic?.signature ? renderSemanticType(diagnostic.signature, label)
+      const picture = diagnostic?.signature ? renderSemanticType(diagnostic.diagram.type, label, diagnostic.diagram.variables)
         : `<svg viewBox="0 0 40 40" role="img" aria-label="${escHtml(label)}"><rect x="6" y="6" width="28" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/></svg>`;
       return `<span class="icon-sym row-ref rendered-ref" title="${escHtml(label)}"${width ? ` style="width:${width}ch"` : ''}>${picture}</span>`;
     }
@@ -60,8 +68,9 @@ function diagnoseCall(code, env, params) {
   const model = RowProgram.call(code);
   if (!model) return null;
   try {
-    let type = inferExpr(RowProgram.print({ kind: 'name', name: model.name }), env, params);
-    const inputs = [];
+    const headType = inferExpr(RowProgram.print({ kind: 'name', name: model.name }), env, params);
+    let type = headType;
+    const inputs = [], actuals = [];
     while (type?.tag === 'fun') { inputs.push(type.from); type = type.to; }
     if (!inputs.length || model.args.length > inputs.length) return null;
     let subst = {};
@@ -69,10 +78,25 @@ function diagnoseCall(code, env, params) {
       if (name === '_') return;
       try {
         const actual = inferExpr(RowProgram.print({ kind: 'name', name }), env, params);
+        actuals[i] = actual;
         subst = unify(inputs[i], actual, subst) || subst;
       } catch (_) { /* Keep editable slots even when an input is invalid. */ }
     });
-    return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))) };
+    // Retain the template's marker positions as variables become fixed or are
+    // unified with variables in supplied functions. Each call specializes alone.
+    const variables = [...new Set([...findVars(headType)].map(name => {
+      const resolved = applySubst(subst, { tag: 'var', name });
+      return resolved.tag === 'var' ? resolved.name : name;
+    }))];
+    for (const actual of actuals) if (actual) {
+      for (const name of findVars(applySubst(subst, actual))) if (!variables.includes(name)) variables.push(name);
+    }
+    let remaining = headType;
+    for (const _ of model.args) remaining = remaining.to;
+    return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))),
+      diagram: { type: applySubst(subst, headType), variables, arity: model.name === '.' ? 2 : inputs.length },
+      arguments: actuals.map(actual => actual && ({ type: applySubst(subst, actual), variables })),
+      result: { type: applySubst(subst, remaining), variables } };
   } catch (_) { return null; }
 }
 function diagnoseRows() {
@@ -94,7 +118,7 @@ function diagnoseRows() {
       const type = inferExpr(row.expr, env, params);
       if (!type) throw Error('Incomplete expression.');
       env[row.id] = type;
-      return { type, signature: rowTypeSignatures([type])[0], call };
+      return { type, signature: rowTypeSignatures([type])[0], diagram: call?.result || { type }, call };
     } catch (e) {
       return { error: errors[index] || normalizeTypeError(e.message), call };
     }
@@ -156,11 +180,11 @@ function mountRowEditor() {
     if (!structured) { holder.replaceChildren(); return; }
     const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
     const head = ts[call.infix ? 1 : 0];
-    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name)}</button><div class="input-slots">` + call.inputs.map((_, slot) => {
+    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name, null, call.diagram)}</button><div class="input-slots">` + call.inputs.map((_, slot) => {
       const name = call.args[slot], filled = name && name !== '_';
       const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
       return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${filled ? escHtml(name) : 'Drop an argument here'}">
-        <span class="input-number">${slot + 1}</span>${filled ? `<span class="input-picture">${rowSymbol(name)}</span>` : ''}</button>`;
+        <span class="input-number">${slot + 1}</span>${filled ? `<span class="input-picture">${rowSymbol(name, null, call.arguments[slot])}</span>` : ''}</button>`;
     }).join('') + '</div>';
   }
   function paint() {
@@ -175,7 +199,7 @@ function mountRowEditor() {
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
       feedback.innerHTML = diagnostic.error
         ? (rows[i].expr.trim() ? `<span>${escHtml(diagnostic.error)}</span>` : '')
-        : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
+        : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${renderSemanticType(diagnostic.diagram.type, 'Result ' + rows[i].id + ': ' + diagnostic.signature, diagnostic.diagram.variables)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
       feedback.classList.toggle('error-feedback', !!diagnostic.error);
     });
     paintReadyRow();
@@ -231,7 +255,7 @@ function mountRowEditor() {
     } else {
       const goal = document.createElement('div');
       goal.className = 'goal-output';
-      goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(goalType, 'Goal: ' + goalSignature)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
+      goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedSemanticType(goalType), 'Goal: ' + goalSignature)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
       lastRow.querySelector('.row-flow').append(goal);
     }
   }
@@ -739,7 +763,7 @@ function mountRowEditor() {
     if (card) card.draggable = false;
     drag = { card, id: e.pointerId, name: card?.dataset.funcName || source.name, source, x: e.clientX, y: e.clientY, moved: false, snapshot: rowSnapshot() };
     ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost';
-    ghost.innerHTML = rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1')) + `<span class="drag-action">${isRowHead(source) ? 'Release outside to clear row' : 'Release outside to remove'}</span>`;
+    ghost.innerHTML = (source?.node?.querySelector('svg.semantic-diagram')?.outerHTML || rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1'))) + `<span class="drag-action">${isRowHead(source) ? 'Release outside to clear row' : 'Release outside to remove'}</span>`;
     document.body.append(ghost); fitSemanticDiagrams(ghost); moveGhost(e);
     source?.node.classList.add('drag-source'); card?.classList.add('dragging');
   });

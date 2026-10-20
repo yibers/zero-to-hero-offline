@@ -1,5 +1,5 @@
 // Pictograms describe the puzzle's type transformations. No runtime behavior is
-// inferred beyond the supplied signatures. Variable identities are local to an icon.
+// inferred beyond the supplied signatures. Generic variables use matching dashed tiles; rigid puzzle types keep solid shapes.
 function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   const escape = text => String(text).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const shield = '<path d="M12 2 4 6v7c0 4.5 3.3 7.4 8 9 4.7-1.6 8-4.5 8-9V6Z"/>';
@@ -19,6 +19,26 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     c: '<path d="m12 2 10 10-10 10L2 12Z" fill="#c084fc" stroke="#6b21a8" stroke-width="2"/>',
     d: '<path d="M12 2 22 22H2Z" fill="#6ee7b7" stroke="#065f46" stroke-width="2"/>',
   };
+  function fixedType(type) {
+    if (typeof type === 'string') type = parseType(type);
+    if (type.tag === 'var') return { tag: 'con', name: 'SKOLEM' + type.name };
+    if (type.tag === 'fun') return { ...type, from: fixedType(type.from), to: fixedType(type.to) };
+    if (type.tag === 'app') return { ...type, con: fixedType(type.con), arg: fixedType(type.arg) };
+    return type;
+  }
+  function placeholder(name, variables) {
+    if (!variables.has(name)) variables.set(name, variables.size);
+    const index = variables.get(name), count = index + 1;
+    const dice = [[[12, 12]], [[8, 8], [16, 16]], [[7, 7], [12, 12], [17, 17]],
+      [[7, 7], [17, 7], [7, 17], [17, 17]], [[7, 7], [17, 7], [12, 12], [7, 17], [17, 17]],
+      [[7, 6], [17, 6], [7, 12], [17, 12], [7, 18], [17, 18]]];
+    const columns = Math.ceil(Math.sqrt(count));
+    const dots = dice[index] || Array.from({ length: count }, (_, i) =>
+      [5 + (i % columns) * 14 / (columns - 1), 5 + Math.floor(i / columns) * 14 / (columns - 1)]);
+    return `<g class="type-placeholder" data-variable="${escape(name)}" data-marker="${count}"><title>Type placeholder ${count}: any type; matching marks use the same type</title>` +
+      '<rect x="2" y="2" width="20" height="20" rx="4" fill="#f8fafc" stroke="#64748b" stroke-width="1.6" stroke-dasharray="3 2"/>' +
+      dots.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.7" fill="#475569"/>`).join('') + '</g>';
+  }
   const arrow = y => outline(`<path d="M4 ${y}H20m-5-5 5 5-5 5"/>`, 1.8);
   function parts(type, limit = Infinity) {
     const args = [];
@@ -55,8 +75,8 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     return { width, height, body: outline(shape(width, height)) + move(content.body, padding.x, padding.y) };
   }
   const rectangle = (w, h) => `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="4"/>`;
-  function flow(args, result, maxWidth = Infinity) {
-    const inputs = row(args.map(type => layout(type, maxWidth)), 6, maxWidth), output = layout(result, maxWidth);
+  function flow(args, result, maxWidth = Infinity, variables = new Map()) {
+    const inputs = row(args.map(type => layout(type, maxWidth, variables)), 6, maxWidth), output = layout(result, maxWidth, variables);
     if (inputs.width + 28 + output.width > maxWidth) {
       const width = Math.max(inputs.width, output.width);
       const center = width / 2, arrowTop = inputs.height + 4;
@@ -71,21 +91,23 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         move(arrow(height / 2), inputs.width + 2, 0) +
         `<g class="icon-output">${move(output.body, inputs.width + 28, (height - output.height) / 2)}</g>` };
   }
-  function layout(type, maxWidth = Infinity) {
-    if (type.tag === 'var') {
-      const mark = marks[type.name] || outline('<circle cx="12" cy="12" r="10"/>') + `<text x="12" y="16" text-anchor="middle" font-size="12" fill="currentColor">${escape(type.name)}</text>`;
-      return { width: 24, height: 24, body: `<g class="type-atom" data-type="${escape(type.name)}">${mark}</g>` };
+  function layout(type, maxWidth = Infinity, variables = new Map()) {
+    if (type.tag === 'var') return { width: 24, height: 24, body: placeholder(type.name, variables) };
+    if (type.tag === 'con' && type.name.startsWith('SKOLEM')) {
+      const name = type.name.slice(6);
+      const mark = marks[name] || outline('<circle cx="12" cy="12" r="10"/>');
+      return { width: 24, height: 24, body: `<g class="type-atom" data-type="${escape(name)}">${mark}</g>` };
     }
     if (type.tag === 'fun') {
       const { args, result } = parts(type);
-      return frame(flow(args, result, Math.max(24, maxWidth - 12)), { x: 6, y: 6 }, rectangle);
+      return frame(flow(args, result, Math.max(24, maxWidth - 12), variables), { x: 6, y: 6 }, rectangle);
     }
     const { head, args } = type.tag === 'app' ? flattenApp(type) : { head: type, args: [] };
     if (head.name === '()') return { width: 24, height: 24,
       body: outline('<circle cx="12" cy="12" r="8"/><path d="M8 12h8"/>') };
     const inset = head.name === 'Hero' ? 28 : head.name === 'Zero' ? 20 : 12;
     const innerWidth = Math.max(24, maxWidth - inset);
-    const contents = row(args.map(type => layout(type, innerWidth)), 6, innerWidth);
+    const contents = row(args.map(type => layout(type, innerWidth, variables)), 6, innerWidth);
     if (head.name.startsWith('(')) return frame(contents, { x: 6, y: 6 }, rectangle);
     if (head.name === 'Zero') return frame(contents, { x: 10, y: 10 }, (w, h) =>
       `<path d="M${w / 2} 1 1 9v${h - 27}Q1 ${h - 7} ${w / 2} ${h - 1}Q${w - 1} ${h - 7} ${w - 1} ${h - 18}V9Z"/>`);
@@ -93,14 +115,15 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       `<path d="M${w - 16} 2l4 7q6 4 5 11l5 2v4l-5 1q-2 ${h - 35} -14 ${h - 35}L8 ${h - 2}l3-8-9 3L8 ${h / 2 + 7} 1 ${h / 2 + 2} 9 ${h / 2 - 6} 4 10H${w - 24}q5-5 9-1Z"/>`);
     throw new Error('No pictogram for type constructor ' + head.name);
   }
-  function picture(label, diagram, className = '', type = null, arity = null) {
-    const attributes = type ? ` data-diagram-type="${escape(typeToString(type))}"${arity === null ? '' : ` data-diagram-arity="${arity}"`}` : '';
+  function picture(label, diagram, className = '', type = null, arity = null, variables = new Map()) {
+    const attributes = type ? ` data-diagram-type="${escape(typeToString(type))}" data-diagram-variables="${escape(JSON.stringify([...variables.keys()]))}"${arity === null ? '' : ` data-diagram-arity="${arity}"`}` : '';
     return svg(label, `<g${className ? ` class="${className}"` : ''}>${move(diagram.body, 2, 2)}</g>`, diagram.width + 4, diagram.height + 4)
       .replace('<svg ', `<svg${attributes} `);
   }
-  function transformation(signature, label, arity = Infinity) {
-    const type = parseType(signature), { args, result } = parts(type, arity);
-    return picture(label, flow(args, result), '', type, arity);
+  function transformation(signature, label, arity = Infinity, variableNames = []) {
+    const type = typeof signature === 'string' ? parseType(signature) : signature;
+    const { args, result } = parts(type, arity), variables = new Map(variableNames.map((name, i) => [name, i]));
+    return picture(label, flow(args, result, Infinity, variables), '', type, arity, variables);
   }
   const parsedTypes = new Map();
   function fit(root = document) {
@@ -131,7 +154,8 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       if (!parsedTypes.has(signature)) parsedTypes.set(signature, parseType(signature));
       const type = parsedTypes.get(signature), arity = node.getAttribute('data-diagram-arity');
       const { args, result } = arity === null ? {} : parts(type, Number(arity));
-      const diagram = arity === null ? layout(type, budget) : flow(args, result, budget);
+      const variables = new Map(JSON.parse(node.dataset.diagramVariables).map((name, i) => [name, i]));
+      const diagram = arity === null ? layout(type, budget, variables) : flow(args, result, budget, variables);
       const width = diagram.width + 4, height = diagram.height + 4;
       const className = node.querySelector('.result-shape') ? 'result-shape' : '';
       node.innerHTML = `<title>${escape(node.getAttribute('aria-label'))}</title><g class="${className}">${move(diagram.body, 2, 2)}</g>`;
@@ -141,7 +165,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     }
   }
   const data = {
-    1: { f: ['Changes the wrapper; keeps the value. The dot represents a.', 'Change Zero to Hero, keeping the same value.'] },
+    1: { f: ['Change Zero to Hero', 'Change Zero to Hero, keeping the same value.'] },
     2: {
       runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
       mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
@@ -244,12 +268,13 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       const type = args[i];
       const info = name === 'z' ? (level.level === 10 ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.') : `Function from ${typeToString(type.from)} to ${typeToString(type.to)}.`;
       labels[name] = details[name] = info;
-      map[name] = picture(`${name}: ${info} Type: ${typeToString(type)}`, layout(type), '', type);
+      map[name] = renderType(fixedType(type), `${name}: ${info} Type: ${typeToString(type)}`);
     });
   }
-  function renderType(signature, label = signature) {
+  function renderType(signature, label = signature, variableNames = []) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
-    return picture(label, layout(type), 'result-shape', type);
+    const variables = new Map(variableNames.map((name, i) => [name, i]));
+    return picture(label, layout(type, Infinity, variables), 'result-shape', type, null, variables);
   }
-  return {icons, cardIcons, captions, descriptions, renderType, fit};
+  return {icons, cardIcons, captions, descriptions, renderType, transformation, fixedType, fit};
 }

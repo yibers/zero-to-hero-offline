@@ -222,9 +222,9 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 <div id="app"></div>
 
 <script src="levels.js?v=69235dc9e3ea"></script>
-<script src="semantic-icons.js?v=6773149dcdce"></script>
+<script src="semantic-icons.js?v=bcfd232c750b"></script>
 <script src="row-program.js?v=c84c05a60c11"></script>
-<script src="row-editor.js?v=3c2ce2a1d719"></script>
+<script src="row-editor.js?v=042a001d20dd"></script>
 <script src="text-editor.js?v=8b64fa28133a"></script>
 <script>
 
@@ -1579,7 +1579,7 @@ const geckoColors = {
 const varColor = 'rgb(239,177,177)';
 
 // Render type patterns from each level's actual signatures, including function arguments.
-const { icons: LEVEL_ICONS, cardIcons: FUNCTION_CARD_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, renderType: renderSemanticType, fit: fitSemanticDiagrams } =
+const { icons: LEVEL_ICONS, cardIcons: FUNCTION_CARD_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, renderType: renderSemanticType, transformation: renderSemanticTransformation, fixedType: fixedSemanticType, fit: fitSemanticDiagrams } =
   createSemanticIcons(LEVELS, parseType, flattenApp, typeToString);
 
 function symbolDisplay(name, fallbackHtml, fixedWidthCh) {
