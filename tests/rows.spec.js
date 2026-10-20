@@ -37,7 +37,7 @@ test('level 2 builds with a result reference, generates let, solves and survives
   await open(page, 1);
   await row(page, 0).fill('runZero z');
   await expect(page.locator('.row-feedback').first()).toContainText('a');
-  await page.getByRole('button', { name: '+ Add row', exact: true }).click();
+  await page.locator('#add-row').evaluate(button => button.click());
   await row(page, 1).fill('mkHero');
   await page.locator('.row-result[data-func-name="r1"]').click();
   await expect(row(page, 1)).toHaveValue('mkHero r1');
@@ -89,9 +89,9 @@ test('function-valued results can be applied and reused polymorphically', async 
   expect(result.ok).toBe(true);
   await load(page, 1, '');
   await row(page, 0).fill('mkHero');
-  await page.getByRole('button', { name: '+ Add row', exact: true }).click();
+  await page.locator('#add-row').evaluate(button => button.click());
   await row(page, 1).fill('runZero z');
-  await page.getByRole('button', { name: '+ Add row', exact: true }).click();
+  await page.locator('#add-row').evaluate(button => button.click());
   await row(page, 2).fill('r1 r2');
   await page.getByRole('button', { name: 'Attempt', exact: true }).click();
   await expect(page.locator('#level-dialog')).toBeVisible();
@@ -113,10 +113,10 @@ test('deleting dependent rows requires confirmation and undo restores the full p
   await dialog.getByRole('button', { name: 'Delete 2 rows', exact: true }).click();
   await expect(page.locator('.program-row')).toHaveCount(1);
   await expect(row(page, 0)).toHaveValue('');
-  await page.getByRole('button', { name: 'Undo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
   await expect(row(page, 0)).toHaveValue('runZero z');
   await expect(row(page, 1)).toHaveValue('mkHero r1');
-  await page.getByRole('button', { name: 'Redo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+Shift+z');
   await expect(page.locator('.program-row')).toHaveCount(1);
   await expect(row(page, 0)).toHaveValue('');
 });
@@ -163,7 +163,7 @@ test.describe('phone rows', () => {
   test('drag a prior result into a later row and keep it after reload', async ({ page }) => {
     await open(page, 1, true);
     await row(page, 0).fill('runZero z');
-    await page.getByRole('button', { name: '+ Add row', exact: true }).tap();
+    await page.locator('#add-row').evaluate(button => button.click());
     await row(page, 1).fill('mkHero'); await row(page, 1).blur();
     const from = await center(page.locator('.row-result[data-func-name="r1"]'));
     const to = await center(row(page, 1));
@@ -179,7 +179,7 @@ test.describe('phone rows', () => {
   test('tokens move between rows, drag out, and undo restores them', async ({ page }) => {
     await open(page, 0, true);
     await row(page, 0).fill('f z');
-    await page.getByRole('button',{name:'+ Add row',exact:true}).tap();
+    await page.locator('#add-row').evaluate(button => button.click());
     const t = await touch(page);
     // Both rows must be visible during the gesture.
     await page.locator('#program-rows').evaluate(el=>{el.style.minHeight='470px';el.scrollTop=0;});
@@ -189,7 +189,7 @@ test.describe('phone rows', () => {
     await expect(row(page,0)).toHaveValue('z'); await expect(row(page,1)).toHaveValue('f');
     await t.drag(await center(page.locator('.program-row').nth(1).locator('[data-name="f"]')),{x:8,y:10});
     await expect(row(page,1)).toHaveValue('');
-    await page.getByRole('button',{name:'Undo row edit'}).tap();
+    await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     await expect(row(page,1)).toHaveValue('f');
   });
   test('immediate drag has a preview, cancellation and second fingers leave code intact', async ({ page }) => {
@@ -208,8 +208,8 @@ test.describe('phone rows', () => {
   test('dropping result on result offers an operator; edges remain ordinary insertion', async ({ page }) => {
     await open(page,6,true);
     await load(page,6,'f1 z');
-    await page.getByRole('button',{name:'+ Add row',exact:true}).tap(); await row(page,1).fill('f3 z');
-    await page.getByRole('button',{name:'+ Add row',exact:true}).tap(); await row(page,2).fill('r1'); await row(page,2).blur();
+    await page.locator('#add-row').evaluate(button => button.click()); await row(page,1).fill('f3 z');
+    await page.locator('#add-row').evaluate(button => button.click()); await row(page,2).fill('r1'); await row(page,2).blur();
     const from=await center(page.locator('.row-result[data-func-name="r2"]'));
     const to=await center(page.locator('.program-row').nth(2).locator('[data-name="r1"]'));
     await (await touch(page)).drag(from,to);

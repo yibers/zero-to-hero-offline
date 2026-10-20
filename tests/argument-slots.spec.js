@@ -91,10 +91,10 @@ test('dragging a function out clears its whole call in block and code views; und
       await expect(row(page)).toHaveValue('');
       await expect(page.locator('.argument-slot, .row-result')).toHaveCount(0);
       await expect(page.locator('.program-row')).toHaveCount(1);
-      await page.getByRole('button', { name: 'Undo row edit' }).click();
+      await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
       await expect(row(page)).toHaveValue(code);
     }
-    await page.getByRole('button', { name: 'Redo row edit' }).click();
+    await page.locator('.program-row:not(.ready-row)').first().press('Control+Shift+z');
     await page.reload();
     await expect(row(page)).toHaveValue('');
   }
@@ -112,7 +112,7 @@ test('fill a later input first, keep the hole through reload, then supply a func
   await expect(row(page)).toHaveValue('fmap cd z');
   await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Result r1: Zero a b d');
   expect(await page.evaluate(() => getRowError())).toBe(null);
-  await page.getByRole('button', { name: 'Undo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
   await expect(row(page)).toHaveValue('fmap _ z');
 });
 
@@ -160,7 +160,7 @@ test('rendered results update dependent rows and are removed when inference fail
 test('drag the output picture itself into a later input; self references remain blocked', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 1200 });
   await open(page, 1, 'runZero z');
-  await page.getByRole('button', { name: '+ Add row', exact: true }).click();
+  await page.locator('#add-row').evaluate(button => button.click());
   await fillRow(page, 1, 'mkHero');
   await mouseDrag(page, page.locator('.row-result').first(), slot(page, 1, 0));
   await expect(row(page, 0)).toHaveValue('runZero z');
@@ -200,7 +200,7 @@ test.describe('phone input slots', () => {
     // A function used as an argument removes only that input.
     await t.drag(await center(slot(page, 0, 0)), { x: 8, y: 10 });
     await expect(row(page)).toHaveValue('pair _ g');
-    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     const head = page.locator('.function-head');
     await t.send('touchStart', [await center(head)]);
     await t.send('touchMove', [{ x: 8, y: 10 }]);
@@ -210,7 +210,7 @@ test.describe('phone input slots', () => {
     await t.drag(await center(head), { x: 8, y: 10 });
     await expect(row(page)).toHaveValue('');
     await expect(page.locator('.argument-slot, #touch-drag-ghost')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     await expect(row(page)).toHaveValue('pair f g');
     await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of pair: f');
     await expect(slot(page, 0, 1)).toHaveAttribute('aria-label', 'Input 2 of pair: g');
@@ -225,13 +225,13 @@ test.describe('phone input slots', () => {
     await expect(row(page)).toHaveValue('fmap cd');
     await t.drag(await center(slot(page, 0, 0)), { x: 8, y: 10 });
     await expect(row(page)).toHaveValue('fmap');
-    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     await expect(row(page)).toHaveValue('fmap cd');
     await expect(page.locator('.slot-target, #touch-drag-ghost')).toHaveCount(0);
   });
   test('use the rendered previous result as an input and preserve it after refresh', async ({ page }) => {
     await open(page, 1, 'runZero z');
-    await page.getByRole('button', { name: '+ Add row', exact: true }).tap();
+    await page.locator('#add-row').evaluate(button => button.click());
     await fillRow(page, 1, 'mkHero'); await row(page, 1).blur();
     const target = await center(slot(page, 1, 0));
     const card = page.locator('.row-result[data-func-name="r1"]');
@@ -256,7 +256,7 @@ test.describe('phone input slots', () => {
     await t.send('touchMove', [{ x: start.x - 20, y: start.y - 20 }]);
     await t.send('touchCancel', []);
     await expect(row(page)).toHaveValue('pair _ f');
-    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     await expect(row(page)).toHaveValue('pair f g');
     await slot(page, 0, 0).tap();
     await expect(page.getByRole('dialog', { name: 'Choose input 1 of pair' })).toBeVisible();

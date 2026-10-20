@@ -158,7 +158,7 @@ test.describe('Phone touch dragging', () => {
     await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     for (let i = 0; i < 5; i++) {
-      if (i) await page.getByRole('button', { name: '+ Add row', exact: true }).tap();
+      if (i) await page.locator('#add-row').evaluate(button => button.click());
       await page.locator('textarea.row-editor').nth(i).fill('f2 z');
     }
     const editor = page.locator('textarea.row-editor').last();

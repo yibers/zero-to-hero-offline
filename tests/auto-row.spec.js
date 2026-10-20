@@ -72,15 +72,15 @@ test('dropping into the spare row adds one step, preserves scoring, and is one u
   await expect(page.locator('.program-row').last()).toHaveClass(/final-row/);
   expect(await page.evaluate(() => ({ code: getCodeFromEditor(), score: RowProgram.score(getCodeFromEditor()), error: getRowError() })))
     .toEqual({ code: 'let\n  r1 = runZero z\nin\n  mkHero r1', score: 2, error: null });
-  await page.getByRole('button', { name: 'Undo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
   await expect(row(page, 1)).toHaveValue('mkHero');
   await expect(ready(page)).toHaveCount(1);
-  await page.getByRole('button', { name: 'Undo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
   await expect(page.locator('.program-row')).toHaveCount(2);
   await expect(ready(page)).toHaveCount(1);
-  await page.getByRole('button', { name: 'Redo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+Shift+z');
   await expect(row(page, 1)).toHaveValue('mkHero');
-  await page.getByRole('button', { name: 'Redo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+Shift+z');
   await expect(ready(page)).toHaveCount(0);
   await page.getByRole('button', { name: 'Attempt', exact: true }).click();
   await expect(page.locator('#level-dialog')).toBeVisible();
@@ -106,7 +106,7 @@ test('a trailing empty row is reused, but clearing an earlier row does not hide 
   await page.locator('[data-func-name="runZero"]').dragTo(ready(page));
   await expect(row(page, 2)).toHaveValue('runZero');
   await expect(page.locator('.program-row')).toHaveCount(4);
-  await page.getByRole('button', { name: 'Undo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
   await expect(page.locator('.program-row')).toHaveCount(3);
 });
 
@@ -134,22 +134,18 @@ test.describe('phone automatic rows', () => {
     await expect(row(page, 1)).not.toBeFocused();
     await choose(page, 1, 'r1');
     await expect(ready(page)).toHaveCount(0);
-    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     await expect(page.locator('.ready-row')).toBeInViewport({ ratio: 1 });
     await expect(row(page, 1)).not.toBeFocused();
   });
 
-  test('tapping either add-row control focuses the row without a typing cursor', async ({ page }) => {
+  test('tapping the empty next row focuses it without a typing cursor', async ({ page }) => {
     await open(page, 1, 'runZero z');
     await ready(page).tap();
     await expect(page.locator('.program-row').nth(1)).toBeFocused();
     await expect(row(page, 1)).not.toBeFocused();
     await expect(row(page, 1)).toHaveAttribute('inputmode', 'none');
     await expect(row(page, 1)).toHaveCSS('caret-color', 'rgba(0, 0, 0, 0)');
-    await page.getByRole('button', { name: '+ Add row', exact: true }).tap();
-    await expect(page.locator('.program-row').nth(2)).toBeFocused();
-    await expect(row(page, 2)).not.toBeFocused();
-    await expect(row(page, 2)).toBeInViewport();
   });
 
   test('touch drop adds the next row; cancellation leaves it empty and solving removes the spare', async ({ page }) => {

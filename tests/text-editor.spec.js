@@ -77,9 +77,9 @@ test('Enter and Tab edit code indentation; typing and toolbar changes undo and r
   await expect(editor).toHaveValue('');
   await editor.press('Control+z');
   await expect(editor).toHaveValue(complete);
-  await page.getByRole('button', { name: 'Redo edit', exact: true }).click();
+  await page.locator('.text-source-editor').first().press('Control+Shift+z');
   await expect(editor).toHaveValue('');
-  await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
+  await page.locator('.text-source-editor').first().press('Control+z');
   await expect(editor).toHaveValue(complete);
   await expect(page.locator('.program-row')).toHaveCount(0);
 });
@@ -111,7 +111,7 @@ test('mouse drops target the correct line of the complete program', async ({ pag
   });
   await page.locator('[data-func-name="f"]').dragTo(source(page), { targetPosition: target });
   await expect(source(page)).toHaveValue('let\n  r1 = z\nin\n  f r1');
-  await page.getByRole('button', { name: 'Undo edit', exact: true }).click();
+  await page.locator('.text-source-editor').first().press('Control+z');
   await expect(source(page)).toHaveValue('let\n  r1 = z\nin\n  r1');
 });
 

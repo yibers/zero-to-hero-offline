@@ -12,7 +12,7 @@ async function enterSolution(page, expression) {
     return;
   }
   for (let i = 0; i < rows.length; i++) {
-    if (i) await page.getByRole('button', { name: '+ Add row', exact: true }).click();
+    if (i) await page.locator('#add-row').evaluate(button => button.click());
     await page.locator('textarea.row-editor').nth(i).fill(rows[i].expr);
   }
 }

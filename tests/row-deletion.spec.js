@@ -41,9 +41,9 @@ test('confirmation previews direct and indirect dependents, preserves the indepe
   const remaining = [branch[2], branch[5]];
   expect(await state(page)).toEqual(remaining);
   expect(await page.evaluate(() => getRowError())).toBe(null);
-  await page.getByRole('button', { name: 'Undo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
   expect(await state(page)).toEqual(branch);
-  await page.getByRole('button', { name: 'Redo row edit' }).click();
+  await page.locator('.program-row:not(.ready-row)').first().press('Control+Shift+z');
   expect(await state(page)).toEqual(remaining);
   await page.reload();
   expect(await state(page)).toEqual(remaining);
@@ -118,7 +118,7 @@ test.describe('phone deletion preview', () => {
     await page.screenshot({ path: '/tmp/zth-delete-phone.png' });
     await confirm.tap();
     expect(await state(page)).toEqual([branch[2], branch[5]]);
-    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
     expect(await state(page)).toEqual(branch);
   });
 });
