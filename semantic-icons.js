@@ -5,97 +5,71 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   const shield = '<path d="M12 2 4 6v7c0 4.5 3.3 7.4 8 9 4.7-1.6 8-4.5 8-9V6Z"/>';
   const hedgehog = '<path d="m16.5 2 2 4c1.6 1.3 2.1 3.1 2 5.2l2 .8v2l-2 .3C19 19.5 15.7 21 11.2 19.7L6 22l1.1-4.4L2 18.5l3.2-4.6L1 12.5l5-3.4L3 6h7.2c1.8-1.2 3.4-1.3 4.8-.5Z"/>';
   const outline = (body, width = 1.8) => `<g fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
-  const svg = (label, body, size = 64, height = size) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${height}" width="1em" height="1em" role="img" aria-label="${escape(label)}"><title>${escape(label)}</title>${body}</svg>`;
-  const place = (body, x, y, w, h) => `<g transform="translate(${x} ${y}) scale(${w / 24} ${h / 24})">${body}</g>`;
+  // Lay diagrams out from their leaves outward. One SVG unit is one CSS pixel:
+  // wrappers can grow, but a value never shrinks when it is nested or reused.
+  const svg = (label, body, width, height = width) => `<svg class="semantic-diagram" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="width:${width}px;height:${height}px;max-width:none;flex-shrink:0" role="img" aria-label="${escape(label)}"><title>${escape(label)}</title>${body}</svg>`;
+  const move = (body, x, y) => `<g transform="translate(${x} ${y})">${body}</g>`;
   const marks = {
-    a: '<circle cx="12" cy="12" r="8" fill="#fbbf24" stroke="#92400e" stroke-width="2"/>',
-    b: '<rect x="4" y="4" width="16" height="16" rx="2" fill="#38bdf8" stroke="#075985" stroke-width="2"/>',
+    a: '<circle cx="12" cy="12" r="10" fill="#fbbf24" stroke="#92400e" stroke-width="2"/>',
+    b: '<rect x="2" y="2" width="20" height="20" rx="2" fill="#38bdf8" stroke="#075985" stroke-width="2"/>',
     c: '<path d="m12 2 10 10-10 10L2 12Z" fill="#c084fc" stroke="#6b21a8" stroke-width="2"/>',
-    d: '<path d="M12 2 22 21H2Z" fill="#6ee7b7" stroke="#065f46" stroke-width="2"/>',
+    d: '<path d="M12 2 22 22H2Z" fill="#6ee7b7" stroke="#065f46" stroke-width="2"/>',
   };
-  const arrow = (x1, y, x2, h) => {
-    const tip = Math.min(3, (x2 - x1) * .4, h * .2);
-    return outline(`<path d="M${x1} ${y}H${x2}m${-tip} ${-tip} ${tip} ${tip} ${-tip} ${tip}"/>`, Math.min(1.5, h * .1));
-  };
+  const arrow = y => outline(`<path d="M4 ${y}H20m-5-5 5 5-5 5"/>`, 1.8);
   function parts(type, limit = Infinity) {
     const args = [];
     while (type.tag === 'fun' && args.length < limit) { args.push(type.from); type = type.to; }
     return { args, result: type };
   }
-  function weight(type) {
-    if (type.tag === 'var' || type.tag === 'con') return 1;
-    if (type.tag === 'fun') {
-      const {args, result} = parts(type);
-      return Math.min(4, 1 + .6 * (args.reduce((n, arg) => n + weight(arg), 0) + weight(result)));
-    }
-    const {args} = flattenApp(type);
-    return Math.min(4, .5 + args.reduce((n, arg) => n + weight(arg), 0));
-  }
-  function row(types, x, y, w, h, gap = 2) {
-    gap = Math.min(gap, w / (types.length * 5));
-    const weights = types.map(weight), total = weights.reduce((a, b) => a + b, 0);
-    const available = w - gap * (types.length - 1);
-    let offset = x;
-    return types.map((type, i) => {
-      const cell = available * weights[i] / total;
-      const body = draw(type, offset, y, cell, h);
-      offset += cell + gap;
-      return body;
+  function row(children, gap = 6) {
+    const height = Math.max(24, ...children.map(child => child.height));
+    let width = 0;
+    const body = children.map((child, i) => {
+      const placed = move(child.body, width, (height - child.height) / 2);
+      width += child.width + (i < children.length - 1 ? gap : 0);
+      return placed;
     }).join('');
+    return { width, height, body };
   }
-  function draw(type, x, y, w, h) {
+  function frame(content, padding, shape) {
+    const width = content.width + padding.x * 2, height = content.height + padding.y * 2;
+    return { width, height, body: outline(shape(width, height)) + move(content.body, padding.x, padding.y) };
+  }
+  const rectangle = (w, h) => `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="4"/>`;
+  function flow(args, result) {
+    const inputs = row(args.map(layout)), output = layout(result);
+    const height = Math.max(inputs.height, output.height);
+    return { width: inputs.width + 28 + output.width, height,
+      body: `<g class="icon-inputs">${move(inputs.body, 0, (height - inputs.height) / 2)}</g>` +
+        move(arrow(height / 2), inputs.width + 2, 0) +
+        `<g class="icon-output">${move(output.body, inputs.width + 28, (height - output.height) / 2)}</g>` };
+  }
+  function layout(type) {
     if (type.tag === 'var') {
-      const size = Math.min(w, h);
-      const mark = marks[type.name] || outline('<circle cx="12" cy="12" r="9"/>') + `<text x="12" y="16" text-anchor="middle" font-size="12" fill="currentColor">${escape(type.name)}</text>`;
-      return place(mark, x + (w - size) / 2, y + (h - size) / 2, size, size);
+      const mark = marks[type.name] || outline('<circle cx="12" cy="12" r="10"/>') + `<text x="12" y="16" text-anchor="middle" font-size="12" fill="currentColor">${escape(type.name)}</text>`;
+      return { width: 24, height: 24, body: `<g class="type-atom" data-type="${escape(type.name)}">${mark}</g>` };
     }
     if (type.tag === 'fun') {
-      const height = Math.min(h, w / 2);
-      y += (h - height) / 2;
-      h = height;
       const { args, result } = parts(type);
-      const pad = Math.min(2, w * .04, h * .12);
-      return outline(`<rect x="${x + .6}" y="${y + .6}" width="${w - 1.2}" height="${h - 1.2}" rx="${Math.min(4, h / 3)}"/>`, 1.2) +
-        row(args, x + pad, y + pad, w * .4 - pad, h - 2 * pad, 1) +
-        arrow(x + w * .43, y + h / 2, x + w * .61, h) +
-        draw(result, x + w * .65, y + pad, w * .35 - pad, h - 2 * pad);
+      return frame(flow(args, result), { x: 6, y: 6 }, rectangle);
     }
     const { head, args } = type.tag === 'app' ? flattenApp(type) : { head: type, args: [] };
-    if (head.name === '()') {
-      return outline(`<circle cx="${x + w / 2}" cy="${y + h / 2}" r="${Math.min(w, h) * .33}"/><path d="M${x + w * .4} ${y + h / 2}h${w * .2}"/>`, 1.3);
-    }
-    if (head.name.startsWith('(')) {
-      const pad = Math.min(2.5, w * .08, h * .12);
-      return outline(`<rect x="${x + .7}" y="${y + .7}" width="${w - 1.4}" height="${h - 1.4}" rx="1.5"/>`, 1.3) +
-        row(args, x + pad, y + pad, w - 2 * pad, h - 2 * pad, 1.5);
-    }
-    if (head.name === 'Zero' || head.name === 'Hero') {
-      // Stretch the wrapper for multiple or nested slots, keeping room to read them.
-      const simple = args.length <= 1 && (!args.length || args[0].tag === 'var');
-      const width = simple ? Math.min(w, h) : w;
-      const height = simple ? Math.min(w, h) : h;
-      const left = x + (w - width) / 2;
-      const top = y + (h - height) / 2;
-      const shape = head.name === 'Zero' ? shield : hedgehog;
-      return place(outline(shape), left, top, width, height) +
-        (args.length ? row(args, left + width * .24, top + height * .24, width * .53, height * .55, 1) : '');
-    }
+    if (head.name === '()') return { width: 24, height: 24,
+      body: outline('<circle cx="12" cy="12" r="8"/><path d="M8 12h8"/>') };
+    const contents = row(args.map(layout));
+    if (head.name.startsWith('(')) return frame(contents, { x: 6, y: 6 }, rectangle);
+    if (head.name === 'Zero') return frame(contents, { x: 10, y: 10 }, (w, h) =>
+      `<path d="M${w / 2} 1 1 9v${h - 27}Q1 ${h - 7} ${w / 2} ${h - 1}Q${w - 1} ${h - 7} ${w - 1} ${h - 18}V9Z"/>`);
+    if (head.name === 'Hero') return frame(contents, { x: 14, y: 14 }, (w, h) =>
+      `<path d="M${w - 16} 2l4 7q6 4 5 11l5 2v4l-5 1q-2 ${h - 35} -14 ${h - 35}L8 ${h - 2}l3-8-9 3L8 ${h / 2 + 7} 1 ${h / 2 + 2} 9 ${h / 2 - 6} 4 10H${w - 24}q5-5 9-1Z"/>`);
     throw new Error('No pictogram for type constructor ' + head.name);
   }
-  function transformation(signature, label, arity = Infinity, horizontal = false) {
+  function picture(label, diagram, className = '') {
+    return svg(label, `<g${className ? ` class="${className}"` : ''}>${move(diagram.body, 2, 2)}</g>`, diagram.width + 4, diagram.height + 4);
+  }
+  function transformation(signature, label, arity = Infinity) {
     const { args, result } = parts(parseType(signature), arity);
-    if (horizontal) {
-      const inputWeight = args.reduce((sum, arg) => sum + weight(arg), 0);
-      const inputWidth = 106 * inputWeight / (inputWeight + weight(result));
-      return svg(label,
-        `<g class="icon-inputs">${row(args, 2, 2, inputWidth, 32, 4)}</g>` +
-        arrow(inputWidth + 5, 18, inputWidth + 17, 32) +
-        `<g class="icon-output">${draw(result, inputWidth + 20, 2, 106 - inputWidth, 32)}</g>`, 128, 36);
-    }
-    return svg(label,
-      `<g class="icon-inputs">${row(args, 2, 2, 60, 25, 4)}</g>` +
-      outline('<path d="M32 29v6m-3-3 3 3 3-3"/>', 2) +
-      `<g class="icon-output">${draw(result, 2, 38, 60, 24)}</g>`);
+    return picture(label, flow(args, result));
   }
   const data = {
     1: { f: ['Changes the wrapper; keeps the value. The dot represents a.', 'Change Zero to Hero, keeping the same value.'] },
@@ -178,11 +152,10 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   };
   const zero = svg('Zero wrapper', outline(shield), 24);
   const hero = svg('Hero wrapper', outline(hedgehog), 24);
-  const value = '<circle cx="12" cy="12" r="3.2" fill="#fbbf24" stroke="#92400e" stroke-width="1.2"/>';
   const icons = {}, cardIcons = {}, captions = {}, descriptions = {};
   for (const level of levels) {
     const map = icons[level.level] = { Zero: zero, Ze: zero, Hero: hero, He: hero,
-      '()': svg('Unit: an empty slot', draw({tag:'con', name:'()'}, 0, 0, 24, 24), 24) };
+      '()': picture('Unit: an empty slot', layout({tag:'con', name:'()'})) };
     const cards = cardIcons[level.level] = {};
     const labels = captions[level.level] = {}, details = descriptions[level.level] = {};
     for (const func of level.funcs) {
@@ -193,14 +166,8 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       details[bare] = details[func.name] = info[1];
       const label = `${bare}: ${info[1]} Type: ${func.sig}`;
       const arity = bare === '.' ? 2 : Infinity;
-      cards[bare] = cards[func.name] = transformation(func.sig, label, arity, true);
-      let picture = transformation(func.sig, label, arity);
-      // Retain the approved first-level pictogram wherever that same operation appears.
-      if (func.sig === 'Zero a -> Hero a') picture = svg(`${bare}: ${info[1]}`,
-        `<g transform="translate(1 1)">${outline(shield)}${value}</g>` +
-        outline('<path d="M12 27v7a3 3 0 0 0 3 3h8m-4-4 4 4-4 4"/>') +
-        `<g transform="translate(24 24)">${outline(hedgehog)}${value}</g>`, 49);
-      map[bare] = map[func.name] = picture;
+      cards[bare] = cards[func.name] = transformation(func.sig, label, arity);
+      map[bare] = map[func.name] = cards[bare];
     }
     const names = level.lhs.split('=')[0].trim().split(/\s+/).slice(1);
     const {args} = parts(parseType(level.target), names.length);
@@ -208,16 +175,12 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       const type = args[i];
       const info = name === 'z' ? (level.level === 10 ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.') : `Function from ${typeToString(type.from)} to ${typeToString(type.to)}.`;
       labels[name] = details[name] = info;
-      map[name] = svg(`${name}: ${info} Type: ${typeToString(type)}`, draw(type, 2, 2, 60, 60));
-      if (name === 'z' && level.target === 'Zero a -> Hero a') map[name] = svg('z: a Zero containing a value', outline(shield) + value, 24);
+      map[name] = picture(`${name}: ${info} Type: ${typeToString(type)}`, layout(type));
     });
   }
   function renderType(signature, label = signature) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
-    const width = weight(type) > 2 ? 128 : 64;
-    return svg(label, `<g class="result-shape">${draw(type, 2, 2, width - 4, 60)}</g>`)
-      .replace('viewBox="0 0 64 64"', `viewBox="0 0 ${width} 64"`)
-      .replace('width="1em" height="1em"', `width="${width}" height="64"`);
+    return picture(label, layout(type), 'result-shape');
   }
   return {icons, cardIcons, captions, descriptions, renderType};
 }

@@ -582,16 +582,25 @@ function mountRowEditor() {
     if (!drag?.moved || !lastPoint) return;
     const r = container.getBoundingClientRect();
     const hovered = rowAt(lastPoint);
-    const onToken = slotAt(lastPoint) || hovered !== null && hitToken(hovered, lastPoint);
+    const onSlot = slotAt(lastPoint);
+    const onToken = onSlot || hovered !== null && hitToken(hovered, lastPoint);
     const delta = !onToken && lastPoint.clientX >= r.left && lastPoint.clientX <= r.right
       ? lastPoint.clientY < r.top + 36 ? -14 : lastPoint.clientY > r.bottom - 36 ? 14 : 0 : 0;
+    const row = hovered === null ? null : container.querySelector(`.program-row[data-row="${hovered}"]`);
+    const bounds = row?.getBoundingClientRect();
+    const across = bounds && !onSlot
+      ? lastPoint.clientX < bounds.left + 24 && row.scrollLeft > 0 ? -14
+        : lastPoint.clientX > bounds.right - 24 && row.scrollLeft + row.clientWidth < row.scrollWidth ? 14 : 0
+      : 0;
     // Crossing the edge on the way to a small input must not move that input.
     // Scroll only when the player rests the already-dragging finger at the edge.
-    if (!delta) scrollEdge = null;
-    else if (!scrollEdge || scrollEdge.delta !== delta || Math.hypot(lastPoint.clientX - scrollEdge.x, lastPoint.clientY - scrollEdge.y) > 12) {
-      scrollEdge = { x: lastPoint.clientX, y: lastPoint.clientY, delta, since: time };
+    if (!delta && !across) scrollEdge = null;
+    else if (!scrollEdge || scrollEdge.delta !== delta || scrollEdge.across !== across || scrollEdge.row !== row || Math.hypot(lastPoint.clientX - scrollEdge.x, lastPoint.clientY - scrollEdge.y) > 12) {
+      scrollEdge = { x: lastPoint.clientX, y: lastPoint.clientY, delta, across, row, since: time };
     } else if (time - scrollEdge.since >= 200 && time - lastScrollTime > 30) {
-      container.scrollTop += delta; showIntent(drag.name, lastPoint, drag.source); lastScrollTime = time;
+      container.scrollTop += delta;
+      if (across) row.scrollLeft += across;
+      showIntent(drag.name, lastPoint, drag.source); lastScrollTime = time;
     }
     scrollFrame = requestAnimationFrame(autoScroll);
   }

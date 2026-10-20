@@ -248,7 +248,18 @@ test.describe('phone input slots', () => {
   test('move a filled input between slots, preserve argument position, and cancel without changes', async ({ page }) => {
     await open(page, 14, 'pair f g');
     const t = await touch(page);
-    await t.drag(await center(slot(page, 0, 0)), await center(slot(page, 0, 1)));
+    // Function-valued inputs keep their full-size diagrams. Reveal the next
+    // input by holding the drag over the row's horizontal scroll edge.
+    await t.send('touchStart', [await center(slot(page, 0, 0))]);
+    const bounds = await page.locator('.program-row').first().boundingBox();
+    await t.send('touchMove', [{ x: bounds.x + bounds.width - 6, y: bounds.y + bounds.height - 4 }]);
+    await expect.poll(async () => {
+      const target = await slot(page, 0, 1).boundingBox();
+      return target.x + target.width / 2 < bounds.x + bounds.width - 8;
+    }).toBe(true);
+    const target = await slot(page, 0, 1).boundingBox();
+    await t.send('touchMove', [{ x: target.x + target.width / 2, y: target.y + target.height / 2 }]);
+    await t.send('touchEnd', []);
     await expect(row(page)).toHaveValue('pair _ f');
     await expect(page.locator('.row-result')).toHaveCount(0);
     const start = await center(slot(page, 0, 1));

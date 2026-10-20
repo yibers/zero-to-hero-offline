@@ -10,11 +10,10 @@
 .source-param { color: #047857; }
 #program-rows { overflow: auto; flex: 1; min-height: 120px; padding: 8px; overscroll-behavior: contain; }
 .parameter-prefix { display: flex; align-items: center; gap: 6px; padding: 6px; }
-.parameter-icon { display: inline-flex; flex: 0 0 56px; align-items: center; justify-content: center; width: 56px; height: 56px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #065f46; cursor: grab; }
-.parameter-icon .icon-sym svg { width: 48px; height: 48px; }
+.parameter-icon { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 56px; min-height: 56px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #065f46; cursor: grab; }
 .parameter-icon:hover { background: #d1fae5; border-color: #6ee7b7; }
 .parameter-icon:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
-.program-row { border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 10px; overflow: hidden; }
+.program-row { border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 10px; overflow-x: auto; }
 .empty-row-drop { display: block; width: 100%; min-height: 64px; margin: 0; padding: 8px; border: 2px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; color: #64748b; font: inherit; font-size: 12px; cursor: pointer; }
 .empty-row-drop:hover, .ready-row.drag-over .empty-row-drop { border-color: #3b82f6; background: #dbeafe; color: #2563eb; }
 .empty-row-drop:focus-visible { outline: 2px solid #2563eb; outline-offset: -4px; }
@@ -30,9 +29,9 @@
 .editor-icons .program-row textarea.editor { touch-action: none; caret-color: transparent; cursor: default; }
 .program-row .editor-overlay { overflow-wrap: break-word; }
 .program-row .editor-area { overflow: hidden; }
-.row-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px; }
-.row-call { flex: 1 1 0; min-width: 0; }
-.row-feedback, .goal-output { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 12px; }
+.row-flow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 6px; width: max-content; min-width: 100%; }
+.row-call { flex: 1 1 0; min-width: 80px; width: 80px; }
+.row-feedback, .goal-output { position: relative; flex: 0 0 auto; display: flex; align-items: center; gap: 6px; color: #64748b; font-size: 12px; }
 .row-feedback:empty { display: none; }
 .row-feedback:not(.error-feedback)::before, .goal-output::before { content: '→'; font-size: 18px; line-height: 1; }
 .row-feedback.error-feedback { flex: 1 0 100%; order: 2; padding: 4px; }
@@ -49,9 +48,7 @@
 .editor-icons .editor-overlay > .token-ref { display: inline-block; height: 48px; line-height: 48px; padding: 0 13px; margin: 0 -13px; vertical-align: middle; }
 .row-ref > span { display: inline-flex; align-items: center; justify-content: center; border: 2px solid #a78bfa; border-radius: 10px; min-width: 38px; height: 38px; background: #ede9fe; color: #5b21b6; font: bold 16px 'Fira Code',monospace; }
 [data-func-name] { touch-action: none; }
-.drag-ghost { position: fixed; z-index: 9999; pointer-events: none; border-radius: 10px; padding: 8px 12px; background: white; color: #1e40af; border: 2px solid #60a5fa; box-shadow: 0 5px 20px #0005; display: flex; align-items: center; gap: 6px; }
-.drag-ghost .icon-sym svg { width: 56px; height: 56px; }
-.drag-ghost .horizontal-function svg { width: 128px; height: 36px; }
+.drag-ghost { position: fixed; max-width: calc(100vw - 8px); overflow: hidden; z-index: 9999; pointer-events: none; border-radius: 10px; padding: 8px 12px; background: white; color: #1e40af; border: 2px solid #60a5fa; box-shadow: 0 5px 20px #0005; display: flex; align-items: center; gap: 6px; }
 .drag-ghost .drag-action { display: none; font-size: 11px; color: #b91c1c; }
 .drag-ghost.removing { border-color: #ef4444; }
 .drag-ghost.removing .drag-action { display: block; }
@@ -78,49 +75,39 @@
 
 /* The function owns its inputs; the result is a separate, reusable value. */
 .row-call > [hidden] { display: none; }
-.row-call.structured-call { margin: 0; container-type: inline-size; }
-.function-block { display: flex; align-items: center; gap: 8px; overflow-x: auto; border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
-.function-head { display: flex; flex: 0 1 auto; align-items: center; gap: 8px; min-width: 52px; min-height: 48px; padding: 0; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
-.function-head .icon-sym svg { width: 52px; height: 52px; }
-.function-head .horizontal-function { width: 128px; max-width: 100%; min-width: 0; }
-.function-head .horizontal-function svg { width: 128px; max-width: 100%; height: 36px; }
+.row-call.structured-call { margin: 0; flex: 1 0 auto; width: auto; }
+.function-block { display: flex; align-items: center; gap: 8px; border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
+.function-head { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; min-width: 52px; min-height: 48px; padding: 0; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
 .function-head:focus-visible { outline: 2px solid #2563eb; border-radius: 6px; }
 .function-head.connection-target { outline: 3px solid #7c3aed; background: #ede9fe; border-radius: 8px; }
 .function-block .drag-source { opacity: .35; }
 .input-slots { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 6px; margin-left: auto; }
-@container (max-width: 300px) {
-  .function-block { gap: 4px; padding: 4px; }
-  .input-slots { gap: 4px; }
-}
-.argument-slot { position: relative; display: flex; flex: 0 0 48px; flex-direction: column; align-items: center; justify-content: center; gap: 0; width: 48px; height: 48px; min-width: 0; border: 2px dashed #93c5fd; border-radius: 6px; padding: 2px; color: #1e40af; background: #f8fbff; font: inherit; cursor: pointer; touch-action: none; }
+.argument-slot { position: relative; display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-width: 48px; min-height: 48px; border: 2px dashed #93c5fd; border-radius: 6px; padding: 2px; color: #1e40af; background: #f8fbff; font: inherit; cursor: pointer; touch-action: none; }
 .argument-slot.filled { border-style: solid; background: #fff; cursor: grab; }
 .argument-slot:not(.filled) { touch-action: auto; }
 .argument-slot.slot-target { border-color: #2563eb; background: #dbeafe; box-shadow: inset 0 0 0 2px #60a5fa; }
 .argument-slot:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
 .input-number { position: absolute; top: 2px; left: 3px; font: 8px 'Fira Code', monospace; color: #64748b; }
-.input-picture { display: flex; justify-content: center; align-items: center; width: 34px; height: 30px; min-width: 0; }
-.argument-slot .input-picture svg, .argument-slot .input-picture .row-ref.rendered-ref > svg { width: 32px; height: 30px; max-width: 32px; }
-.input-picture .icon-sym { max-width: 100%; height: 30px; }
+.input-picture { display: flex; justify-content: center; align-items: center; }
 .row-result, .goal-picture { position: relative; flex-shrink: 0; display: flex; align-items: center; justify-content: center; min-width: 48px; min-height: 48px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 8px; padding: 4px; }
 .row-result { cursor: grab; }
-.row-result > svg, .goal-picture > svg { height: 40px; width: auto; max-width: 64px; }
 .goal-picture { background: #fffbeb; border: 2px dashed #d97706; color: #92400e; }
 .goal-reached { border: 2px solid #16a34a; }
 .puzzle-goal .goal-badge { position: absolute; right: -3px; top: -7px; width: 16px; height: 16px; border-radius: 4px; background: inherit; font: bold 14px/16px sans-serif; }
-.editor-icons .row-type { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.editor-icons .row-type { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 @media (max-width:600px) {
   .row-flow { padding: 4px; gap: 4px; }
   .row-feedback, .goal-output { gap: 4px; }
   .row-feedback:not(.error-feedback)::before, .goal-output::before { font-size: 16px; }
   .function-head { min-width: 44px; }
-  .row-result > svg, .goal-picture > svg { max-width: 40px; }
+  .function-block { gap: 4px; padding: 4px; }
+  .input-slots { gap: 4px; }
 }
 .row-feedback .row-type { flex: 1; min-width: 55px; }
 .row-ref.rendered-ref { position: relative; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
-.row-ref.rendered-ref > svg { width: 56px; height: 44px; max-width: none; flex-shrink: 0; }
-.argument-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin: 10px 0; }
+.row-ref.rendered-ref > svg:not(.semantic-diagram) { width: 40px; height: 40px; flex-shrink: 0; }
+.argument-choices { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
 .argument-choice { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 60px; padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; cursor: pointer; color: #1e40af; }
-.argument-choice svg { width: 48px; height: 48px; }
 
 /* Deletion previews the entire dependency chain before changing the program. */
 .row-delete { margin-left: auto; flex-shrink: 0; min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #64748b; font: 26px/1 sans-serif; cursor: pointer; touch-action: manipulation; }
@@ -135,7 +122,6 @@
 .delete-preview-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; font-size: 14px; }
 .delete-preview-heading > span { color: #9f1239; font-size: 12px; }
 .delete-preview-expression { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; overflow-wrap: anywhere; }
-.delete-preview-expression .icon-sym svg, .delete-preview-expression .row-ref.rendered-ref > svg { width: 40px; height: 40px; }
 .delete-actions { display: flex; gap: 10px; }
 .delete-actions button { flex: 1; }
 .row-delete-dialog .delete-confirm { color: white; border-color: #b91c1c; background: #b91c1c; }
