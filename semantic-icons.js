@@ -25,42 +25,67 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     while (type.tag === 'fun' && args.length < limit) { args.push(type.from); type = type.to; }
     return { args, result: type };
   }
-  function row(children, gap = 6) {
-    const height = Math.max(24, ...children.map(child => child.height));
-    let width = 0;
-    const body = children.map((child, i) => {
-      const placed = move(child.body, width, (height - child.height) / 2);
-      width += child.width + (i < children.length - 1 ? gap : 0);
-      return placed;
+  function row(children, gap = 6, maxWidth = Infinity) {
+    const lines = []; let line = [], width = 0;
+    for (const child of children) {
+      if (line.length && width + gap + child.width > maxWidth) {
+        lines.push(line); line = []; width = 0;
+      }
+      width += (line.length ? gap : 0) + child.width;
+      line.push(child);
+    }
+    if (line.length) lines.push(line);
+    let y = 0, widest = 0;
+    const body = lines.map((items, index) => {
+      const height = Math.max(24, ...items.map(child => child.height));
+      let x = 0;
+      const content = items.map(child => {
+        const placed = move(child.body, x, y + (height - child.height) / 2);
+        x += child.width + gap;
+        return placed;
+      }).join('');
+      widest = Math.max(widest, x - gap);
+      y += height + (index < lines.length - 1 ? 8 : 0);
+      return content;
     }).join('');
-    return { width, height, body };
+    return { width: widest, height: Math.max(24, y), body };
   }
   function frame(content, padding, shape) {
     const width = content.width + padding.x * 2, height = content.height + padding.y * 2;
     return { width, height, body: outline(shape(width, height)) + move(content.body, padding.x, padding.y) };
   }
   const rectangle = (w, h) => `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="4"/>`;
-  function flow(args, result) {
-    const inputs = row(args.map(layout)), output = layout(result);
+  function flow(args, result, maxWidth = Infinity) {
+    const inputs = row(args.map(type => layout(type, maxWidth)), 6, maxWidth), output = layout(result, maxWidth);
+    if (inputs.width + 28 + output.width > maxWidth) {
+      const width = Math.max(inputs.width, output.width);
+      const center = width / 2, arrowTop = inputs.height + 4;
+      return { width, height: inputs.height + 24 + output.height,
+        body: `<g class="icon-inputs">${move(inputs.body, (width - inputs.width) / 2, 0)}</g>` +
+          outline(`<path d="M${center} ${arrowTop}v16m-5-5 5 5 5-5"/>`) +
+          `<g class="icon-output">${move(output.body, (width - output.width) / 2, inputs.height + 24)}</g>` };
+    }
     const height = Math.max(inputs.height, output.height);
     return { width: inputs.width + 28 + output.width, height,
       body: `<g class="icon-inputs">${move(inputs.body, 0, (height - inputs.height) / 2)}</g>` +
         move(arrow(height / 2), inputs.width + 2, 0) +
         `<g class="icon-output">${move(output.body, inputs.width + 28, (height - output.height) / 2)}</g>` };
   }
-  function layout(type) {
+  function layout(type, maxWidth = Infinity) {
     if (type.tag === 'var') {
       const mark = marks[type.name] || outline('<circle cx="12" cy="12" r="10"/>') + `<text x="12" y="16" text-anchor="middle" font-size="12" fill="currentColor">${escape(type.name)}</text>`;
       return { width: 24, height: 24, body: `<g class="type-atom" data-type="${escape(type.name)}">${mark}</g>` };
     }
     if (type.tag === 'fun') {
       const { args, result } = parts(type);
-      return frame(flow(args, result), { x: 6, y: 6 }, rectangle);
+      return frame(flow(args, result, Math.max(24, maxWidth - 12)), { x: 6, y: 6 }, rectangle);
     }
     const { head, args } = type.tag === 'app' ? flattenApp(type) : { head: type, args: [] };
     if (head.name === '()') return { width: 24, height: 24,
       body: outline('<circle cx="12" cy="12" r="8"/><path d="M8 12h8"/>') };
-    const contents = row(args.map(layout));
+    const inset = head.name === 'Hero' ? 28 : head.name === 'Zero' ? 20 : 12;
+    const innerWidth = Math.max(24, maxWidth - inset);
+    const contents = row(args.map(type => layout(type, innerWidth)), 6, innerWidth);
     if (head.name.startsWith('(')) return frame(contents, { x: 6, y: 6 }, rectangle);
     if (head.name === 'Zero') return frame(contents, { x: 10, y: 10 }, (w, h) =>
       `<path d="M${w / 2} 1 1 9v${h - 27}Q1 ${h - 7} ${w / 2} ${h - 1}Q${w - 1} ${h - 7} ${w - 1} ${h - 18}V9Z"/>`);
@@ -68,12 +93,52 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       `<path d="M${w - 16} 2l4 7q6 4 5 11l5 2v4l-5 1q-2 ${h - 35} -14 ${h - 35}L8 ${h - 2}l3-8-9 3L8 ${h / 2 + 7} 1 ${h / 2 + 2} 9 ${h / 2 - 6} 4 10H${w - 24}q5-5 9-1Z"/>`);
     throw new Error('No pictogram for type constructor ' + head.name);
   }
-  function picture(label, diagram, className = '') {
-    return svg(label, `<g${className ? ` class="${className}"` : ''}>${move(diagram.body, 2, 2)}</g>`, diagram.width + 4, diagram.height + 4);
+  function picture(label, diagram, className = '', type = null, arity = null) {
+    const attributes = type ? ` data-diagram-type="${escape(typeToString(type))}"${arity === null ? '' : ` data-diagram-arity="${arity}"`}` : '';
+    return svg(label, `<g${className ? ` class="${className}"` : ''}>${move(diagram.body, 2, 2)}</g>`, diagram.width + 4, diagram.height + 4)
+      .replace('<svg ', `<svg${attributes} `);
   }
   function transformation(signature, label, arity = Infinity) {
-    const { args, result } = parts(parseType(signature), arity);
-    return picture(label, flow(args, result));
+    const type = parseType(signature), { args, result } = parts(type, arity);
+    return picture(label, flow(args, result), '', type, arity);
+  }
+  const parsedTypes = new Map();
+  function fit(root = document) {
+    const contentWidth = element => {
+      const style = getComputedStyle(element);
+      return element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    };
+    for (const node of root.querySelectorAll('svg[data-diagram-type]')) {
+      let holder, reserve = 0;
+      if (node.closest('.drag-ghost')) holder = node.closest('.drag-ghost');
+      else if (node.closest('.function-block')) {
+        const block = node.closest('.function-block'), style = getComputedStyle(block);
+        holder = block.closest('.row-flow');
+        reserve = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 4 + (node.closest('.argument-slot') ? 8 : 0);
+      }
+      else if (node.closest('.row-result, .goal-picture')) { holder = node.closest('.row-flow'); reserve = 36; }
+      else if (node.closest('.parameter-icon')) { holder = node.closest('.parameter-prefix'); reserve = 2; }
+      else if (node.closest('.func-card')) holder = node.closest('.func-card');
+      else if (node.closest('.argument-choice')) { holder = node.closest('.argument-choices'); reserve = 26; }
+      else if (node.closest('.delete-preview-expression')) holder = node.closest('.delete-preview-expression');
+      else if (node.closest('.connection-picker')) { holder = node.closest('.connection-picker'); reserve = 26; }
+      else if (node.closest('.editor-overlay')) { holder = node.closest('.row-call'); reserve = 34; }
+      if (!holder || !holder.clientWidth) continue;
+      const budget = Math.max(24, Math.floor((contentWidth(holder) - reserve) / iconScale) - 4);
+      if (node.dataset.diagramBudget === String(budget)) continue;
+      node.dataset.diagramBudget = String(budget);
+      const signature = node.dataset.diagramType;
+      if (!parsedTypes.has(signature)) parsedTypes.set(signature, parseType(signature));
+      const type = parsedTypes.get(signature), arity = node.getAttribute('data-diagram-arity');
+      const { args, result } = arity === null ? {} : parts(type, Number(arity));
+      const diagram = arity === null ? layout(type, budget) : flow(args, result, budget);
+      const width = diagram.width + 4, height = diagram.height + 4;
+      const className = node.querySelector('.result-shape') ? 'result-shape' : '';
+      node.innerHTML = `<title>${escape(node.getAttribute('aria-label'))}</title><g class="${className}">${move(diagram.body, 2, 2)}</g>`;
+      node.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      node.setAttribute('width', width * iconScale); node.setAttribute('height', height * iconScale);
+      node.style.width = width * iconScale + 'px'; node.style.height = height * iconScale + 'px';
+    }
   }
   const data = {
     1: { f: ['Changes the wrapper; keeps the value. The dot represents a.', 'Change Zero to Hero, keeping the same value.'] },
@@ -179,12 +244,12 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       const type = args[i];
       const info = name === 'z' ? (level.level === 10 ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.') : `Function from ${typeToString(type.from)} to ${typeToString(type.to)}.`;
       labels[name] = details[name] = info;
-      map[name] = picture(`${name}: ${info} Type: ${typeToString(type)}`, layout(type));
+      map[name] = picture(`${name}: ${info} Type: ${typeToString(type)}`, layout(type), '', type);
     });
   }
   function renderType(signature, label = signature) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
-    return picture(label, layout(type), 'result-shape');
+    return picture(label, layout(type), 'result-shape', type);
   }
-  return {icons, cardIcons, captions, descriptions, renderType};
+  return {icons, cardIcons, captions, descriptions, renderType, fit};
 }

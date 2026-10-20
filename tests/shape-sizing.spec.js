@@ -24,6 +24,10 @@ for (const phone of [false, true]) {
             }
             if (document.documentElement.scrollWidth > document.documentElement.clientWidth)
               failures.push({ level: level.level, overflow: document.documentElement.scrollWidth });
+            for (const container of document.querySelectorAll('.program-row, .function-block, .argument-slot, .parameter-prefix, .icon-palette .func-card')) {
+              if (container.scrollWidth > container.clientWidth + 1)
+                failures.push({ level: level.level, gecko, container: container.className, overflow: container.scrollWidth - container.clientWidth });
+            }
           });
         }
         return { failures, locations: [...locations].sort() };
@@ -32,7 +36,7 @@ for (const phone of [false, true]) {
       expect(checks.locations).toEqual(['.argument-slot', '.func-card', '.function-head', '.parameter-icon', '.row-result']);
     });
 
-    test('wrappers grow around nested values and wide rows can reveal their full output', async ({ page }) => {
+    test('wrappers grow around nested values and wide rows wrap to keep their full output visible', async ({ page }) => {
       await page.goto(URL);
       const sizes = await page.evaluate(() => {
         showIntro = false; iconMode = true; geckoOn = false; currentLevel = 13;
@@ -53,9 +57,29 @@ for (const phone of [false, true]) {
       const positions = await page.locator('.program-row').last().evaluate(row => {
         const call = row.querySelector('.function-block').getBoundingClientRect();
         const result = row.querySelector('.row-result').getBoundingClientRect();
-        return { callCenter: call.y + call.height / 2, resultCenter: result.y + result.height / 2 };
+        return { callCenter: call.y + call.height / 2, resultCenter: result.y + result.height / 2,
+          callBottom: call.bottom, resultTop: result.top, rightInset: row.getBoundingClientRect().right - result.right };
       });
-      expect(positions.callCenter).toBeCloseTo(positions.resultCenter, 1);
+      if (phone) expect(positions.resultTop).toBeGreaterThan(positions.callBottom);
+      else expect(positions.callCenter).toBeCloseTo(positions.resultCenter, 1);
+      expect(positions.rightInset).toBeLessThan(10);
     });
   });
 }
+
+test('diagrams reflow when a pane narrows and expand again when it widens', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(URL);
+  await page.evaluate(() => {
+    showIntro = false; iconMode = true; geckoOn = false; currentLevel = 13;
+    setEditorContent(LEVELS[currentLevel].best); render();
+  });
+  const diagram = page.locator('.icon-palette .func-card svg[data-diagram-type]').last();
+  const wide = await diagram.boundingBox();
+  await page.setViewportSize({ width: 320, height: 900 });
+  await expect.poll(async () => (await diagram.boundingBox()).width).toBeLessThan(wide.width);
+  expect((await diagram.boundingBox()).height).toBeGreaterThan(wide.height);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect.poll(async () => (await diagram.boundingBox()).width).toBe(wide.width);
+  await expect.poll(async () => (await diagram.boundingBox()).height).toBe(wide.height);
+});

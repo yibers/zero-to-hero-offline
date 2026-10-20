@@ -179,6 +179,7 @@ function mountRowEditor() {
       feedback.classList.toggle('error-feedback', !!diagnostic.error);
     });
     paintReadyRow();
+    fitSemanticDiagrams();
     const history = rowHistory.get(currentLevel);
     document.getElementById('undo-rows').disabled = !history?.undo.length;
     document.getElementById('redo-rows').disabled = !history?.redo.length;
@@ -333,7 +334,7 @@ function mountRowEditor() {
       commit(true);
       container.querySelectorAll('.row-delete')[activeRow]?.focus({ preventScroll: true });
     };
-    document.body.append(dialog); dialog.showModal();
+    document.body.append(dialog); dialog.showModal(); fitSemanticDiagrams(dialog);
     dialog.querySelector('.delete-cancel').focus();
   }
   function historyMove(direction) {
@@ -456,7 +457,7 @@ function mountRowEditor() {
     }
     dialog.querySelector('.connection-cancel').onclick = close;
     dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
-    document.body.append(dialog); dialog.showModal();
+    document.body.append(dialog); dialog.showModal(); fitSemanticDiagrams(dialog);
   }
   function rowAt(point) {
     const hit = document.elementFromPoint(point.clientX, point.clientY);
@@ -561,10 +562,10 @@ function mountRowEditor() {
         holder.append(button);
       }
     }
-    dialog.querySelector('#connection-swap').onclick = () => { swapped = !swapped; choices(); };
+    dialog.querySelector('#connection-swap').onclick = () => { swapped = !swapped; choices(); fitSemanticDiagrams(dialog); };
     dialog.querySelector('.connection-cancel').onclick = close;
     dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
-    choices(); dialog.showModal();
+    choices(); dialog.showModal(); fitSemanticDiagrams(dialog);
   }
   function isRowHead(source) {
     if (!source || source.slot !== undefined) return false;
@@ -739,7 +740,7 @@ function mountRowEditor() {
     drag = { card, id: e.pointerId, name: card?.dataset.funcName || source.name, source, x: e.clientX, y: e.clientY, moved: false, snapshot: rowSnapshot() };
     ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost';
     ghost.innerHTML = rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1')) + `<span class="drag-action">${isRowHead(source) ? 'Release outside to clear row' : 'Release outside to remove'}</span>`;
-    document.body.append(ghost); moveGhost(e);
+    document.body.append(ghost); fitSemanticDiagrams(ghost); moveGhost(e);
     source?.node.classList.add('drag-source'); card?.classList.add('dragging');
   });
   // Claim the touch sequence too: otherwise the browser may start its own
@@ -781,7 +782,9 @@ function mountRowEditor() {
   listen(document, 'visibilitychange', () => { if (document.hidden) cleanupDrag(); });
   listen(document, 'contextmenu', e => { if (drag) e.preventDefault(); });
   listen(window, 'resize', () => editors().forEach(drawOverlay));
-  rowEditorCleanup = () => { closeDeletePreview?.(); cleanupDrag(); controller.abort(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
+  const diagramObserver = new ResizeObserver(() => fitSemanticDiagrams());
+  document.querySelectorAll('.left-panel, .right-panel').forEach(panel => diagramObserver.observe(panel));
+  rowEditorCleanup = () => { diagramObserver.disconnect(); closeDeletePreview?.(); cleanupDrag(); controller.abort(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
   if (removeEmptyRows()) persistRows();
   build();
   document.fonts.ready.then(() => { if (!controller.signal.aborted) editors().forEach(drawOverlay); });

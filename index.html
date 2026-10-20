@@ -147,7 +147,9 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .right-panel { background: #f3f4f6; color: black; padding: 12px; overflow: auto; }
 .right-panel h2 { font-size: 16px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .right-panel h2 svg { width: 18px; height: 18px; }
-.icon-palette .func-card { width: max-content; min-width: 100%; }
+.icon-palette .func-card { width: 100%; min-width: 0; }
+.icon-palette .type-name, .icon-palette .semantic-icon { max-width: 100%; min-width: 0; }
+.icon-palette .palette-gecko { max-width: 100%; overflow-x: auto; }
 .func-card { background: white; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; cursor: grab; }
 .func-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
 .touch-dragging { outline: 2px solid #60a5fa; outline-offset: -2px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -213,16 +215,16 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-arrow-header svg { height: 10px; }
 .gecko-arrow-body { display: flex; }
 </style>
-<link rel="stylesheet" href="row-editor.css?v=5059e74ef268">
+<link rel="stylesheet" href="row-editor.css?v=cd9e526ee6cb">
 </head>
 <body>
 
 <div id="app"></div>
 
 <script src="levels.js?v=69235dc9e3ea"></script>
-<script src="semantic-icons.js?v=9a2aafe5876c"></script>
+<script src="semantic-icons.js?v=6773149dcdce"></script>
 <script src="row-program.js?v=c84c05a60c11"></script>
-<script src="row-editor.js?v=c3e6ab5f8ecf"></script>
+<script src="row-editor.js?v=3c2ce2a1d719"></script>
 <script src="text-editor.js?v=8b64fa28133a"></script>
 <script>
 
@@ -1104,7 +1106,7 @@ function render() {
           ${level.funcs.filter(f => f.name !== '($)').map(f => `
             <div class="func-card" draggable="true" data-func-name="${f.name}">
               <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
-              ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
+              ${geckoOn ? `<div class="palette-gecko" style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
               ${iconMode ? `<p class="icon-explanation" title="${escHtml(ICON_DESCRIPTIONS[level.level][f.name])}">${escHtml(ICON_CAPTIONS[level.level][f.name])}</p>` : ''}
             </div>
           `).join('')}
@@ -1577,7 +1579,7 @@ const geckoColors = {
 const varColor = 'rgb(239,177,177)';
 
 // Render type patterns from each level's actual signatures, including function arguments.
-const { icons: LEVEL_ICONS, cardIcons: FUNCTION_CARD_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, renderType: renderSemanticType } =
+const { icons: LEVEL_ICONS, cardIcons: FUNCTION_CARD_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, renderType: renderSemanticType, fit: fitSemanticDiagrams } =
   createSemanticIcons(LEVELS, parseType, flattenApp, typeToString);
 
 function symbolDisplay(name, fallbackHtml, fixedWidthCh) {
