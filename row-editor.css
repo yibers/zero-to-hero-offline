@@ -46,6 +46,7 @@
 [data-func-name] { touch-action: none; }
 .drag-ghost { position: fixed; z-index: 9999; pointer-events: none; border-radius: 10px; padding: 8px 12px; background: white; color: #1e40af; border: 2px solid #60a5fa; box-shadow: 0 5px 20px #0005; display: flex; align-items: center; gap: 6px; }
 .drag-ghost .icon-sym svg { width: 56px; height: 56px; }
+.drag-ghost .horizontal-function svg { width: 128px; height: 36px; }
 .drag-ghost .drag-action { display: none; font-size: 11px; color: #b91c1c; }
 .drag-ghost.removing { border-color: #ef4444; }
 .drag-ghost.removing .drag-action { display: block; }
@@ -74,8 +75,10 @@
 .row-call > [hidden] { display: none; }
 .row-call.structured-call { margin: 0 6px 6px; container-type: inline-size; }
 .function-block { display: flex; align-items: center; gap: 8px; overflow-x: auto; border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
-.function-head { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; min-width: 52px; min-height: 52px; padding: 0; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
+.function-head { display: flex; flex: 0 1 auto; align-items: center; gap: 8px; min-width: 52px; min-height: 48px; padding: 0; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
 .function-head .icon-sym svg { width: 52px; height: 52px; }
+.function-head .horizontal-function { width: 128px; max-width: 100%; min-width: 0; }
+.function-head .horizontal-function svg { width: 128px; max-width: 100%; height: 36px; }
 .function-head:focus-visible { outline: 2px solid #2563eb; border-radius: 6px; }
 .function-head.connection-target { outline: 3px solid #7c3aed; background: #ede9fe; border-radius: 8px; }
 .function-block .drag-source { opacity: .35; }
@@ -94,9 +97,8 @@
 .argument-slot .input-picture svg, .argument-slot .input-picture .row-ref.rendered-ref > svg { width: 32px; height: 30px; max-width: 32px; }
 .input-picture .icon-sym { max-width: 100%; height: 30px; }
 .row-feedback { gap: 10px; }
-.row-result { flex-shrink: 0; max-width: 100%; display: flex; flex-direction: column; align-items: center; gap: 2px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 8px; padding: 4px 8px; cursor: grab; }
+.row-result { flex-shrink: 0; max-width: 100%; display: flex; align-items: center; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; border-radius: 8px; padding: 4px 8px; cursor: grab; }
 .row-result svg { height: 56px; width: auto; max-width: 100%; }
-.result-caption { font: 10px 'Fira Code', monospace; color: #15803d; }
 .row-feedback .row-type { flex: 1; min-width: 55px; }
 .row-ref.rendered-ref { position: relative; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; }
 .row-ref.rendered-ref > svg { width: 56px; height: 44px; max-width: none; flex-shrink: 0; }
