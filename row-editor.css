@@ -78,19 +78,25 @@
 
 /* The function owns its inputs; the result is a separate, reusable value. */
 .row-call > [hidden], .row-code-toggle[hidden] { display: none; }
-.row-call.structured-call { margin: 0 6px 6px; }
-.function-block { border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
-.function-head { display: flex; align-items: center; gap: 8px; min-width: 64px; min-height: 56px; max-width: 100%; padding: 2px 5px 6px; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
+.row-call.structured-call { margin: 0 6px 6px; container-type: inline-size; }
+.function-block { display: flex; align-items: center; gap: 8px; overflow-x: auto; border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
+.function-head { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; min-width: 52px; min-height: 52px; padding: 0; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
 .function-head .icon-sym svg { width: 52px; height: 52px; }
-.function-head code { font-size: 12px; overflow-wrap: anywhere; }
+.function-head code { font-size: 12px; white-space: nowrap; }
 .function-head:focus-visible { outline: 2px solid #2563eb; border-radius: 6px; }
 .function-head.connection-target { outline: 3px solid #7c3aed; background: #ede9fe; border-radius: 8px; }
 .function-block .drag-source { opacity: .35; }
 .row-code-toggle { display: block; margin-left: auto; min-height: 32px; padding: 5px 9px; border: 0; background: transparent; color: #64748b; font: 11px 'Fira Code', monospace; cursor: pointer; }
 .row-code-toggle:hover { color: #1d4ed8; }
-.input-slots { display: flex; flex-wrap: wrap; gap: 6px; }
+.input-slots { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 6px; margin-left: auto; }
+@container (max-width: 300px) {
+  .function-block { gap: 4px; padding: 4px; }
+  .function-head code { display: none; }
+  .input-slots { gap: 4px; }
+}
 .argument-slot { position: relative; display: flex; flex: 0 0 48px; flex-direction: column; align-items: center; justify-content: center; gap: 0; width: 48px; height: 48px; min-width: 0; border: 2px dashed #93c5fd; border-radius: 6px; padding: 2px; color: #1e40af; background: #f8fbff; font: inherit; cursor: pointer; touch-action: none; }
 .argument-slot.filled { border-style: solid; background: #fff; cursor: grab; }
+.argument-slot:not(.filled) { touch-action: auto; }
 .argument-slot.slot-target { border-color: #2563eb; background: #dbeafe; box-shadow: inset 0 0 0 2px #60a5fa; }
 .argument-slot:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
 .input-number { position: absolute; top: 2px; left: 3px; font: 8px 'Fira Code', monospace; color: #64748b; }
