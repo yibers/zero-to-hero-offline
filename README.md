@@ -61,7 +61,7 @@ tests/          — Playwright + unit tests
 - Operator cards are marked with an “Operator” badge in both text and icon modes.
 - In icon mode, drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
 - Saved solutions from the earlier automatic-chaining editor retain their meaning through a one-time conversion to explicit `$` connectors.
-- Dragging a function out also removes an adjacent explicit connector.
+- Dragging a row's main function out in icon mode clears that row's arguments too; undo restores the whole call. Dragging an argument out clears only that input. In unstructured expressions, dragging a function out also removes an adjacent explicit connector.
 - A read-only function prefix on its own line, with a left-aligned solution playground below it
 - Editor contents persisted in localStorage
 - "Show reference rows" on completion

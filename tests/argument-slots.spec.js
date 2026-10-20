@@ -80,6 +80,25 @@ test('dropping on the function head still opens the operator chooser', async ({ 
   await expect(row(page)).toHaveValue('f1 $ f3 z');
 });
 
+test('dragging a function out clears its whole call in block and code views; undo restores it', async ({ page }) => {
+  for (const [level, code, headName] of [[7, 'fmap cd z', 'fmap'], [7, 'fmap _ z', 'fmap'], [2, 'f3 . f1', '.']]) {
+    await open(page, level, code);
+    for (const codeView of [false, true]) {
+      if (codeView) await page.getByRole('button', { name: 'Edit code for row 1', exact: true }).click();
+      const head = page.locator(codeView ? `#editor-overlay > [data-name="${headName}"]` : '.function-head');
+      await mouseDrag(page, head, page.locator('nav'));
+      await expect(row(page)).toHaveValue('');
+      await expect(page.locator('.argument-slot, .row-result')).toHaveCount(0);
+      await expect(page.locator('.program-row')).toHaveCount(1);
+      await page.getByRole('button', { name: 'Undo row edit' }).click();
+      await expect(row(page)).toHaveValue(code);
+    }
+    await page.getByRole('button', { name: 'Redo row edit' }).click();
+    await page.reload();
+    await expect(row(page)).toHaveValue('');
+  }
+});
+
 test('fill a later input first, keep the hole through reload, then supply a function parameter', async ({ page }) => {
   await open(page, 7, 'fmap');
   await choose(page, 0, 1, 'z');
@@ -174,6 +193,27 @@ test.describe('phone input slots', () => {
       await send('touchEnd', []);
     }};
   }
+  test('drag out a whole call, cancel safely, and keep function-valued argument removal separate', async ({ page }) => {
+    await open(page, 14, 'pair f g');
+    const t = await touch(page);
+    // A function used as an argument removes only that input.
+    await t.drag(await center(slot(page, 0, 0)), { x: 8, y: 10 });
+    await expect(row(page)).toHaveValue('pair _ g');
+    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    const head = page.locator('.function-head');
+    await t.send('touchStart', [await center(head)]);
+    await t.send('touchMove', [{ x: 8, y: 10 }]);
+    await expect(page.locator('#touch-drag-ghost')).toContainText('Release outside to clear row');
+    await t.send('touchCancel', []);
+    await expect(row(page)).toHaveValue('pair f g');
+    await t.drag(await center(head), { x: 8, y: 10 });
+    await expect(row(page)).toHaveValue('');
+    await expect(page.locator('.argument-slot, #touch-drag-ghost')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    await expect(row(page)).toHaveValue('pair f g');
+    await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of pair: f');
+    await expect(slot(page, 0, 1)).toHaveAttribute('aria-label', 'Input 2 of pair: g');
+  });
   test('immediately drag into a slot, replace it, drag out and undo', async ({ page }) => {
     await open(page, 7, 'fmap');
     const t = await touch(page);

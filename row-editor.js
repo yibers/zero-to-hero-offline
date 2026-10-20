@@ -442,12 +442,26 @@ function mountRowEditor() {
     dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
     choices(); dialog.showModal();
   }
+  function isRowHead(source) {
+    if (!source || source.slot !== undefined) return false;
+    if (source.head) return true;
+    // The same function can also be dragged from the row's Edit code view.
+    const text = getRows()[source.index].expr, call = RowProgram.call(text);
+    if (!call) return false;
+    const head = tokens(text).filter(t => t.name !== '(' && t.name !== ')')[call.infix ? 1 : 0];
+    return head?.start === source.start && head?.end === source.end;
+  }
   function drop(name, point, source) {
     const slot = slotAt(point);
     if (slot) { fillSlot(name, Number(slot.dataset.row), Number(slot.dataset.slot), source); return; }
     const index = rowAt(point);
     if (index === null) {
-      if (source) { rememberRows(); getRows()[source.index].expr = removal(getRows()[source.index].expr, source, true).text; commit(); }
+      if (source) {
+        rememberRows();
+        const row = getRows()[source.index];
+        row.expr = isRowHead(source) ? '' : removal(row.expr, source, true).text;
+        commit();
+      }
       return;
     }
     const target = targetFor(name, index, point, source);
@@ -603,7 +617,7 @@ function mountRowEditor() {
     if (card) card.draggable = false;
     drag = { card, id: e.pointerId, name: card?.dataset.funcName || source.name, source, x: e.clientX, y: e.clientY, moved: false, snapshot: rowSnapshot() };
     ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost';
-    ghost.innerHTML = rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1')) + '<span class="drag-action">Release outside to remove</span>';
+    ghost.innerHTML = rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1')) + `<span class="drag-action">${isRowHead(source) ? 'Release outside to clear row' : 'Release outside to remove'}</span>`;
     document.body.append(ghost); moveGhost(e);
     source?.node.classList.add('drag-source'); card?.classList.add('dragging');
   });
