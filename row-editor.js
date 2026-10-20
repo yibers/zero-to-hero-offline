@@ -112,7 +112,7 @@ function mountRowEditor() {
   const listen = (el, event, fn, extra = {}) => el.addEventListener(event, fn, { ...options, ...extra });
   const notice = text => { document.getElementById('row-notice').textContent = text; };
   let drag = null, ghost = null, nativeName = '', suppressClick = false, scrollFrame = null, lastPoint = null;
-  let lastScrollTime = 0, scrollEdge = null, closeDeletePreview = null;
+  let lastScrollTime = 0, scrollEdge = null, closeDeletePreview = null, readyRowState = null;
   const refNames = () => new Set(getRows().map(r => r.id));
   function tokens(text) {
     return [...text.matchAll(/\((?:\$|\.|<\$>|<\*>|>>=)\)|[a-zA-Z_][a-zA-Z0-9_']*|[!@#$%^&*\-+=<>?/|~:.\\]+|[^\s]/g)]
@@ -181,6 +181,10 @@ function mountRowEditor() {
   }
   function paintReadyRow() {
     const rows = getRows();
+    const last = rows.at(-1), diagnostic = rowDiagnostics.at(-1);
+    const state = JSON.stringify([rows.length, last.id, last.expr, diagnostic?.signature, diagnostic?.error]);
+    const changed = state !== readyRowState;
+    readyRowState = state;
     const hasEmptyRow = rows.some(row => !row.expr.trim());
     const solved = !hasEmptyRow && rowDiagnostics.every(row => !row.error)
       && typeCheck(level, RowProgram.source(rows)).ok;
@@ -197,6 +201,11 @@ function mountRowEditor() {
       container.append(ready);
     }
     ready.dataset.row = rows.length;
+    // Row outputs can grow after a drop. Reveal the next target after layout,
+    // without moving keyboard focus or interrupting an earlier-row edit.
+    if (changed) requestAnimationFrame(() => {
+      if (ready.isConnected && !controller.signal.aborted) ready.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
   }
   function nextRowId(rows) {
     let n = 1;
@@ -206,10 +215,10 @@ function mountRowEditor() {
   function build() {
     const rows = getRows();
     activeRow = Math.min(activeRow, rows.length - 1);
-    container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" aria-label="Row ${index + 1}">
+    container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}">
       <div class="row-heading"><span class="row-number">${index + 1}</span><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
       <button type="button" class="row-delete" data-action="remove" aria-label="Delete row ${index + 1}" title="Delete row">×</button></div>
-      <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
+      <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" inputmode="none" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
       <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></section>`).join('');
     paint();
   }
@@ -219,7 +228,8 @@ function mountRowEditor() {
     const rows = getRows();
     rows.splice(at, 0, { id: nextRowId(rows), expr: '' });
     activeRow = at; commit(true);
-    editors()[at].scrollIntoView({ block: 'nearest' });
+    editors()[at].closest('.program-row').scrollIntoView({ block: 'nearest' });
+    focusRow(at);
   }
   function confirmRowDeletion(index) {
     closeDeletePreview?.();
@@ -287,9 +297,8 @@ function mountRowEditor() {
     focusRow(activeRow);
   }
   function focusRow(index) {
-    const editor = editors()[index];
-    if (editor.closest('.editor-container').hidden) editor.closest('.program-row').querySelector('.function-head').focus({ preventScroll: true });
-    else { editor.focus({ preventScroll: true }); editor.setSelectionRange(editor.value.length, editor.value.length); }
+    const row = editors()[index]?.closest('.program-row');
+    row?.focus({ preventScroll: true });
   }
   function removal(text, range, connectors = false) {
     if (range.slot !== undefined) {
@@ -605,7 +614,7 @@ function mountRowEditor() {
     if ((e.ctrlKey || e.metaKey) && /^(z|y)$/i.test(e.key)) {
       e.preventDefault(); historyMove(e.key.toLowerCase() === 'y' || e.shiftKey ? 'redo' : 'undo'); return;
     }
-    if (e.key === 'Enter') { e.preventDefault(); newRow(index + 1); editors()[index + 1].focus(); return; }
+    if (e.key === 'Enter') { e.preventDefault(); newRow(index + 1); return; }
     if (start !== end || e.ctrlKey || e.metaKey || e.shiftKey) return;
     const ts = tokens(editor.value);
     if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -623,7 +632,7 @@ function mountRowEditor() {
   });
   listen(container, 'click', e => {
     if (e.target.closest('.ready-row')) {
-      if (!suppressClick) { newRow(getRows().length); focusRow(activeRow); }
+      if (!suppressClick) newRow(getRows().length);
       return;
     }
     const slot = e.target.closest('.argument-slot');

@@ -80,7 +80,8 @@ test('a spare target can be tapped and an existing empty row is reused without d
   await open(page, 1, 'runZero z');
   await ready(page).click();
   await expect(row(page, 1)).toHaveValue('');
-  await expect(row(page, 1)).toBeFocused();
+  await expect(row(page, 1)).not.toBeFocused();
+  await expect(page.locator('.program-row').nth(1)).toBeFocused();
   await expect(ready(page)).toHaveCount(0);
   await row(page, 1).fill('mkHero');
   await expect(ready(page)).toHaveCount(1);
@@ -106,6 +107,31 @@ test('every solved reference has no spare row; wrong types and invalid row progr
 
 test.describe('phone automatic rows', () => {
   test.use({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+  test('the next row stays visible after outputs grow, and returns on undo after solving', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 760 });
+    await open(page, 1, 'let\n  r1 = runZero z\nin\n  mkHero z');
+    await expect(ready(page)).toBeInViewport({ ratio: 1 });
+    await expect(row(page, 1)).not.toBeFocused();
+    await choose(page, 1, 'r1');
+    await expect(ready(page)).toHaveCount(0);
+    await page.getByRole('button', { name: 'Undo row edit' }).tap();
+    await expect(ready(page)).toBeInViewport({ ratio: 1 });
+    await expect(row(page, 1)).not.toBeFocused();
+  });
+
+  test('tapping either add-row control focuses the row without a typing cursor', async ({ page }) => {
+    await open(page, 1, 'runZero z');
+    await ready(page).tap();
+    await expect(page.locator('.program-row').nth(1)).toBeFocused();
+    await expect(row(page, 1)).not.toBeFocused();
+    await expect(row(page, 1)).toHaveAttribute('inputmode', 'none');
+    await expect(row(page, 1)).toHaveCSS('caret-color', 'rgba(0, 0, 0, 0)');
+    await page.getByRole('button', { name: '+ Add row', exact: true }).tap();
+    await expect(page.locator('.program-row').nth(2)).toBeFocused();
+    await expect(row(page, 2)).not.toBeFocused();
+    await expect(row(page, 2)).toBeInViewport();
+  });
+
   test('touch drop adds the next row; cancellation leaves it empty and solving removes the spare', async ({ page }) => {
     await open(page, 1, 'runZero z');
     const cdp = await page.context().newCDPSession(page);
@@ -125,7 +151,7 @@ test.describe('phone automatic rows', () => {
     await expect(row(page, 1)).toHaveValue('mkHero');
     await expect(row(page, 1)).not.toBeFocused();
     await expect(ready(page)).toHaveCount(1);
-    await ready(page).scrollIntoViewIfNeeded();
+    await expect(ready(page)).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: '/tmp/zth-auto-row-phone.png' });
     await choose(page, 1, 'r1');
     await expect(ready(page)).toHaveCount(0);

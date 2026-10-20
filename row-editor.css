@@ -27,7 +27,7 @@
 .program-row.final-row .row-role { color: #047857; font-weight: 600; }
 .program-row .editor-container { padding-left: 0; }
 .program-row textarea.editor { min-height: 40px; overflow: hidden; touch-action: none; }
-.editor-icons .program-row textarea.editor { touch-action: none; }
+.editor-icons .program-row textarea.editor { touch-action: none; caret-color: transparent; cursor: default; }
 .program-row .editor-overlay { overflow-wrap: break-word; }
 .program-row .editor-area { overflow: hidden; }
 .row-feedback { border-top: 1px solid #f1f5f9; color: #64748b; padding: 5px 9px; font-size: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 28px; }
