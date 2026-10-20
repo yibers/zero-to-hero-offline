@@ -36,7 +36,7 @@ async function choose(page, index, n, name) {
 
 test('drop an argument inside a function, without a connector, and render its output', async ({ page }) => {
   await open(page, 0, 'f');
-  await mouseDrag(page, page.locator('.right-panel [data-func-name="z"]'), slot(page, 0, 0));
+  await mouseDrag(page, page.locator('#editor-prefix [data-func-name="z"]'), slot(page, 0, 0));
   await expect(row(page)).toHaveValue('f z');
   await expect(page.locator('#connection-picker')).toHaveCount(0);
   await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of f: z');
@@ -175,9 +175,9 @@ test.describe('phone input slots', () => {
     await open(page, 7, 'fmap');
     const t = await touch(page);
     const to = await center(slot(page, 0, 0));
-    await t.drag(await center(page.locator('.right-panel [data-func-name="bd"]')), to);
+    await t.drag(await center(page.locator('#editor-prefix [data-func-name="bd"]')), to);
     await expect(row(page)).toHaveValue('fmap bd');
-    await t.drag(await center(page.locator('.right-panel [data-func-name="cd"]')), await center(slot(page, 0, 0)));
+    await t.drag(await center(page.locator('#editor-prefix [data-func-name="cd"]')), await center(slot(page, 0, 0)));
     await expect(row(page)).toHaveValue('fmap cd');
     await t.drag(await center(slot(page, 0, 0)), { x: 8, y: 10 });
     await expect(row(page)).toHaveValue('fmap');

@@ -945,6 +945,7 @@ function render() {
   document.getElementById('connection-picker')?.remove();
   if (touchDragCleanup) touchDragCleanup();
   const level = LEVELS[currentLevel];
+  const params = level.lhs.split('=')[0].trim().split(/\s+/).slice(1);
   const app = document.getElementById('app');
 
   app.innerHTML = `
@@ -1084,10 +1085,9 @@ function render() {
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M230.14,70.54,185.46,25.86a20,20,0,0,0-28.28,0L33.86,149.17A19.85,19.85,0,0,0,28,163.31V208a20,20,0,0,0,20,20H92.69a19.86,19.86,0,0,0,14.14-5.86L230.14,98.82A20,20,0,0,0,230.14,70.54ZM91,204H52V165l84-84,39,39Z"/></svg> Code Editor</div>
           <div class="editor-wrap${iconMode ? ' editor-icons' : ''}">
             <div class="editor-prefix-row">
-              <div class="line-numbers" aria-hidden="true">1</div>
-              <div class="editor-prefix" id="editor-prefix">${escHtml(level.lhs.trim())}</div>
+              ${iconMode ? '' : '<div class="line-numbers" aria-hidden="true">1</div>'}
+              <div class="editor-prefix${iconMode ? ' parameter-prefix' : ''}" id="editor-prefix"${iconMode ? ' role="group" aria-label="Available parameters"' : ''}>${iconMode ? params.map(p => `<button type="button" class="parameter-icon" draggable="true" data-func-name="${escHtml(p)}" aria-label="Use parameter ${escHtml(p)}" title="${escHtml(ICON_CAPTIONS[level.level][p])}">${symbolDisplay(p)}</button>`).join('') : escHtml(level.lhs.trim())}</div>
             </div>
-            <div class="row-instructions">One call per row. ${iconMode ? 'Drop arguments inside the function; reuse results below.' : 'Use earlier results as inputs. The bottom row is your final answer.'}</div>
             <div id="program-rows"></div>
             <div class="row-toolbar"><button type="button" id="add-row">+ Add row</button><button type="button" id="undo-rows" aria-label="Undo row edit">Undo</button><button type="button" id="redo-rows" aria-label="Redo row edit">Redo</button></div>
             <div id="row-notice" role="status"></div>
@@ -1116,17 +1116,12 @@ function render() {
               ${iconMode ? `<p class="icon-explanation" title="${escHtml(ICON_DESCRIPTIONS[level.level][f.name])}">${escHtml(ICON_CAPTIONS[level.level][f.name])}</p>` : ''}
             </div>
           `).join('')}
-          <h2 style="margin-top:12px"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208ZM76,88a12,12,0,1,1,12,12A12,12,0,0,1,76,88Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,128Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,168Zm88-80H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Z"/></svg> Available Parameters</h2>
-          ${(() => {
-            const parts = level.lhs.split('=')[0].trim().split(/\s+/);
-            const params = parts.slice(1);
-            return params.map(p => `
-              <div class="func-card" draggable="true" data-func-name="${p}">
-                <div class="type-sig"><span class="type-name">${symbolDisplay(p, escHtml(p))}</span></div>
-                ${iconMode ? `<p class="icon-explanation">${escHtml(ICON_CAPTIONS[level.level][p])}</p>` : ''}
-              </div>
-            `).join('');
-          })()}
+          ${!iconMode ? `<h2 style="margin-top:12px"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208ZM76,88a12,12,0,1,1,12,12A12,12,0,0,1,76,88Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,128Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,168Zm88-80H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Z"/></svg> Available Parameters</h2>
+          ${params.map(p => `
+            <div class="func-card" draggable="true" data-func-name="${p}">
+              <div class="type-sig"><span class="type-name">${symbolDisplay(p, escHtml(p))}</span></div>
+            </div>
+          `).join('')}` : ''}
         </div>
       </div>
     </main>

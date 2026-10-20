@@ -234,6 +234,7 @@ test.describe('Phone touch dragging', () => {
     await touch.end();
     await expect(editor).toHaveValue('runZero');
     await noDragUI(page);
+    await page.locator('.function-head[data-name="runZero"]').scrollIntoViewIfNeeded();
     const tile = await page.locator('.function-head[data-name="runZero"]').boundingBox();
     const area = await page.locator('.function-block').boundingBox();
     expect(tile.x).toBeGreaterThanOrEqual(area.x);
@@ -288,7 +289,8 @@ test.describe('Phone touch dragging', () => {
     expect(bounds.y + bounds.height).toBeLessThanOrEqual(800);
     await picker.getByRole('button', { name: 'Swap order' }).tap();
     const dollar = picker.getByRole('button', { name: 'Use $', exact: true });
-    await expect(dollar).toContainText('f3 $ f1 z');
+    expect(await dollar.locator('.connection-preview > .icon-sym').evaluateAll(icons => icons.map(icon => icon.getAttribute('title'))))
+      .toEqual(['f3', '$', 'f1', 'z']);
     expect((await dollar.boundingBox()).height).toBeGreaterThanOrEqual(48);
     await dollar.tap();
     await expect(editor).toHaveValue('f3 $ f1 z');

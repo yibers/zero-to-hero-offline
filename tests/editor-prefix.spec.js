@@ -46,10 +46,15 @@ test('existing level 8 progress loads and preserves the extra parameters', async
   expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await expect(page.locator('#inferred-type')).toContainText('Hero');
   await page.getByText('Icons', { exact: true }).click();
+  await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(4);
+  expect(await page.locator('#editor-prefix').innerText()).toBe('');
+  await expect(page.locator('.right-panel [data-func-name="z"]')).toHaveCount(0);
+  await expect(page.locator('.row-instructions')).toHaveCount(0);
   await page.getByText('Gecko Graph', { exact: true }).click();
   await expect(page.locator('textarea.row-editor')).toHaveCount(5);
   expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await page.reload();
+  await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(4);
   await expect(page.locator('textarea.row-editor')).toHaveCount(5);
   expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await page.getByRole('button', { name: 'Attempt', exact: true }).click();
