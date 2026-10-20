@@ -191,6 +191,7 @@ function mountRowEditor() {
         ? `<span>${escHtml(rows[i].expr.trim() ? diagnostic.error : 'Drop or type an expression here.')}</span>`
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row"><span class="result-caption">${iconMode ? 'Result' : 'Result · ' + rows[i].id}</span>${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
     });
+    paintReadyRow();
     updateResults();
     document.getElementById('haskell-source').textContent = level.lhs.trim() + '\n  ' + RowProgram.source(rows).replace(/\n/g, '\n  ');
     const history = rowHistory.get(currentLevel);
@@ -199,10 +200,34 @@ function mountRowEditor() {
     clearTimeout(liveCheckTimer);
     runLiveCheck();
   }
+  function paintReadyRow() {
+    const rows = getRows();
+    const hasEmptyRow = rows.some(row => !row.expr.trim());
+    const solved = !hasEmptyRow && rowDiagnostics.every(row => !row.error)
+      && typeCheck(level, RowProgram.source(rows)).ok;
+    let ready = container.querySelector('.ready-row');
+    if (hasEmptyRow || solved) { ready?.remove(); return; }
+    // This drop target is not part of the program until it receives a value.
+    // It must not change the final expression, validation, scoring or undo.
+    if (!ready) {
+      ready = document.createElement('button');
+      ready.type = 'button'; ready.className = 'ready-row';
+      ready.setAttribute('aria-label', 'New function row');
+      ready.title = 'Drop a function here';
+      ready.innerHTML = '<span aria-hidden="true">+</span>';
+      container.append(ready);
+    }
+    ready.dataset.row = rows.length;
+  }
+  function nextRowId(rows) {
+    let n = 1;
+    while (rows.some(row => row.id === `r${n}`)) n++;
+    return `r${n}`;
+  }
   function build() {
     const rows = getRows();
     activeRow = Math.min(activeRow, rows.length - 1);
-    container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}" data-row="${index}" aria-label="Row ${index + 1}">
+    container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" aria-label="Row ${index + 1}">
       <div class="row-heading"><span class="row-number">${index + 1}</span><button type="button" class="result-handle" draggable="true" data-func-name="${row.id}" title="Drag ${row.id} into a later row">${escHtml(row.id)}</button><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
       <details class="row-menu"><summary aria-label="Actions for row ${index + 1}">⋯</summary><div class="row-actions"><button type="button" data-action="insert" title="Insert a row above" aria-label="Insert row above ${index + 1}">+</button><button type="button" data-action="up" aria-label="Move row ${index + 1} up" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-action="down" aria-label="Move row ${index + 1} down" ${index === rows.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-action="remove" aria-label="Remove row ${index + 1}">×</button></div></details></div>
       <button type="button" class="row-code-toggle" data-action="code" hidden></button>
@@ -213,9 +238,8 @@ function mountRowEditor() {
   function commit(rebuild = false) { persistRows(); notice(''); rebuild ? build() : paint(); }
   function newRow(at) {
     rememberRows();
-    const rows = getRows(); let n = 1;
-    while (rows.some(r => r.id === `r${n}`)) n++;
-    rows.splice(at, 0, { id: `r${n}`, expr: '' });
+    const rows = getRows();
+    rows.splice(at, 0, { id: nextRowId(rows), expr: '' });
     activeRow = at; commit(true);
     editors()[at].scrollIntoView({ block: 'nearest' });
   }
@@ -257,6 +281,8 @@ function mountRowEditor() {
   }
   function mutateDrop(name, rowIndex, pos, source, connector) {
     const next = structuredClone(getRows());
+    const createsRow = rowIndex === next.length;
+    if (createsRow) next.push({ id: nextRowId(next), expr: '' });
     if (refNames().has(name) || /^r\d+$/.test(name)) {
       const from = next.findIndex(r => r.id === name);
       if (from < 0 || from >= rowIndex) { notice('Use a result only in a row below it.'); return; }
@@ -281,7 +307,7 @@ function mountRowEditor() {
       const left = connector.swapped ? name : target, right = connector.swapped ? target : name;
       next[rowIndex].expr = text.slice(0, connector.start) + `${left} ${connector.op ? connector.op + ' ' : ''}${right}` + text.slice(connector.end);
     } else next[rowIndex].expr = inserted(next[rowIndex].expr, pos, name);
-    rememberRows(); rowPrograms[currentLevel] = next; activeRow = rowIndex; commit(); activate(rowIndex);
+    rememberRows(); rowPrograms[currentLevel] = next; activeRow = rowIndex; commit(createsRow); activate(rowIndex);
   }
   function slotAt(point) {
     const slot = document.elementFromPoint(point.clientX, point.clientY)?.closest('.argument-slot');
@@ -342,7 +368,7 @@ function mountRowEditor() {
   }
   function rowAt(point) {
     const hit = document.elementFromPoint(point.clientX, point.clientY);
-    const row = hit?.closest('.program-row');
+    const row = hit?.closest('.program-row, .ready-row');
     return row && container.contains(row) ? Number(row.dataset.row) : null;
   }
   function hitToken(index, point) {
@@ -394,6 +420,9 @@ function mountRowEditor() {
     const index = rowAt(point);
     ghost?.classList.toggle('removing', index === null && !!source);
     if (index === null) return;
+    if (index === getRows().length) {
+      container.querySelector('.ready-row')?.classList.add('drag-over'); return;
+    }
     const slot = slotAt(point);
     if (slot) { slot.classList.add('slot-target'); return; }
     const target = targetFor(name, index, point, source);
@@ -464,6 +493,7 @@ function mountRowEditor() {
       }
       return;
     }
+    if (index === getRows().length) { mutateDrop(name, index, 0, source); return; }
     const target = targetFor(name, index, point, source);
     if (target) picker(name, target, source);
     else mutateDrop(name, index, caret(index, point).pos, source);
@@ -557,6 +587,10 @@ function mountRowEditor() {
     }
   });
   listen(container, 'click', e => {
+    if (e.target.closest('.ready-row')) {
+      if (!suppressClick) { newRow(getRows().length); focusRow(activeRow); }
+      return;
+    }
     const slot = e.target.closest('.argument-slot');
     if (slot) { if (!suppressClick) chooseArgument(slot); return; }
     const button = e.target.closest('[data-action]');
