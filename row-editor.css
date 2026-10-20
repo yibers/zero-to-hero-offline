@@ -55,7 +55,7 @@
 .drag-ghost.removing { border-color: #ef4444; }
 .drag-ghost.removing .drag-action { display: block; }
 .left-panel { grid-template-rows: auto auto 8px auto auto 8px auto minmax(300px,1fr) 8px auto; }
-.left-panel.icon-layout { grid-template-rows: auto auto 8px minmax(300px,1fr) 8px auto; }
+.left-panel.icon-layout { grid-template-rows: minmax(300px,1fr) 8px auto; }
 .status-output { max-height: 85px; }
 @media (max-width:600px) {
   .row-heading { gap: 4px; padding: 2px 5px; }

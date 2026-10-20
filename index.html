@@ -215,7 +215,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-arrow-header svg { height: 10px; }
 .gecko-arrow-body { display: flex; }
 </style>
-<link rel="stylesheet" href="row-editor.css?v=db31968294a2">
+<link rel="stylesheet" href="row-editor.css?v=57cd4161904e">
 </head>
 <body>
 
@@ -1062,6 +1062,7 @@ function render() {
     <main>
       <div class="grid-h">
         <div class="left-panel${iconMode ? ' icon-layout' : ''}">
+          ${!iconMode ? `
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M137.54,186.36a8,8,0,0,1,0,11.31l-9.94,10a56,56,0,0,1-79.22-79.27l24.12-24.12a56,56,0,0,1,76.81-2.28,8,8,0,1,1-10.64,12,40,40,0,0,0-54.85,1.63L59.7,139.72a40,40,0,0,0,56.58,56.58l9.94-9.94A8,8,0,0,1,137.54,186.36Zm70.08-138a56.08,56.08,0,0,0-79.22,0l-9.94,9.95a8,8,0,0,0,11.32,11.31l9.94-9.94a40,40,0,0,1,56.58,56.58L172.18,140.4a40,40,0,0,1-54.85,1.63,8,8,0,1,0-10.64,12,56,56,0,0,0,76.81-2.28l24.12-24.12A56.08,56.08,0,0,0,207.62,48.38Z"/></svg> To Implement</div>
           <div class="code-block">
             <div class="type-sig" style="font-size:1rem">${renderTypeSig('zeroToHero', level.target)}</div>
@@ -1070,7 +1071,6 @@ function render() {
 
           <div class="gutter-row"></div>
 
-          ${!iconMode ? `
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M172,108a12,12,0,0,1-12,12H96a12,12,0,0,1,0-24h64A12,12,0,0,1,172,108Zm-12,28H96a12,12,0,0,0,0,24h64a12,12,0,0,0,0-24Zm76-8A108,108,0,0,1,128.67,236H128a107.55,107.55,0,0,1-57.23-16.41L46.34,235A20,20,0,0,1,21,209.66l15.38-24.43A108,108,0,1,1,236,128Zm-24,0a84,84,0,1,0-156.73,42.06,12,12,0,0,1,1,9.81l-9.93,29.79,29.79-9.93a12.1,12.1,0,0,1,3.8-.62,12,12,0,0,1,6,1.62A84,84,0,0,0,212,128Z"/></svg> Your Solution</div>
           <div class="code-block">
             <div class="type-sig" id="inferred-type" style="font-size:1rem">${renderTypeSig('zeroToHero', 'a')}</div>
@@ -1552,6 +1552,7 @@ function runLiveCheck() {
 }
 
 function renderTypeSig(name, sig, displayName = symbolDisplay(name)) {
+  if (iconMode) return `<span class="type-name">${displayName}</span>`;
   return `<span class="type-name">${displayName}</span> <span style="color:#374151">::</span> ${colorizeType(sig)}`;
 }
 
