@@ -174,7 +174,7 @@ function mountRowEditor() {
       drawOverlay(editor);
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
       feedback.innerHTML = diagnostic.error
-        ? `<span>${escHtml(rows[i].expr.trim() ? diagnostic.error : 'Drop or type an expression here.')}</span>`
+        ? (rows[i].expr.trim() ? `<span>${escHtml(diagnostic.error)}</span>` : '')
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
       feedback.classList.toggle('error-feedback', !!diagnostic.error);
     });
