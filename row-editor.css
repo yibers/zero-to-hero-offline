@@ -51,6 +51,7 @@
 [data-func-name] { touch-action: none; }
 .drag-ghost { flex-wrap: wrap; position: fixed; max-width: calc(100vw - 8px); overflow: hidden; z-index: 9999; pointer-events: none; border-radius: 10px; padding: 8px 12px; background: white; color: #1e40af; border: 2px solid #60a5fa; box-shadow: 0 5px 20px #0005; display: flex; align-items: center; gap: 6px; }
 .drag-ghost .drag-action { display: none; font-size: 11px; color: #b91c1c; }
+.row-drag-ghost { transform: translate(-50%, -50%); opacity: .85; }
 .drag-ghost.removing { border-color: #ef4444; }
 .drag-ghost.removing .drag-action { display: block; }
 .left-panel { grid-template-rows: auto auto 8px auto auto 8px auto minmax(300px,1fr) 8px auto; }

@@ -621,8 +621,10 @@ function mountRowEditor() {
   }
   function moveGhost(point) {
     if (!ghost) return;
-    ghost.style.left = Math.max(4, Math.min(point.clientX - ghost.offsetWidth / 2, innerWidth - ghost.offsetWidth - 4)) + 'px';
-    ghost.style.top = Math.max(4, point.clientY - ghost.offsetHeight - 24) + 'px';
+    // The preview's center is the drop point. An elevated or edge-clamped
+    // preview appears to hit a different row/input from the pointer below it.
+    ghost.style.left = point.clientX + 'px';
+    ghost.style.top = point.clientY + 'px';
   }
   function autoScroll(time) {
     if (!drag?.moved || !lastPoint) return;
@@ -630,15 +632,17 @@ function mountRowEditor() {
     const hovered = rowAt(lastPoint);
     const onSlot = slotAt(lastPoint);
     const onToken = onSlot || hovered !== null && hitToken(hovered, lastPoint);
-    const delta = !onToken && lastPoint.clientX >= r.left && lastPoint.clientX <= r.right
+    const onDropArea = document.elementFromPoint(lastPoint.clientX, lastPoint.clientY)
+      ?.closest('.empty-row-drop, textarea.row-editor');
+    const delta = !onToken && !onDropArea && lastPoint.clientX >= r.left && lastPoint.clientX <= r.right
       ? lastPoint.clientY < r.top + 36 ? -14 : lastPoint.clientY > r.bottom - 36 ? 14 : 0 : 0;
     const row = hovered === null ? null : container.querySelector(`.program-row[data-row="${hovered}"]`);
     const bounds = row?.getBoundingClientRect();
-    const across = bounds && !onSlot
+    const across = bounds && !onSlot && !onDropArea
       ? lastPoint.clientX < bounds.left + 24 && row.scrollLeft > 0 ? -14
         : lastPoint.clientX > bounds.right - 24 && row.scrollLeft + row.clientWidth < row.scrollWidth ? 14 : 0
       : 0;
-    // Crossing the edge on the way to a small input must not move that input.
+    // A visible input or empty row must not scroll out from under a drop.
     // Scroll only when the player rests the already-dragging finger at the edge.
     if (!delta && !across) scrollEdge = null;
     else if (!scrollEdge || scrollEdge.delta !== delta || scrollEdge.across !== across || scrollEdge.row !== row || Math.hypot(lastPoint.clientX - scrollEdge.x, lastPoint.clientY - scrollEdge.y) > 12) {
@@ -741,7 +745,10 @@ function mountRowEditor() {
   listen(document, 'dragstart', e => {
     const card = e.target.closest('[data-func-name]');
     if (!card) return;
-    nativeName = card.dataset.funcName; e.dataTransfer.setData('text/plain', nativeName); card.classList.add('dragging');
+    nativeName = card.dataset.funcName; e.dataTransfer.setData('text/plain', nativeName);
+    const bounds = card.getBoundingClientRect();
+    e.dataTransfer.setDragImage(card, bounds.width / 2, bounds.height / 2);
+    card.classList.add('dragging');
   });
   listen(container, 'dragover', e => { e.preventDefault(); showIntent(nativeName, e); });
   listen(container, 'drop', e => { e.preventDefault(); drop(e.dataTransfer.getData('text/plain'), e); cleanupDrag(); nativeName = ''; if (!document.getElementById('connection-picker')) focusRow(activeRow); });
@@ -762,7 +769,7 @@ function mountRowEditor() {
     if (editor || slot || head) activate(index);
     if (card) card.draggable = false;
     drag = { card, id: e.pointerId, name: card?.dataset.funcName || source.name, source, x: e.clientX, y: e.clientY, moved: false, snapshot: rowSnapshot() };
-    ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost';
+    ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost row-drag-ghost';
     ghost.innerHTML = (source?.node?.querySelector('svg.semantic-diagram')?.outerHTML || rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1'))) + `<span class="drag-action">${isRowHead(source) ? 'Release outside to clear row' : 'Release outside to remove'}</span>`;
     document.body.append(ghost); fitSemanticDiagrams(ghost); moveGhost(e);
     source?.node.classList.add('drag-source'); card?.classList.add('dragging');
