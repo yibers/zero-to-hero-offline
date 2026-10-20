@@ -20,7 +20,7 @@
 .empty-row-drop:focus-visible { outline: 2px solid #2563eb; outline-offset: -4px; }
 .program-row.active-row { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
 .program-row.final-row { border-bottom: 3px solid #10b981; }
-.row-heading { display: flex; align-items: center; gap: 7px; background: #f8fafc; padding: 3px 8px; flex-wrap: wrap; }
+.row-heading { display: none; }
 .row-number { font-size: 11px; color: #64748b; }
 .row-role { font-size: 11px; color: #64748b; flex: 1; }
 .editor-icons .program-row:not(.final-row) .row-role { display: none; }
@@ -73,7 +73,7 @@
 
 /* The function owns its inputs; the result is a separate, reusable value. */
 .row-call > [hidden] { display: none; }
-.row-call.structured-call { margin: 0 6px 6px; container-type: inline-size; }
+.row-call.structured-call { margin: 6px; container-type: inline-size; }
 .function-block { display: flex; align-items: center; gap: 8px; overflow-x: auto; border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
 .function-head { display: flex; flex: 0 1 auto; align-items: center; gap: 8px; min-width: 52px; min-height: 48px; padding: 0; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
 .function-head .icon-sym svg { width: 52px; height: 52px; }

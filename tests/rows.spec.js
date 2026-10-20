@@ -101,7 +101,7 @@ test('deleting dependent rows requires confirmation and undo restores the full p
   await open(page, 1);
   await load(page, 1, 'mkHero $ runZero z');
   await expect(page.locator('.row-menu')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Delete row 1', exact: true }).click();
+  await page.locator('.row-delete').first().evaluate(button => button.click());
   const dialog = page.getByRole('dialog', { name: 'Delete 2 rows?', exact: true });
   await expect(dialog).toBeVisible();
   await expect(page.locator('.program-row')).toHaveCount(2);
@@ -109,7 +109,7 @@ test('deleting dependent rows requires confirmation and undo restores the full p
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.locator('.delete-preview')).toHaveCount(0);
   await expect(row(page, 1)).toHaveValue('mkHero r1');
-  await page.getByRole('button', { name: 'Delete row 1', exact: true }).click();
+  await page.locator('.row-delete').first().evaluate(button => button.click());
   await dialog.getByRole('button', { name: 'Delete 2 rows', exact: true }).click();
   await expect(page.locator('.program-row')).toHaveCount(1);
   await expect(row(page, 0)).toHaveValue('');

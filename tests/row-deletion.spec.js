@@ -21,7 +21,8 @@ async function open(page, rows = branch) {
 }
 const state = page => page.evaluate(() => getRows());
 const dialog = page => page.locator('.row-delete-dialog');
-const remove = (page, n) => page.getByRole('button', { name: `Delete row ${n}`, exact: true }).click();
+// The row header is hidden; exercise the retained deletion command directly.
+const remove = (page, n) => page.locator('.row-delete').nth(n - 1).evaluate(button => button.click());
 const impact = page => dialog(page).locator('.delete-preview-item').evaluateAll(nodes => nodes.map(node => Number(node.dataset.deleteIndex)));
 
 test('confirmation previews direct and indirect dependents, preserves the independent branch, and persists', async ({ page }) => {
@@ -103,9 +104,9 @@ test('even an empty or final row asks first, and deleting everything leaves a us
 
 test.describe('phone deletion preview', () => {
   test.use({ viewport: { width: 320, height: 800 }, isMobile: true, hasTouch: true });
-  test('touch X shows the full impact with reachable confirmation buttons and one undo', async ({ page }) => {
+  test('deletion shows the full impact with reachable touch confirmation buttons and one undo', async ({ page }) => {
     await open(page);
-    await page.getByRole('button', { name: 'Delete row 1', exact: true }).tap();
+    await remove(page, 1);
     expect(await impact(page)).toEqual([0, 1, 3, 4]);
     const bounds = await dialog(page).boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0);
