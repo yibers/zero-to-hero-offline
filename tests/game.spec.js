@@ -37,7 +37,7 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('body')).toContainText('To Implement');
     await expect(page.locator('body')).toContainText('Your Solution');
     await expect(page.locator('body')).toContainText('Code Editor');
-    await expect(page.locator('body')).toContainText('Available Functions');
+    await expect(page.getByRole('region', { name: 'Available functions' })).toBeVisible();
     await expect(page.locator('body')).toContainText('Gecko Graph');
     await expect(page.locator('body')).toContainText('Bypass');
     await expect(page.locator('textarea#code-editor')).toBeVisible();

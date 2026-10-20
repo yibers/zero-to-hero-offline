@@ -23,11 +23,10 @@ async function mouseDrag(page, source, target) {
   await page.mouse.move(to.x, to.y, { steps: 8 }); await page.mouse.move(to.x, to.y); await page.mouse.up();
 }
 async function fillRow(page, index, code) {
-  const edit = page.getByRole('button', { name: `Edit code for row ${index + 1}`, exact: true });
-  if (await edit.isVisible()) await edit.click();
-  await row(page, index).fill(code);
-  const block = page.getByRole('button', { name: `Show block for row ${index + 1}`, exact: true });
-  if (await block.isVisible()) await block.click();
+  // Set up the call under test; source editing uses the global text mode.
+  await page.evaluate(({ index, code }) => {
+    getRows()[index].expr = code; activeRow = index; persistRows(); render();
+  }, { index, code });
 }
 async function choose(page, index, n, name) {
   await slot(page, index, n).click();
@@ -59,12 +58,14 @@ test('arguments appear once inside the function rectangle and code editing is a 
     expect(input.x + input.width).toBeLessThan(bounds.x + bounds.width);
     expect(input.y + input.height).toBeLessThan(bounds.y + bounds.height);
   }
-  await page.getByRole('button', { name: 'Edit code for row 1', exact: true }).click();
-  await expect(row(page)).toBeVisible();
-  await expect(page.locator('.function-block')).not.toBeVisible();
-  await row(page).fill('fmap bd');
-  await expect(row(page)).toBeFocused();
-  await page.getByRole('button', { name: 'Show block for row 1', exact: true }).click();
+  await expect(page.locator('.row-code-toggle')).toHaveCount(0);
+  await page.getByText('Icons', { exact: true }).click();
+  const source = page.getByRole('textbox', { name: 'Haskell expression' });
+  await expect(source).toBeVisible();
+  await expect(page.locator('.function-block')).toHaveCount(0);
+  await source.fill('fmap bd');
+  await expect(source).toBeFocused();
+  await page.getByText('Icons', { exact: true }).click();
   await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of fmap: bd');
   await expect(slot(page, 0, 1)).toHaveAttribute('aria-label', 'Input 2 of fmap: empty');
   await page.reload();
@@ -82,9 +83,9 @@ test('dropping on the function head still opens the operator chooser', async ({ 
 
 test('dragging a function out clears its whole call in block and code views; undo restores it', async ({ page }) => {
   for (const [level, code, headName] of [[7, 'fmap cd z', 'fmap'], [7, 'fmap _ z', 'fmap'], [2, 'f3 . f1', '.']]) {
-    await open(page, level, code);
     for (const codeView of [false, true]) {
-      if (codeView) await page.getByRole('button', { name: 'Edit code for row 1', exact: true }).click();
+      await open(page, level, codeView ? '' : code);
+      if (codeView) await row(page).fill(code);
       const head = page.locator(codeView ? `#editor-overlay > [data-name="${headName}"]` : '.function-head');
       await mouseDrag(page, head, page.locator('nav'));
       await expect(row(page)).toHaveValue('');

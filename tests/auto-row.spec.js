@@ -14,6 +14,13 @@ async function open(page, level = 0, code = '') {
   }, { level, code });
   await page.evaluate(() => document.fonts.ready);
 }
+async function dragFunctionOut(page, index = 0) {
+  const head = page.locator('.program-row').nth(index).locator('.function-head');
+  await head.scrollIntoViewIfNeeded();
+  const box = await head.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down(); await page.mouse.move(8, 10, { steps: 8 }); await page.mouse.up();
+}
 async function choose(page, index, name) {
   await slot(page, index).click();
   await page.getByRole('button', { name: name ? `Use input ${name}` : 'Clear input', exact: true }).click();
@@ -39,8 +46,7 @@ test('one empty row is ready until the actual target is solved; changes and refr
   await expect(ready(page)).toHaveCount(0);
   await page.evaluate(() => toggleIconMode());
   await expect(ready(page)).toBeVisible();
-  await page.getByRole('button', { name: 'Edit code for row 1' }).click();
-  await row(page).fill('');
+  await dragFunctionOut(page);
   await expect(ready(page)).toHaveCount(0);
   await expect(page.locator('.program-row')).toHaveCount(1);
 });
@@ -78,8 +84,7 @@ test('a spare target can be tapped and an existing empty row is reused without d
   await expect(ready(page)).toHaveCount(0);
   await row(page, 1).fill('mkHero');
   await expect(ready(page)).toHaveCount(1);
-  await page.getByRole('button', { name: 'Edit code for row 1' }).click();
-  await row(page, 0).fill('');
+  await dragFunctionOut(page);
   await expect(ready(page)).toHaveCount(0);
   await expect(page.locator('.program-row')).toHaveCount(2);
 });
@@ -93,7 +98,7 @@ test('every solved reference has no spare row; wrong types and invalid row progr
   expect(failures).toEqual([]);
   await page.evaluate(() => { currentLevel = 1; setEditorContent('mkHero z'); render(); });
   await expect(ready(page)).toHaveCount(1); // Hero (Zero a) is not the target Hero a.
-  await page.getByRole('button', { name: 'Edit code for row 1' }).click();
+  await dragFunctionOut(page);
   await row(page).fill('mkHero (runZero z)');
   await expect(ready(page)).toHaveCount(1); // Correct type, but two calls in one row.
   await expect(page.locator('#status-bar')).toHaveClass(/error/);

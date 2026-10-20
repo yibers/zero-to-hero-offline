@@ -212,11 +212,6 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       if (name === 'z' && level.target === 'Zero a -> Hero a') map[name] = svg('z: a Zero containing a value', outline(shield) + value, 24);
     });
   }
-  const legend = `<details class="icon-legend"><summary>Icon key</summary>
-    <div class="icon-key-marks">${Object.entries(marks).map(([name, mark]) => `<span>${svg(name, mark, 24)}<code>${name}</code></span>`).join('')}</div>
-    <p>Matching shapes show matching types within an icon. In Available Functions, read inputs → result from left to right. Compact editor icons show inputs above, result below.</p>
-    <p>Shield = Zero. Hedgehog = Hero. Box = pair. Rounded box with an arrow = function.</p>
-    <p>These are type patterns; matching shapes do not require equal values.</p></details>`;
   function renderType(signature, label = signature) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
     const width = weight(type) > 2 ? 128 : 64;
@@ -224,5 +219,5 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       .replace('viewBox="0 0 64 64"', `viewBox="0 0 ${width} 64"`)
       .replace('width="1em" height="1em"', `width="${width}" height="64"`);
   }
-  return {icons, cardIcons, captions, descriptions, legend, renderType};
+  return {icons, cardIcons, captions, descriptions, renderType};
 }

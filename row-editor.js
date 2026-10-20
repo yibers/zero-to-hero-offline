@@ -148,12 +148,6 @@ function mountRowEditor() {
     holder.hidden = !structured;
     row.querySelector('.editor-container').hidden = structured;
     row.querySelector('.row-call').classList.toggle('structured-call', structured);
-    const toggle = row.querySelector('.row-code-toggle');
-    toggle.hidden = !iconMode || !call;
-    toggle.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${structured
-      ? '<path d="m16 3 5 5-12 12-6 1 1-6Z M14 5l5 5"/>'
-      : '<rect x="3" y="5" width="18" height="14" rx="3"/><rect x="13" y="9" width="4" height="6" rx="1"/>'}</svg>`;
-    toggle.setAttribute('aria-label', `${structured ? 'Edit code' : 'Show block'} for row ${index + 1}`);
     if (!structured) { holder.replaceChildren(); return; }
     const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
     const head = ts[call.infix ? 1 : 0];
@@ -215,7 +209,6 @@ function mountRowEditor() {
     container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" aria-label="Row ${index + 1}">
       <div class="row-heading"><span class="row-number">${index + 1}</span><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
       <button type="button" class="row-delete" data-action="remove" aria-label="Delete row ${index + 1}" title="Delete row">×</button></div>
-      <button type="button" class="row-code-toggle" data-action="code" hidden></button>
       <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
       <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></section>`).join('');
     paint();
@@ -637,12 +630,7 @@ function mountRowEditor() {
     if (slot) { if (!suppressClick) chooseArgument(slot); return; }
     const button = e.target.closest('[data-action]');
     if (!button) return;
-    const index = Number(button.closest('.program-row').dataset.row), rows = getRows(), action = button.dataset.action;
-    if (action === 'code') {
-      if (sourceRows.has(rows[index].id)) sourceRows.delete(rows[index].id);
-      else sourceRows.add(rows[index].id);
-      activeRow = index; paint(); focusRow(index); activate(index); return;
-    }
+    const index = Number(button.closest('.program-row').dataset.row), action = button.dataset.action;
     if (action === 'remove') confirmRowDeletion(index);
   });
   listen(document.getElementById('add-row'), 'click', () => newRow(getRows().length));

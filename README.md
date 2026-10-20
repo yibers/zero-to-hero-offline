@@ -57,7 +57,7 @@ tests/          — Playwright + unit tests
 - **Text mode** shows one continuous editor with properly indented `let` bindings and the final `in` expression, without row cards. Enter and Tab support indentation; edits, binding names and unfinished drafts survive refreshes and mode switches. Saved single-expression solutions automatically convert to rows, preserving their meaning. Unfinished expressions remain available to repair.
 - Conciseness compares the number of operations with a reference solution, including unused operations. Row names, whitespace and generated `let` syntax do not count.
 - Touch drag-and-drop — drag a function/parameter card straight into the editor, in either mode. In icon mode, drag an editor token within or between rows, or out to remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
-- Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments. Open “Icon key” for the shared shape legend.
+- Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments.
 - Operator cards are marked with an “Operator” badge in both text and icon modes.
 - In icon mode, drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
 - Saved solutions from the earlier automatic-chaining editor retain their meaning through a one-time conversion to explicit `$` connectors.

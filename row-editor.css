@@ -71,7 +71,7 @@
 }
 
 /* The function owns its inputs; the result is a separate, reusable value. */
-.row-call > [hidden], .row-code-toggle[hidden] { display: none; }
+.row-call > [hidden] { display: none; }
 .row-call.structured-call { margin: 0 6px 6px; container-type: inline-size; }
 .function-block { display: flex; align-items: center; gap: 8px; overflow-x: auto; border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
 .function-head { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; min-width: 52px; min-height: 52px; padding: 0; border: 0; background: transparent; color: #1e40af; cursor: grab; touch-action: none; }
@@ -79,8 +79,6 @@
 .function-head:focus-visible { outline: 2px solid #2563eb; border-radius: 6px; }
 .function-head.connection-target { outline: 3px solid #7c3aed; background: #ede9fe; border-radius: 8px; }
 .function-block .drag-source { opacity: .35; }
-.row-code-toggle { display: flex; align-items: center; justify-content: center; margin-left: auto; width: 44px; min-height: 44px; padding: 8px; border: 0; background: transparent; color: #64748b; cursor: pointer; }
-.row-code-toggle:hover { color: #1d4ed8; }
 .input-slots { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 6px; margin-left: auto; }
 @container (max-width: 300px) {
   .function-block { gap: 4px; padding: 4px; }

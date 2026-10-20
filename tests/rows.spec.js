@@ -12,9 +12,13 @@ async function open(page, level = 0, icons = true) {
   await page.evaluate(() => document.fonts.ready);
 }
 async function fillRow(page, i, code) {
-  const toggle = page.getByRole('button', { name: `Edit code for row ${i + 1}`, exact: true });
-  if (await toggle.isVisible()) await toggle.click();
-  await row(page, i).fill(code);
+  const source = await page.evaluate(({ i, code }) => {
+    const rows = structuredClone(getRows()); rows[i].expr = code;
+    return RowProgram.source(rows);
+  }, { i, code });
+  await page.getByText('Icons', { exact: true }).click();
+  await page.getByRole('textbox', { name: 'Haskell expression' }).fill(source);
+  await page.getByText('Icons', { exact: true }).click();
 }
 async function load(page, level, code) {
   await page.evaluate(({ level, code }) => { currentLevel = level; setEditorContent(code); render(); }, { level, code });
