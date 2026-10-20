@@ -132,9 +132,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .icon-sym { display:inline-flex; align-items:center; vertical-align:baseline; line-height:1; }
 .icon-sym svg { display:block; fill:currentColor; }
 .func-card .type-name { max-width: 100%; }
-.func-card .type-name > .semantic-icon { width: 72px; max-width: 100%; }
-.func-card .type-name > .semantic-icon svg { width: 100%; height: auto; aspect-ratio: 1; }
-@media (max-width: 600px) { .func-card .type-name > .semantic-icon { width: 48px; } }
+.func-card .type-name > .semantic-icon { width: 144px; max-width: 100%; }
+.func-card .type-name > .semantic-icon svg { width: 100%; height: auto; aspect-ratio: 128 / 36; }
 .icon-legend { font-size: 12px; line-height: 1.4; margin-bottom: 10px; color: #475569; }
 .icon-legend summary { cursor: pointer; padding: 6px 0; font-weight: 600; }
 .icon-legend p { margin-top: 6px; }
@@ -166,8 +165,6 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .touch-drag-ghost .drag-action { display: none; font: 12px 'Exo', sans-serif; }
 .touch-drag-ghost.removing { background: #b91c1c; }
 .touch-drag-ghost.removing .drag-action { display: block; }
-.touch-drag-hint { display: none; font-size: 12px; margin-bottom: 8px; color: #475569; }
-@media (any-pointer: coarse) { .touch-drag-hint { display: block; } }
 .operator-badge { display: inline-block; margin-bottom: 6px; padding: 2px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font: 600 11px 'Exo', sans-serif; }
 .func-card-operator { border-left: 3px solid #a78bfa; }
 .func-card.dragging { opacity: 0.4; cursor: grabbing; }
@@ -1114,13 +1111,12 @@ function render() {
         <div class="gutter-col"></div>
 
         <div class="right-panel">
-          <p class="touch-drag-hint">Drag cards and editor tokens. Swipe the background to scroll.</p>
           ${iconMode ? ICON_LEGEND : ''}
           <h2><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,24H72A32,32,0,0,0,40,56V224a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16H56a16,16,0,0,1,16-16H208a8,8,0,0,0,8-8V32A8,8,0,0,0,208,24Zm-8,160H72a31.82,31.82,0,0,0-16,4.29V56A16,16,0,0,1,72,40H200Z"/></svg> Available Functions</h2>
           ${level.funcs.map(f => `
             <div class="func-card${isOperatorName(f.name) ? ' func-card-operator' : ''}" draggable="true" data-func-name="${f.name}">
               ${isOperatorName(f.name) ? '<span class="operator-badge">Operator</span>' : ''}
-              <div class="type-sig">${renderTypeSig(f.name, f.sig)}</div>
+              <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
               ${geckoOn ? `<div style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
               ${iconMode ? `<p class="icon-explanation" title="${escHtml(ICON_DESCRIPTIONS[level.level][f.name])}">${escHtml(ICON_CAPTIONS[level.level][f.name])}</p>` : ''}
             </div>
@@ -1566,8 +1562,8 @@ function runLiveCheck() {
   }
 }
 
-function renderTypeSig(name, sig) {
-  return `<span class="type-name">${symbolDisplay(name)}</span> <span style="color:#374151">::</span> ${colorizeType(sig)}`;
+function renderTypeSig(name, sig, displayName = symbolDisplay(name)) {
+  return `<span class="type-name">${displayName}</span> <span style="color:#374151">::</span> ${colorizeType(sig)}`;
 }
 
 function colorizeType(sig) {
@@ -1593,7 +1589,7 @@ const geckoColors = {
 const varColor = 'rgb(239,177,177)';
 
 // Render type patterns from each level's actual signatures, including function arguments.
-const { icons: LEVEL_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, legend: ICON_LEGEND, renderType: renderSemanticType } =
+const { icons: LEVEL_ICONS, cardIcons: FUNCTION_CARD_ICONS, captions: ICON_CAPTIONS, descriptions: ICON_DESCRIPTIONS, legend: ICON_LEGEND, renderType: renderSemanticType } =
   createSemanticIcons(LEVELS, parseType, flattenApp, typeToString);
 
 function symbolDisplay(name, fallbackHtml, fixedWidthCh) {

@@ -5,7 +5,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   const shield = '<path d="M12 2 4 6v7c0 4.5 3.3 7.4 8 9 4.7-1.6 8-4.5 8-9V6Z"/>';
   const hedgehog = '<path d="m16.5 2 2 4c1.6 1.3 2.1 3.1 2 5.2l2 .8v2l-2 .3C19 19.5 15.7 21 11.2 19.7L6 22l1.1-4.4L2 18.5l3.2-4.6L1 12.5l5-3.4L3 6h7.2c1.8-1.2 3.4-1.3 4.8-.5Z"/>';
   const outline = (body, width = 1.8) => `<g fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
-  const svg = (label, body, size = 64) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="1em" height="1em" role="img" aria-label="${escape(label)}"><title>${escape(label)}</title>${body}</svg>`;
+  const svg = (label, body, size = 64, height = size) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${height}" width="1em" height="1em" role="img" aria-label="${escape(label)}"><title>${escape(label)}</title>${body}</svg>`;
   const place = (body, x, y, w, h) => `<g transform="translate(${x} ${y}) scale(${w / 24} ${h / 24})">${body}</g>`;
   const marks = {
     a: '<circle cx="12" cy="12" r="8" fill="#fbbf24" stroke="#92400e" stroke-width="2"/>',
@@ -82,8 +82,16 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     }
     throw new Error('No pictogram for type constructor ' + head.name);
   }
-  function transformation(signature, label, arity = Infinity) {
+  function transformation(signature, label, arity = Infinity, horizontal = false) {
     const { args, result } = parts(parseType(signature), arity);
+    if (horizontal) {
+      const inputWeight = args.reduce((sum, arg) => sum + weight(arg), 0);
+      const inputWidth = 106 * inputWeight / (inputWeight + weight(result));
+      return svg(label,
+        `<g class="icon-inputs">${row(args, 2, 2, inputWidth, 32, 4)}</g>` +
+        arrow(inputWidth + 5, 18, inputWidth + 17, 32) +
+        `<g class="icon-output">${draw(result, inputWidth + 20, 2, 106 - inputWidth, 32)}</g>`, 128, 36);
+    }
     return svg(label,
       `<g class="icon-inputs">${row(args, 2, 2, 60, 25, 4)}</g>` +
       outline('<path d="M32 29v6m-3-3 3 3 3-3"/>', 2) +
@@ -171,10 +179,11 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   const zero = svg('Zero wrapper', outline(shield), 24);
   const hero = svg('Hero wrapper', outline(hedgehog), 24);
   const value = '<circle cx="12" cy="12" r="3.2" fill="#fbbf24" stroke="#92400e" stroke-width="1.2"/>';
-  const icons = {}, captions = {}, descriptions = {};
+  const icons = {}, cardIcons = {}, captions = {}, descriptions = {};
   for (const level of levels) {
     const map = icons[level.level] = { Zero: zero, Ze: zero, Hero: hero, He: hero,
       '()': svg('Unit: an empty slot', draw({tag:'con', name:'()'}, 0, 0, 24, 24), 24) };
+    const cards = cardIcons[level.level] = {};
     const labels = captions[level.level] = {}, details = descriptions[level.level] = {};
     for (const func of level.funcs) {
       const bare = func.name.replace(/^\((.*)\)$/, '$1');
@@ -182,7 +191,10 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       if (!info) throw new Error(`Missing icon description: level ${level.level}, ${bare}`);
       labels[bare] = labels[func.name] = info[0];
       details[bare] = details[func.name] = info[1];
-      let picture = transformation(func.sig, `${bare}: ${info[1]} Type: ${func.sig}`, bare === '.' ? 2 : Infinity);
+      const label = `${bare}: ${info[1]} Type: ${func.sig}`;
+      const arity = bare === '.' ? 2 : Infinity;
+      cards[bare] = cards[func.name] = transformation(func.sig, label, arity, true);
+      let picture = transformation(func.sig, label, arity);
       // Retain the approved first-level pictogram wherever that same operation appears.
       if (func.sig === 'Zero a -> Hero a') picture = svg(`${bare}: ${info[1]}`,
         `<g transform="translate(1 1)">${outline(shield)}${value}</g>` +
@@ -202,7 +214,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   }
   const legend = `<details class="icon-legend"><summary>Icon key</summary>
     <div class="icon-key-marks">${Object.entries(marks).map(([name, mark]) => `<span>${svg(name, mark, 24)}<code>${name}</code></span>`).join('')}</div>
-    <p>Matching shapes show matching types within an icon. Read inputs above, result below.</p>
+    <p>Matching shapes show matching types within an icon. In Available Functions, read inputs → result from left to right. Compact editor icons show inputs above, result below.</p>
     <p>Shield = Zero. Hedgehog = Hero. Box = pair. Rounded box with an arrow = function.</p>
     <p>These are type patterns; matching shapes do not require equal values.</p></details>`;
   function renderType(signature, label = signature) {
@@ -212,5 +224,5 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       .replace('viewBox="0 0 64 64"', `viewBox="0 0 ${width} 64"`)
       .replace('width="1em" height="1em"', `width="${width}" height="64"`);
   }
-  return {icons, captions, descriptions, legend, renderType};
+  return {icons, cardIcons, captions, descriptions, legend, renderType};
 }
