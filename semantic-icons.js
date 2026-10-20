@@ -5,9 +5,13 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   const shield = '<path d="M12 2 4 6v7c0 4.5 3.3 7.4 8 9 4.7-1.6 8-4.5 8-9V6Z"/>';
   const hedgehog = '<path d="m16.5 2 2 4c1.6 1.3 2.1 3.1 2 5.2l2 .8v2l-2 .3C19 19.5 15.7 21 11.2 19.7L6 22l1.1-4.4L2 18.5l3.2-4.6L1 12.5l5-3.4L3 6h7.2c1.8-1.2 3.4-1.3 4.8-.5Z"/>';
   const outline = (body, width = 1.8) => `<g fill="none" stroke="currentColor" stroke-width="${width}" stroke-linecap="round" stroke-linejoin="round">${body}</g>`;
-  // Lay diagrams out from their leaves outward. One SVG unit is one CSS pixel:
+  // Lay diagrams out from their leaves outward, then use one display scale:
   // wrappers can grow, but a value never shrinks when it is nested or reused.
-  const svg = (label, body, width, height = width) => `<svg class="semantic-diagram" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="width:${width}px;height:${height}px;max-width:none;flex-shrink:0" role="img" aria-label="${escape(label)}"><title>${escape(label)}</title>${body}</svg>`;
+  const iconScale = 0.75;
+  const svg = (label, body, width, height = width) => {
+    const displayWidth = width * iconScale, displayHeight = height * iconScale;
+    return `<svg class="semantic-diagram" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${displayWidth}" height="${displayHeight}" style="width:${displayWidth}px;height:${displayHeight}px;max-width:none;flex-shrink:0" role="img" aria-label="${escape(label)}"><title>${escape(label)}</title>${body}</svg>`;
+  };
   const move = (body, x, y) => `<g transform="translate(${x} ${y})">${body}</g>`;
   const marks = {
     a: '<circle cx="12" cy="12" r="10" fill="#fbbf24" stroke="#92400e" stroke-width="2"/>',

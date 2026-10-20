@@ -17,7 +17,7 @@ for (const phone of [false, true]) {
             currentLevel = index; setEditorContent(level.best); render();
             for (const atom of document.querySelectorAll('.type-atom')) {
               const box = atom.getBoundingClientRect();
-              if (Math.abs(box.width - 20) > .01 || Math.abs(box.height - 20) > .01)
+              if (Math.abs(box.width - 15) > .01 || Math.abs(box.height - 15) > .01)
                 failures.push({ level: level.level, type: atom.dataset.type, width: box.width, height: box.height });
               for (const selector of ['.func-card', '.parameter-icon', '.function-head', '.argument-slot', '.row-result'])
                 if (atom.closest(selector)) locations.add(selector);
