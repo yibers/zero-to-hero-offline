@@ -236,6 +236,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 <script src="semantic-icons.js"></script>
 <script src="row-program.js"></script>
 <script src="row-editor.js"></script>
+<script src="text-editor.js"></script>
 <script>
 
 // ─── Haskell Type Parser & Unifier ───
@@ -888,6 +889,7 @@ let completedLevels = new Set();
 let optimalLevels = new Set();
 let editorContents = {};
 let rowPrograms = {};
+let textDrafts = {};
 let activeRow = 0;
 let geckoOn = true;
 let iconMode = false;
@@ -901,9 +903,14 @@ try {
     completedLevels = new Set(parsed.completed || []);
     optimalLevels = new Set(parsed.optimal || []);
     editorContents = parsed.editorContents || {};
+    if (parsed.textDrafts && typeof parsed.textDrafts === 'object') {
+      for (const [key, value] of Object.entries(parsed.textDrafts)) {
+        if (typeof value === 'string') textDrafts[key] = value;
+      }
+    }
     if (parsed.rowVersion === 1 && parsed.rowPrograms && typeof parsed.rowPrograms === 'object') {
       for (const [key, rows] of Object.entries(parsed.rowPrograms)) {
-        if (Array.isArray(rows) && rows.length && rows.every(r => r && /^r[1-9]\d*$/.test(r.id) && typeof r.expr === 'string') && new Set(rows.map(r => r.id)).size === rows.length) rowPrograms[key] = rows;
+        if (Array.isArray(rows) && rows.length && rows.every(r => r && /^[a-z][A-Za-z0-9_']*$/.test(r.id) && typeof r.expr === 'string') && new Set(rows.map(r => r.id)).size === rows.length) rowPrograms[key] = rows;
       }
     }
     currentLevel = Math.max(0, Math.min(parsed.currentLevel || 0, LEVELS.length - 1));
@@ -931,6 +938,7 @@ function saveProgress() {
     optimal: [...optimalLevels],
     editorContents,
     rowPrograms,
+    textDrafts,
     rowVersion: 1,
     currentLevel,
     bypassCount,
@@ -1088,10 +1096,10 @@ function render() {
               ${iconMode ? '' : '<div class="line-numbers" aria-hidden="true">1</div>'}
               <div class="editor-prefix${iconMode ? ' parameter-prefix' : ''}" id="editor-prefix"${iconMode ? ' role="group" aria-label="Available parameters"' : ''}>${iconMode ? params.map(p => `<button type="button" class="parameter-icon" draggable="true" data-func-name="${escHtml(p)}" aria-label="Use parameter ${escHtml(p)}" title="${escHtml(ICON_CAPTIONS[level.level][p])}">${symbolDisplay(p)}</button>`).join('') : escHtml(level.lhs.trim())}</div>
             </div>
-            <div id="program-rows"></div>
-            <div class="row-toolbar"><button type="button" id="add-row">+ Add row</button><button type="button" id="undo-rows" aria-label="Undo row edit">Undo</button><button type="button" id="redo-rows" aria-label="Redo row edit">Redo</button></div>
+            ${iconMode ? '<div id="program-rows"></div>' : '<div class="text-editor-shell"><pre class="text-source-highlight" id="editor-overlay" aria-hidden="true"></pre><textarea class="text-source-editor" id="code-editor" aria-label="Haskell expression" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea></div>'}
+            <div class="row-toolbar">${iconMode ? '<button type="button" id="add-row">+ Add row</button>' : ''}<button type="button" id="undo-rows" aria-label="${iconMode ? 'Undo row edit' : 'Undo edit'}">Undo</button><button type="button" id="redo-rows" aria-label="${iconMode ? 'Redo row edit' : 'Redo edit'}">Redo</button></div>
             <div id="row-notice" role="status"></div>
-            <details class="haskell-preview"><summary>Haskell code</summary><pre id="haskell-source"></pre></details>
+            ${iconMode ? '<details class="haskell-preview"><summary>Haskell code</summary><pre id="haskell-source"></pre></details>' : ''}
           </div>
 
           <div class="gutter-row"></div>
@@ -1127,7 +1135,8 @@ function render() {
     </main>
   `;
 
-  mountRowEditor();
+  if (iconMode) mountRowEditor();
+  else mountTextEditor();
 }
 
 function getEditorContent(levelIndex = currentLevel) {
@@ -1147,6 +1156,8 @@ function getEditorContent(levelIndex = currentLevel) {
 function setEditorContent(value, levelIndex = currentLevel) {
   editorContents[levelIndex] = LEVELS[levelIndex].lhs.trim() + ' ' + value;
   delete rowPrograms[levelIndex];
+  delete textDrafts[levelIndex];
+  textHistory.delete(levelIndex);
 }
 
 // Shared source tokens for connector cleanup and migration of old saved code.
@@ -1204,7 +1215,7 @@ function functionRemovalRange(text, range, level) {
 }
 
 function getCodeFromEditor() {
-  return RowProgram.source(getRows()).trim();
+  return (iconMode ? RowProgram.source(getRows()) : getTextSource()).trim();
 }
 
 let liveCheckTimer = null;
@@ -1747,6 +1758,8 @@ window.resetGame = function() {
   optimalLevels.clear();
   editorContents = {};
   rowPrograms = {};
+  textDrafts = {};
+  textHistory.clear();
   clearRowHistory();
   bypassCount = 0;
   saveProgress();

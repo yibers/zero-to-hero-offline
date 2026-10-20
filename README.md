@@ -31,7 +31,8 @@ index.html      — Main app and type checker
 levels.js       — 15 puzzle definitions
 semantic-icons.js — SVG type patterns and per-level action descriptions
 row-program.js  — Expression parsing, row validation, migration and scoring
-row-editor.js   — Row editing, references and mouse/touch interactions
+row-editor.js   — Icon row editing, references and mouse/touch interactions
+text-editor.js  — Multiline Haskell editing, highlighting and draft history
 row-editor.css  — Row layout and responsive controls
 fonts/          — Exo, Fira Code, Orbitron (.ttf)
 fonts/LICENSE   — SIL Open Font License
@@ -49,16 +50,16 @@ tests/          — Playwright + unit tests
 
 ### Additional features
 
-- **One operation per row** — apply a function to its arguments, or use one infix operator. Nested calls belong in separate rows. Bare function/value references are also allowed.
+- **One operation per step** — apply a function to its arguments, or use one infix operator. Icon mode uses one row per step; text mode uses one `let` binding per intermediate step and an `in` expression for the final answer. Nested calls belong in separate steps. Bare function/value references are also allowed.
 - Earlier results have stable names (`r1`, `r2`, …) and can be dragged or selected from the results pane. Results may themselves be functions. Each row renders its inferred output as a draggable pictogram, including pairs, nested wrappers and functions; the bottom row is the final answer. These pictures describe types, not concrete runtime values.
-- **Function input slots** — in icon mode, each argument appears once, inside its function’s rectangle. Drop into an input or tap it to choose a value. Slots accept parameters, functions and earlier results. Drop onto a filled slot to replace it, or drag its contents out to clear it. Inputs can be filled in any order; an internal gap stays visible as `_` until filled. Leaving trailing inputs empty keeps a valid partially applied function. **Edit code** switches that row to the expression editor; **Show block** returns to the function block. Text mode uses the expression editor.
-- Add rows with **+ Add row** or Enter. The row menu inserts, moves or removes rows; dependencies cannot be moved below their uses or deleted while referenced. Undo/redo covers typing, row changes and dragging.
-- **Haskell code** shows the generated non-recursive `let … in …` definition. Saved single-expression solutions automatically convert to rows, preserving their meaning. Unfinished expressions remain available to repair.
+- **Function input slots** — in icon mode, each argument appears once, inside its function’s rectangle. Drop into an input or tap it to choose a value. Slots accept parameters, functions and earlier results. Drop onto a filled slot to replace it, or drag its contents out to clear it. Inputs can be filled in any order; an internal gap stays visible as `_` until filled. Leaving trailing inputs empty keeps a valid partially applied function. **Edit code** switches that row to the expression editor; **Show block** returns to the function block. Text mode shows the entire program as editable Haskell source.
+- In icon mode, add rows with **+ Add row** or Enter. The row menu inserts, moves or removes rows; dependencies cannot be moved below their uses or deleted while referenced. Undo/redo covers typing, row changes and dragging.
+- **Text mode** shows one continuous editor with properly indented `let` bindings and the final `in` expression, without row cards. Enter and Tab support indentation; edits, binding names and unfinished drafts survive refreshes and mode switches. Icon mode also has a **Haskell code** preview of the generated non-recursive `let … in …` definition. Saved single-expression solutions automatically convert to rows, preserving their meaning. Unfinished expressions remain available to repair.
 - Conciseness compares the number of operations with a reference solution, including unused operations. Row names, whitespace and generated `let` syntax do not count.
-- Touch drag-and-drop — drag a function/parameter card straight into the editor, or drag an editor token within or between rows, or out to remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
+- Touch drag-and-drop — drag a function/parameter card straight into the editor, in either mode. In icon mode, drag an editor token within or between rows, or out to remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
 - Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments. Open “Icon key” for the shared shape legend.
 - Operator cards are marked with an “Operator” badge in both text and icon modes.
-- Drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
+- In icon mode, drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
 - Saved solutions from the earlier automatic-chaining editor retain their meaning through a one-time conversion to explicit `$` connectors.
 - Dragging a function out also removes an adjacent explicit connector.
 - A read-only function prefix on its own line, with a left-aligned solution playground below it

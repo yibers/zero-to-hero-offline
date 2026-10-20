@@ -1,6 +1,13 @@
 /* Rows have stable result names; their position defines dependency order. */
 .editor-wrap { min-height: 300px; background: #f1f5f9; color: #0f172a; }
 .editor-icons.editor-wrap { min-height: 320px; }
+.text-editor-shell { position: relative; flex: 1; min-height: 160px; background: white; overflow: hidden; }
+.text-source-editor, .text-source-highlight { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 10px 12px 10px 32px; border: 0; font: 16px/26px 'Fira Code', monospace; tab-size: 2; white-space: pre; text-align: left; }
+.text-source-editor { resize: none; color: transparent; caret-color: #0f172a; background: transparent; overflow: auto; outline: none; touch-action: auto; }
+.text-source-highlight { color: #0f172a; overflow: hidden; pointer-events: none; }
+.source-keyword { color: #7c3aed; font-weight: 600; }
+.source-function { color: #1d4ed8; }
+.source-param { color: #047857; }
 #program-rows { overflow: auto; flex: 1; min-height: 120px; padding: 8px; overscroll-behavior: contain; }
 .parameter-prefix { display: flex; align-items: center; gap: 6px; padding: 6px; }
 .parameter-icon { display: inline-flex; flex: 0 0 56px; align-items: center; justify-content: center; width: 56px; height: 56px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #065f46; cursor: grab; }

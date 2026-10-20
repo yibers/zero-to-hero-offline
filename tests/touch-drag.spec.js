@@ -96,18 +96,19 @@ test.describe('Phone touch dragging', () => {
     await noDragUI(page);
   });
 
-  test('move editor tokens and drag them out to remove them', async ({ page }) => {
+  test('move icon tokens and drag them out to remove them', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
+    const tile = name => page.locator(`#editor-overlay > span:has([title="${name}"])`);
     await editor.fill('z f');
     await editor.blur();
-    // Let debounced type feedback settle before measuring token coordinates.
-    await page.waitForTimeout(200);
-    await touch.drag(await editorPoint(page, 2), await editorPoint(page, 0));
+    const target = await tile('z').boundingBox();
+    await touch.drag(await center(tile('f')), { x: target.x + 1, y: target.y + target.height / 2 });
     await expect(editor).toHaveValue('f z');
-    await touch.drag(await editorPoint(page, 2), { x: 20, y: 80 });
+    await touch.drag(await center(tile('z')), { x: 20, y: 80 });
     await expect(editor).toHaveValue('f');
-    await touch.drag(await editorPoint(page, 0), { x: 20, y: 80 });
+    await touch.drag(await center(tile('f')), { x: 20, y: 80 });
     await expect(editor).toHaveValue('');
     await noDragUI(page);
   });
@@ -334,9 +335,8 @@ test.describe('Phone touch dragging', () => {
     }
     await page.evaluate(() => toggleIconMode());
     await editor.fill('f3 $ f1 z');
-    await editor.blur();
-    await page.waitForTimeout(200);
-    await touch.drag(await editorPoint(page, 0), { x: 20, y: 80 });
+    await editor.evaluate(el => { el.focus(); el.setSelectionRange(0, 5); });
+    await editor.press('Backspace');
     await expect(editor).toHaveValue('f1 z');
   });
 

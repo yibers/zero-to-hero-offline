@@ -4,9 +4,13 @@ const path = require('path');
 
 const PAGE_URL = `file:///${path.resolve(__dirname, '..', 'index.html').replace(/\\/g, '/')}`;
 
-// Enter a complete expression through the new row UI when solving a level.
+// Enter the complete program through the active editor when solving a level.
 async function enterSolution(page, expression) {
   const rows = await page.evaluate(code => RowProgram.migrate(code), expression);
+  if (!await page.evaluate(() => iconMode)) {
+    await page.locator('#code-editor').fill(await page.evaluate(rows => RowProgram.source(rows), rows));
+    return;
+  }
   for (let i = 0; i < rows.length; i++) {
     if (i) await page.getByRole('button', { name: '+ Add row', exact: true }).click();
     await page.locator('textarea.row-editor').nth(i).fill(rows[i].expr);
@@ -191,8 +195,8 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('.gecko-wrap').first()).toBeVisible();
   });
 
-  test('line numbers are shown in editor', async ({ page }) => {
-    const lineNums = page.locator('.row-number').first();
+  test('text prefix stays above the continuous editor', async ({ page }) => {
+    const lineNums = page.locator('.line-numbers').first();
     await expect(lineNums).toBeVisible();
     await expect(lineNums).toContainText('1');
     await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
@@ -319,7 +323,7 @@ test.describe('Zero to Hero', () => {
     await expect(editor).toHaveValue(/f4.*z/);
   });
 
-  test('no extra spaces after drag-in, drag-out, drag-in cycle', async ({ page }) => {
+  test('no extra spaces after drag-in, selection delete, drag-in cycle', async ({ page }) => {
     // Navigate to level 5 by solving levels 1-4
     const editor = page.locator('#code-editor');
 
@@ -361,29 +365,10 @@ test.describe('Zero to Hero', () => {
     const afterFirstDragIn = await editor.inputValue();
     expect(afterFirstDragIn).toMatch(/f1/);
 
-    // Step 2: Drag f1 out of the editor (select and drag outside)
-    // Simulate by using fill to reset to "undefined" state, matching drag-out behavior
-    // Actually: use the real drag-out mechanism via mousedown on the token
-    // Since Playwright can't easily simulate the custom drag-out, we simulate the
-    // effect programmatically: remove f1, which should restore "undefined"
-    await editor.evaluate(el => {
-      const rhsStart = 0;
-      // Select the entire solution
-      const rhs = el.value.slice(rhsStart).trim();
-      const tokenStart = el.value.indexOf(rhs, rhsStart);
-      el.setSelectionRange(tokenStart, tokenStart + rhs.length);
-      document.execCommand('insertText', false, '');
-      // Simulate the "restore undefined" logic from drag-out
-      const newRhs = el.value.slice(rhsStart).trim();
-      if (!newRhs) {
-        const insertAt = el.value.length;
-        el.setSelectionRange(insertAt, insertAt);
-        document.execCommand('insertText', false, 'undefined');
-      }
-    });
-    await page.waitForTimeout(200);
-    const afterDragOut = await editor.inputValue();
-    expect(afterDragOut).toMatch(/undefined/);
+    // Clear the text selection, then drop the card again.
+    await editor.press('Control+a');
+    await editor.press('Backspace');
+    await expect(editor).toHaveValue('');
 
     // Step 3: Drag f1 in again
     await f1Card.dragTo(editor);
@@ -443,17 +428,7 @@ test.describe('Zero to Hero', () => {
       await editor.press('Backspace'); // delete 'f'
       await page.waitForTimeout(200);
 
-      // Set _dropPos to rhsStart then fire a synthetic drop event
-      // so the actual app drop handler runs (not a copy of the logic)
-      await editor.evaluate(el => {
-        el._dropPos = 0;
-        const dt = new DataTransfer();
-        dt.setData('text/plain', 'f1');
-        const dropEvent = new DragEvent('drop', {
-          bubbles: true, cancelable: true, dataTransfer: dt, clientX: el.getBoundingClientRect().left + 8, clientY: el.getBoundingClientRect().top + 12
-        });
-        el.dispatchEvent(dropEvent);
-      });
+      await f1Card.dragTo(editor, { targetPosition: { x: 8, y: 12 } });
       await page.waitForTimeout(100);
       const current = await editor.inputValue();
       expect(current).toBe(baseline);
@@ -461,6 +436,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('backspace deletes whole token and preserves LHS', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; render(); });
     const editor = page.locator('#code-editor');
     await editor.fill('mkHero');
     await page.waitForTimeout(100);
@@ -480,7 +456,7 @@ test.describe('Zero to Hero', () => {
 
   test('Ctrl+Backspace does not damage LHS', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await enterSolution(page, 'mkHero $ runZero z');
+    await editor.fill('mkHero $ runZero z');
     await page.waitForTimeout(100);
     await editor.click();
     await editor.press('End');
@@ -525,6 +501,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('backspace with cursor mid-expression leaves correct state', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; render(); });
     const editor = page.locator('#code-editor');
     await editor.fill('f z');
     await page.waitForTimeout(100);
@@ -583,15 +560,7 @@ test.describe('Zero to Hero', () => {
       await page.waitForTimeout(200);
       const afterDelete = await editor.inputValue();
 
-      // Fire synthetic drop with _dropPos at rhsStart
-      await editor.evaluate(el => {
-        el._dropPos = 0;
-        const dt = new DataTransfer();
-        dt.setData('text/plain', 'f');
-        el.dispatchEvent(new DragEvent('drop', {
-          bubbles: true, cancelable: true, dataTransfer: dt, clientX: el.getBoundingClientRect().left + 8, clientY: el.getBoundingClientRect().top + 12
-        }));
-      });
+      await fCard.dragTo(editor, { targetPosition: { x: 8, y: 12 } });
       await page.waitForTimeout(100);
       const current = await editor.inputValue();
       expect(current).toBe(baseline);
@@ -599,6 +568,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('backspace deletes entire token, not single character', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; render(); });
     const editor = page.locator('#code-editor');
 
     // Multi-char identifier: backspace should delete whole "mkHero"
@@ -620,6 +590,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('arrow keys navigate by token, not by character', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; render(); });
     const editor = page.locator('#code-editor');
     await editor.fill('mkHero $ runZero z');
     await editor.click();
@@ -657,6 +628,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('arrow keys navigate through parentheses token by token', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; render(); });
     // Jump directly to level 12 (index 11) which has parens and >>= operator
     await page.evaluate(() => { currentLevel = 11; render(); });
     await expect(page.locator('.level-badge')).toContainText('Level 12');
@@ -705,6 +677,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('backspace near parenthesis removes only the paren, not adjacent f2', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; render(); });
     const editor = page.locator('#code-editor');
 
     // Variant 1: f2( with no space — cursor right after (
@@ -730,6 +703,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('typing adjacent tokens auto-inserts spaces between them', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; render(); });
     const editor = page.locator('#code-editor');
 
     // Type ident+op+ident without spaces: f2$f1
@@ -746,6 +720,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('typing chars one-at-a-time before operator merges into single token', async ({ page }) => {
+    await page.evaluate(() => { iconMode = true; render(); });
     const editor = page.locator('#code-editor');
 
     // Start with "$ f3 z" in the RHS — cursor at left of $

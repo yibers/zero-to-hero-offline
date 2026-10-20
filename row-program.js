@@ -139,6 +139,8 @@ const RowProgram = (() => {
     return rows.map(row => {
       let error = null;
       try {
+        if (!/^[a-z][A-Za-z0-9_']*$/.test(row.id) || /^(let|in)$/.test(row.id)) throw Error('Use a lowercase name for each binding.');
+        if (available.has(row.id)) throw Error('A binding cannot shadow an available name.');
         if (!row.expr.trim() || row.expr.trim() === 'undefined') throw Error('Add an expression to this row.');
         if (/\bundefined\b/.test(row.expr)) throw Error('Using undefined is not allowed.');
         const tree = parse(row.expr);

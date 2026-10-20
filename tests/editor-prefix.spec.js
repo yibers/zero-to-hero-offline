@@ -15,7 +15,7 @@ async function loadProgress(page, progress) {
 
 test('prefix stays above a left-aligned playground and survives selecting all', async ({ page }) => {
   await loadProgress(page, { currentLevel: 0 });
-  const editor = page.getByRole('textbox', { name: 'Row 1 expression' });
+  const editor = page.getByRole('textbox', { name: 'Haskell expression' });
   const prefix = page.locator('#editor-prefix');
   await expect(prefix).toHaveText('zeroToHero z =');
   await editor.fill('f z');
@@ -42,7 +42,8 @@ test('existing level 8 progress loads and preserves the extra parameters', async
   });
   const editor = page.locator('#code-editor');
   await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero ad bd cd z =');
-  await expect(page.locator('textarea.row-editor')).toHaveCount(5);
+  await expect(page.locator('textarea.row-editor')).toHaveCount(0);
+  await expect(editor).toHaveValue(/let\n.*\nin\n/s);
   expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await expect(page.locator('#inferred-type')).toContainText('Hero');
   await page.getByText('Icons', { exact: true }).click();
@@ -61,16 +62,19 @@ test('existing level 8 progress loads and preserves the extra parameters', async
   await expect(page.locator('#level-dialog')).toBeVisible();
 });
 
-test('Enter adds a new row and preserves both rows after refresh', async ({ page }) => {
+test('Enter adds a source line and preserves the let program after refresh', async ({ page }) => {
   await loadProgress(page, { currentLevel: 1 });
-  await page.locator('#code-editor').fill('runZero z');
-  await page.locator('#code-editor').press('Enter');
-  await expect(page.locator('textarea.row-editor')).toHaveCount(2);
-  await page.locator('textarea.row-editor').nth(1).fill('mkHero r1');
+  const editor = page.locator('#code-editor');
+  await editor.fill('let');
+  await editor.press('End');
+  await editor.press('Enter');
+  await expect(editor).toHaveValue('let\n  ');
+  const source = 'let\n  value = runZero z\nin\n  mkHero value';
+  await editor.fill(source);
   await expect(page.locator('#inferred-type')).toContainText('Hero');
   await page.reload();
-  await expect(page.locator('textarea.row-editor').nth(0)).toHaveValue('runZero z');
-  await expect(page.locator('textarea.row-editor').nth(1)).toHaveValue('mkHero r1');
+  await expect(editor).toHaveValue(source);
+  await expect(page.locator('.program-row')).toHaveCount(0);
   await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero z =');
   await page.getByRole('button', { name: 'Attempt', exact: true }).click();
   await expect(page.locator('#level-dialog')).toBeVisible();

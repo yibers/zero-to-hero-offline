@@ -77,9 +77,10 @@ test('old implicit solutions migrate once, preserving all saved levels and prefe
   await page.reload();
   await expect(editor).toHaveValue('f3 f1 z');
   await page.evaluate(() => toggleIconMode());
-  await expect(editor).toHaveValue('f3 f1 z');
+  const source = 'let\n  r1 = f3 f1 z\nin\n  f3 r1';
+  await expect(editor).toHaveValue(source);
   await page.reload();
-  await expect(editor).toHaveValue('f3 f1 z');
+  await expect(editor).toHaveValue(source);
 });
 
 test('old text-mode solutions are not rewritten', async ({ page }) => {
@@ -177,9 +178,9 @@ test('later levels offer their operators, text mode works, and rendering cancels
   await page.evaluate(() => toggleIconMode());
   await expect(page.locator('#connection-picker')).toHaveCount(0);
   await expect(editor).toHaveValue('f2 z');
-  await dropCard(page, 'f1', page.locator('#editor-overlay > .token-func').first());
-  await page.getByRole('button', { name: 'Use <*>', exact: true }).click();
-  await expect(editor).toHaveValue('f2 <*> f1 z');
+  await page.locator('[data-func-name="f1"]').dragTo(editor, { targetPosition: { x: 8, y: 12 } });
+  await expect(page.locator('#connection-picker')).toHaveCount(0);
+  await expect(editor).toHaveValue('f1 f2 z');
 });
 
 test('the function pane marks only operators in both display modes', async ({ page }) => {

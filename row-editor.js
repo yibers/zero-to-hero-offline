@@ -4,7 +4,7 @@ let rowDiagnostics = [];
 let rowEditorCleanup = null;
 function clearRowHistory() { rowHistory.clear(); }
 function getRows() {
-  if (!rowPrograms[currentLevel]) rowPrograms[currentLevel] = RowProgram.migrate(getEditorContent());
+  if (!rowPrograms[currentLevel]) rowPrograms[currentLevel] = RowProgram.migrate(textDrafts[currentLevel] ?? getEditorContent());
   return rowPrograms[currentLevel];
 }
 function rowSnapshot() { return JSON.stringify(getRows()); }
@@ -17,17 +17,21 @@ function rememberRows() {
   rowHistory.set(currentLevel, history);
 }
 function persistRows() {
+  delete textDrafts[currentLevel];
+  textHistory.delete(currentLevel);
   editorContents[currentLevel] = LEVELS[currentLevel].lhs.trim() + ' ' + RowProgram.source(getRows());
   saveProgress();
 }
 function getRowError() {
+  if (!iconMode) return getTextError();
   const errors = RowProgram.validate(getRows(), LEVELS[currentLevel]);
   const index = errors.findIndex(Boolean);
   return index < 0 ? null : `Row ${index + 1}: ${errors[index]}`;
 }
 function rowSymbol(name, width) {
-  if (/^r\d+$/.test(name)) {
-    const diagnostic = rowDiagnostics[getRows().findIndex(row => row.id === name)];
+  const reference = getRows().findIndex(row => row.id === name);
+  if (reference >= 0 || /^r\d+$/.test(name)) {
+    const diagnostic = rowDiagnostics[reference];
     if (iconMode) {
       const label = name + ': ' + (diagnostic?.signature || 'result unavailable');
       const picture = diagnostic?.signature ? renderSemanticType(diagnostic.signature, label)
@@ -125,8 +129,8 @@ function mountRowEditor() {
     for (const token of tokens(text)) {
       html += escHtml(text.slice(end, token.start));
       const bare = token.name.replace(/^\((.+)\)$/, '$1');
-      const cls = funcs.has(bare) ? 'token-func' : params.has(bare) ? 'token-param' : /^r\d+$/.test(bare) ? 'token-ref' : 'token-unknown';
-      const content = bare === 'undefined' && iconMode ? '' : (funcs.has(bare) || params.has(bare) || /^r\d+$/.test(bare))
+      const cls = funcs.has(bare) ? 'token-func' : params.has(bare) ? 'token-param' : refNames().has(bare) || /^r\d+$/.test(bare) ? 'token-ref' : 'token-unknown';
+      const content = bare === 'undefined' && iconMode ? '' : (funcs.has(bare) || params.has(bare) || refNames().has(bare) || /^r\d+$/.test(bare))
         ? rowSymbol(bare, token.name.length) : escHtml(token.name);
       html += `<span class="${cls}" data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}">${content}</span>`;
       end = token.end;
@@ -253,7 +257,7 @@ function mountRowEditor() {
   }
   function mutateDrop(name, rowIndex, pos, source, connector) {
     const next = structuredClone(getRows());
-    if (/^r\d+$/.test(name)) {
+    if (refNames().has(name) || /^r\d+$/.test(name)) {
       const from = next.findIndex(r => r.id === name);
       if (from < 0 || from >= rowIndex) { notice('Use a result only in a row below it.'); return; }
     }
@@ -297,7 +301,7 @@ function mountRowEditor() {
     if (!call || !rowDiagnostics[index]?.call?.inputs[position]) return;
     const value = name ? name.replace(/^\((.+)\)$/, '$1') : null;
     if (value && !funcs.has(value) && !params.has(value) && !refNames().has(value)) return;
-    if (value && /^r\d+$/.test(value)) {
+    if (value && (refNames().has(value) || /^r\d+$/.test(value))) {
       const from = next.findIndex(row => row.id === value);
       if (from < 0 || from >= index) { notice('Use a result only in a row below it.'); return; }
       if (rowDiagnostics[from]?.error) { notice('Complete that row before using its result.'); return; }

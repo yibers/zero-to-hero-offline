@@ -131,6 +131,9 @@ test('rendered results update dependent rows and are removed when inference fail
   await fillRow(page, 0, 'f1 z');
   await expect(page.locator('.row-result').nth(1).locator('svg circle')).toHaveCount(2);
   await page.evaluate(() => toggleIconMode());
+  await expect(page.locator('.row-result')).toHaveCount(0);
+  await expect(page.locator('#code-editor')).toHaveValue(/let\n.*\nin\n/s);
+  await page.evaluate(() => toggleIconMode());
   await expect(page.locator('.row-result')).toHaveCount(2);
 });
 

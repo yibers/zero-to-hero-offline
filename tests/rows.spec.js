@@ -3,13 +3,18 @@ const { pathToFileURL } = require('url');
 const path = require('path');
 const URL = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
 const row = (page, i) => page.locator('textarea.row-editor').nth(i);
-async function open(page, level = 0, icons = false) {
+async function open(page, level = 0, icons = true) {
   await page.goto(URL);
   await page.evaluate(({ level, icons }) => {
     localStorage.clear(); currentLevel = level; showIntro = false; iconMode = icons; geckoOn = false;
     editorContents = {}; rowPrograms = {}; activeRow = 0; render();
   }, { level, icons });
   await page.evaluate(() => document.fonts.ready);
+}
+async function fillRow(page, i, code) {
+  const toggle = page.getByRole('button', { name: `Edit code for row ${i + 1}`, exact: true });
+  if (await toggle.isVisible()) await toggle.click();
+  await row(page, i).fill(code);
 }
 async function load(page, level, code) {
   await page.evaluate(({ level, code }) => { currentLevel = level; setEditorContent(code); render(); }, { level, code });
@@ -65,7 +70,7 @@ test('self and forward references are rejected and changing an earlier row updat
   await expect(page.locator('.row-feedback')).toContainText('not an earlier result');
   await load(page, 1, 'mkHero $ runZero z');
   await expect(page.locator('.row-feedback').last()).toContainText('Hero');
-  await row(page, 0).fill('mkHero z');
+  await fillRow(page, 0, 'mkHero z');
   await expect(page.locator('#inferred-type')).toContainText('Hero');
   await page.getByRole('button', { name: 'Attempt', exact: true }).click();
   await expect(page.locator('#status-bar')).toContainText('Failed');
@@ -94,7 +99,7 @@ test('insertion keeps names stable, dependency-aware move/delete and undo work',
   await page.getByLabel('Actions for row 2').click();
   await page.getByRole('button', { name: 'Insert row above 2', exact: true }).click();
   await expect(row(page, 2)).toHaveValue('mkHero r1');
-  await expect(page.locator('.result-handle')).toHaveText(['r1', 'r3', 'r2']);
+  expect(await page.locator('.result-handle').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')))).toEqual(['Drag result r1', 'Drag result r3', 'Drag result r2']);
   await page.getByRole('button', { name: 'Undo row edit' }).click();
   await expect(page.locator('.program-row')).toHaveCount(2);
   await page.getByLabel('Actions for row 1').click();
@@ -102,7 +107,7 @@ test('insertion keeps names stable, dependency-aware move/delete and undo work',
   await expect(page.locator('#row-notice')).toContainText('used by another row');
   await page.getByRole('button', { name: 'Move row 1 down', exact: true }).click();
   await expect(page.locator('#row-notice')).toContainText('Keep a result above');
-  await row(page, 1).fill('z');
+  await fillRow(page, 1, 'z');
   await page.getByRole('button', { name: 'Remove row 1', exact: true }).click();
   await expect(page.locator('.program-row')).toHaveCount(1);
   await expect(row(page, 0)).toHaveValue('z');
@@ -122,7 +127,6 @@ test('legacy saved progress migrates once without losing settings or completion'
   await page.reload();
   await expect(page.locator('.program-row')).toHaveCount(5);
   expect(await page.evaluate(() => typeCheck(LEVELS[6], getCodeFromEditor()).ok)).toBe(true);
-  await row(page, 4).focus();
   await page.getByText('Icons', { exact: true }).click();
   await page.reload();
   expect(await page.evaluate(() => ({ count: getRows().length, completed: [...completedLevels], bypassCount, geckoOn, iconMode }))).toEqual({ count: 5, completed: [0,1], bypassCount: 2, geckoOn: false, iconMode: false });
