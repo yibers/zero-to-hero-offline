@@ -71,7 +71,7 @@ test('self and forward references are rejected and changing an earlier row updat
   await load(page, 1, 'mkHero $ runZero z');
   await expect(page.locator('.row-feedback').last()).toContainText('Hero');
   await fillRow(page, 0, 'mkHero z');
-  await expect(page.locator('#inferred-type')).toContainText('Hero');
+  await expect(page.locator('.row-feedback').last()).toContainText('Hero');
   await page.getByRole('button', { name: 'Attempt', exact: true }).click();
   await expect(page.locator('#status-bar')).toContainText('Failed');
 });

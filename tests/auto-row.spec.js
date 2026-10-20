@@ -96,7 +96,7 @@ test('every solved reference has no spare row; wrong types and invalid row progr
   await page.getByRole('button', { name: 'Edit code for row 1' }).click();
   await row(page).fill('mkHero (runZero z)');
   await expect(ready(page)).toHaveCount(1); // Correct type, but two calls in one row.
-  await expect(page.locator('#syntax-hint')).toHaveClass(/invalid/);
+  await expect(page.locator('#status-bar')).toHaveClass(/error/);
 });
 
 test.describe('phone automatic rows', () => {
