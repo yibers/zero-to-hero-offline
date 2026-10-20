@@ -179,7 +179,6 @@ function mountRowEditor() {
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row"><span class="result-caption">${iconMode ? 'Result' : 'Result · ' + rows[i].id}</span>${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
     });
     paintReadyRow();
-    document.getElementById('haskell-source').textContent = level.lhs.trim() + '\n  ' + RowProgram.source(rows).replace(/\n/g, '\n  ');
     const history = rowHistory.get(currentLevel);
     document.getElementById('undo-rows').disabled = !history?.undo.length;
     document.getElementById('redo-rows').disabled = !history?.redo.length;

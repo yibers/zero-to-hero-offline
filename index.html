@@ -1101,7 +1101,6 @@ function render() {
             ${iconMode ? '<div id="program-rows"></div>' : '<div class="text-editor-shell"><pre class="text-source-highlight" id="editor-overlay" aria-hidden="true"></pre><textarea class="text-source-editor" id="code-editor" aria-label="Haskell expression" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea></div>'}
             <div class="row-toolbar">${iconMode ? '<button type="button" id="add-row">+ Add row</button>' : ''}<button type="button" id="undo-rows" aria-label="${iconMode ? 'Undo row edit' : 'Undo edit'}">Undo</button><button type="button" id="redo-rows" aria-label="${iconMode ? 'Redo row edit' : 'Redo edit'}">Redo</button></div>
             <div id="row-notice" role="status"></div>
-            ${iconMode ? '<details class="haskell-preview"><summary>Haskell code</summary><pre id="haskell-source"></pre></details>' : ''}
           </div>
 
           <div class="gutter-row"></div>
