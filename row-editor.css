@@ -81,7 +81,7 @@
 .function-head:focus-visible { outline: 2px solid #2563eb; border-radius: 6px; }
 .function-head.connection-target { outline: 3px solid #7c3aed; background: #ede9fe; border-radius: 8px; }
 .function-block .drag-source { opacity: .35; }
-.row-code-toggle { display: block; margin-left: auto; min-height: 32px; padding: 5px 9px; border: 0; background: transparent; color: #64748b; font: 11px 'Fira Code', monospace; cursor: pointer; }
+.row-code-toggle { display: flex; align-items: center; justify-content: center; margin-left: auto; width: 44px; min-height: 44px; padding: 8px; border: 0; background: transparent; color: #64748b; cursor: pointer; }
 .row-code-toggle:hover { color: #1d4ed8; }
 .input-slots { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 6px; margin-left: auto; }
 @container (max-width: 300px) {

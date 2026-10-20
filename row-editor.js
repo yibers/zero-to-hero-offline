@@ -150,7 +150,9 @@ function mountRowEditor() {
     row.querySelector('.row-call').classList.toggle('structured-call', structured);
     const toggle = row.querySelector('.row-code-toggle');
     toggle.hidden = !iconMode || !call;
-    toggle.textContent = structured ? 'Edit code' : 'Show block';
+    toggle.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${structured
+      ? '<path d="m16 3 5 5-12 12-6 1 1-6Z M14 5l5 5"/>'
+      : '<rect x="3" y="5" width="18" height="14" rx="3"/><rect x="13" y="9" width="4" height="6" rx="1"/>'}</svg>`;
     toggle.setAttribute('aria-label', `${structured ? 'Edit code' : 'Show block'} for row ${index + 1}`);
     if (!structured) { holder.replaceChildren(); return; }
     const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
