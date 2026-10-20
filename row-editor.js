@@ -108,6 +108,9 @@ function mountRowEditor() {
   const level = LEVELS[currentLevel];
   const funcs = new Set(level.funcs.flatMap(f => [f.name, f.name.replace(/^\(|\)$/g, '')]));
   const params = new Set(level.lhs.split('=')[0].trim().split(/\s+/).slice(1));
+  let goalType = parseType(level.target);
+  for (const _ of params) goalType = goalType.to;
+  const goalSignature = typeToString(goalType);
   const operators = level.funcs.filter(f => isOperatorName(f.name));
   const sourceRows = new Set();
   const editors = () => [...container.querySelectorAll('textarea')];
@@ -173,6 +176,7 @@ function mountRowEditor() {
       feedback.innerHTML = diagnostic.error
         ? `<span>${escHtml(rows[i].expr.trim() ? diagnostic.error : 'Drop or type an expression here.')}</span>`
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
+      feedback.classList.toggle('error-feedback', !!diagnostic.error);
     });
     paintReadyRow();
     const history = rowHistory.get(currentLevel);
@@ -193,7 +197,7 @@ function mountRowEditor() {
       row.classList.toggle('final-row', solved && index === rows.length - 1);
     });
     let ready = container.querySelector('.ready-row');
-    if (!last.expr.trim() || solved) { ready?.remove(); return; }
+    if (!last.expr.trim() || solved) { ready?.remove(); paintGoal(solved); return; }
     const created = !ready;
     // Always offer the next step below the last expression, even if an earlier
     // row was cleared. Keep the empty step out of the source until it is used,
@@ -202,17 +206,33 @@ function mountRowEditor() {
       ready = document.createElement('section');
       ready.className = 'program-row ready-row';
       ready.tabIndex = -1;
-      ready.innerHTML = '<div class="row-heading"><span class="row-number"></span></div><div class="row-call"><button type="button" class="empty-row-drop" aria-label="New function row">Drop a function here</button></div>';
+      ready.innerHTML = '<div class="row-heading"><span class="row-number"></span></div><div class="row-flow"><div class="row-call"><button type="button" class="empty-row-drop" aria-label="New function row">Drop a function here</button></div></div>';
       container.append(ready);
     }
     ready.dataset.row = rows.length;
     ready.setAttribute('aria-label', `Row ${rows.length + 1}`);
     ready.querySelector('.row-number').textContent = rows.length + 1;
+    paintGoal(false);
     // Row outputs can grow after a drop. Reveal the next target after layout,
     // without moving keyboard focus or interrupting an earlier-row edit.
     if (changed || created) requestAnimationFrame(() => {
       if (ready.isConnected && !controller.signal.aborted) ready.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
+  }
+  function paintGoal(solved) {
+    container.querySelectorAll('.goal-output').forEach(node => node.remove());
+    const lastRow = container.querySelector('.program-row:last-child');
+    if (solved) {
+      const result = lastRow.querySelector('.row-result');
+      result.classList.add('puzzle-goal', 'goal-reached');
+      result.title = `Goal reached: ${goalSignature}`;
+      result.insertAdjacentHTML('beforeend', '<span class="goal-badge" aria-label="Goal reached">✓</span>');
+    } else {
+      const goal = document.createElement('div');
+      goal.className = 'goal-output';
+      goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(goalType, 'Goal: ' + goalSignature)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
+      lastRow.querySelector('.row-flow').append(goal);
+    }
   }
   function nextRowId(rows) {
     let n = 1;
@@ -225,8 +245,8 @@ function mountRowEditor() {
     container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}">
       <div class="row-heading"><span class="row-number">${index + 1}</span><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
       <button type="button" class="row-delete" data-action="remove" aria-label="Delete row ${index + 1}" title="Delete row">×</button></div>
-      <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" inputmode="none" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
-      <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></section>`).join('');
+      <div class="row-flow"><div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" inputmode="none" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
+      <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></div></section>`).join('');
     paint();
   }
   function commit(rebuild = false) { persistRows(); notice(''); rebuild ? build() : paint(); }
@@ -468,6 +488,9 @@ function mountRowEditor() {
   }
   function showIntent(name, point, source) {
     clearIntent();
+    if (document.elementFromPoint(point.clientX, point.clientY)?.closest('.goal-output')) {
+      ghost?.classList.remove('removing'); return;
+    }
     const index = rowAt(point);
     ghost?.classList.toggle('removing', index === null && !!source);
     if (index === null) return;
@@ -532,6 +555,7 @@ function mountRowEditor() {
     return head?.start === source.start && head?.end === source.end;
   }
   function drop(name, point, source) {
+    if (document.elementFromPoint(point.clientX, point.clientY)?.closest('.goal-output')) return;
     const slot = slotAt(point);
     if (slot) { fillSlot(name, Number(slot.dataset.row), Number(slot.dataset.slot), source); return; }
     const index = rowAt(point);
@@ -638,6 +662,7 @@ function mountRowEditor() {
     }
   });
   listen(container, 'click', e => {
+    if (e.target.closest('.goal-output')) return;
     if (e.target.closest('.ready-row')) {
       if (!suppressClick) newRow(getRows().length);
       return;
