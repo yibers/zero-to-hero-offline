@@ -113,9 +113,6 @@ function mountRowEditor() {
   const notice = text => { document.getElementById('row-notice').textContent = text; };
   let drag = null, ghost = null, nativeName = '', suppressClick = false, scrollFrame = null, lastPoint = null;
   let lastScrollTime = 0, scrollEdge = null;
-  const results = document.createElement('section');
-  results.id = 'available-results';
-  document.querySelector('.right-panel').prepend(results);
   const refNames = () => new Set(getRows().map(r => r.id));
   function tokens(text) {
     return [...text.matchAll(/\((?:\$|\.|<\$>|<\*>|>>=)\)|[a-zA-Z_][a-zA-Z0-9_']*|[!@#$%^&*\-+=<>?/|~:.\\]+|[^\s]/g)]
@@ -144,12 +141,6 @@ function mountRowEditor() {
   function activate(index) {
     activeRow = Math.max(0, Math.min(index, getRows().length - 1));
     container.querySelectorAll('.program-row').forEach((el, i) => el.classList.toggle('active-row', i === activeRow));
-    updateResults();
-  }
-  function updateResults() {
-    const rows = getRows();
-    results.innerHTML = `<h2>Earlier results · row ${activeRow + 1}</h2><p class="results-hint">${activeRow ? 'Drag or tap a result to use it in this row.' : 'Add a row to use this result as an input.'}</p>` + rows.slice(0, activeRow).map((row, i) =>
-      `<button type="button" class="func-card result-card" ${rowDiagnostics[i]?.signature ? `draggable="true" data-func-name="${row.id}"` : 'disabled'} aria-label="Use result ${row.id}">${rowSymbol(row.id)}<span>${rowDiagnostics[i]?.signature ? colorizeType(rowDiagnostics[i].signature) : 'Complete this row first'}</span></button>`).join('');
   }
   function paintInputs(row, call, index) {
     const holder = row.querySelector('.function-block');
@@ -180,19 +171,12 @@ function mountRowEditor() {
       const feedback = row.querySelector('.row-feedback'), diagnostic = rowDiagnostics[i];
       paintInputs(row, diagnostic.call, i);
       drawOverlay(editor);
-      const handle = row.querySelector('.result-handle');
-      handle.innerHTML = iconMode ? rowSymbol(rows[i].id) : escHtml(rows[i].id);
-      handle.setAttribute('aria-label', `Drag result ${rows[i].id}`);
-      handle.disabled = !!diagnostic.error;
-      if (diagnostic.error) handle.removeAttribute('data-func-name');
-      else handle.dataset.funcName = rows[i].id;
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
       feedback.innerHTML = diagnostic.error
         ? `<span>${escHtml(rows[i].expr.trim() ? diagnostic.error : 'Drop or type an expression here.')}</span>`
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row"><span class="result-caption">${iconMode ? 'Result' : 'Result · ' + rows[i].id}</span>${renderSemanticType(diagnostic.signature, 'Result ' + rows[i].id + ': ' + diagnostic.signature)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
     });
     paintReadyRow();
-    updateResults();
     document.getElementById('haskell-source').textContent = level.lhs.trim() + '\n  ' + RowProgram.source(rows).replace(/\n/g, '\n  ');
     const history = rowHistory.get(currentLevel);
     document.getElementById('undo-rows').disabled = !history?.undo.length;
@@ -228,7 +212,7 @@ function mountRowEditor() {
     const rows = getRows();
     activeRow = Math.min(activeRow, rows.length - 1);
     container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" aria-label="Row ${index + 1}">
-      <div class="row-heading"><span class="row-number">${index + 1}</span><button type="button" class="result-handle" draggable="true" data-func-name="${row.id}" title="Drag ${row.id} into a later row">${escHtml(row.id)}</button><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
+      <div class="row-heading"><span class="row-number">${index + 1}</span><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
       <details class="row-menu"><summary aria-label="Actions for row ${index + 1}">⋯</summary><div class="row-actions"><button type="button" data-action="insert" title="Insert a row above" aria-label="Insert row above ${index + 1}">+</button><button type="button" data-action="up" aria-label="Move row ${index + 1} up" ${index === 0 ? 'disabled' : ''}>↑</button><button type="button" data-action="down" aria-label="Move row ${index + 1} down" ${index === rows.length - 1 ? 'disabled' : ''}>↓</button><button type="button" data-action="remove" aria-label="Remove row ${index + 1}">×</button></div></details></div>
       <button type="button" class="row-code-toggle" data-action="code" hidden></button>
       <div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
@@ -694,7 +678,7 @@ function mountRowEditor() {
   listen(document, 'visibilitychange', () => { if (document.hidden) cleanupDrag(); });
   listen(document, 'contextmenu', e => { if (drag) e.preventDefault(); });
   listen(window, 'resize', () => editors().forEach(drawOverlay));
-  rowEditorCleanup = () => { cleanupDrag(); controller.abort(); results.remove(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
+  rowEditorCleanup = () => { cleanupDrag(); controller.abort(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
   build();
   document.fonts.ready.then(() => { if (!controller.signal.aborted) editors().forEach(drawOverlay); });
 }

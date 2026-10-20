@@ -233,7 +233,7 @@ test.describe('phone input slots', () => {
     await page.getByRole('button', { name: '+ Add row', exact: true }).tap();
     await fillRow(page, 1, 'mkHero'); await row(page, 1).blur();
     const target = await center(slot(page, 1, 0));
-    const card = page.getByRole('button', { name: 'Use result r1', exact: true });
+    const card = page.locator('.row-result[data-func-name="r1"]');
     await expect(card.locator('.result-shape')).toHaveCount(1);
     await (await touch(page)).drag(await center(card), target);
     await expect(row(page, 1)).toHaveValue('mkHero r1');

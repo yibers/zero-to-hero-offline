@@ -35,7 +35,7 @@ test('level 2 builds with a result reference, generates let, solves and survives
   await expect(page.locator('.row-feedback').first()).toContainText('a');
   await page.getByRole('button', { name: '+ Add row', exact: true }).click();
   await row(page, 1).fill('mkHero');
-  await page.getByRole('button', { name: 'Use result r1', exact: true }).click();
+  await page.locator('.row-result[data-func-name="r1"]').click();
   await expect(row(page, 1)).toHaveValue('mkHero r1');
   await expect(page.locator('.row-role').last()).toHaveText('Final answer');
   expect(await page.evaluate(() => getCodeFromEditor())).toBe('let\n  r1 = runZero z\nin\n  mkHero r1');
@@ -99,7 +99,7 @@ test('insertion keeps names stable, dependency-aware move/delete and undo work',
   await page.getByLabel('Actions for row 2').click();
   await page.getByRole('button', { name: 'Insert row above 2', exact: true }).click();
   await expect(row(page, 2)).toHaveValue('mkHero r1');
-  expect(await page.locator('.result-handle').evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')))).toEqual(['Drag result r1', 'Drag result r3', 'Drag result r2']);
+  expect(await page.evaluate(() => getRows().map(row => row.id))).toEqual(['r1', 'r3', 'r2']);
   await page.getByRole('button', { name: 'Undo row edit' }).click();
   await expect(page.locator('.program-row')).toHaveCount(2);
   await page.getByLabel('Actions for row 1').click();
@@ -161,7 +161,7 @@ test.describe('phone rows', () => {
     await row(page, 0).fill('runZero z');
     await page.getByRole('button', { name: '+ Add row', exact: true }).tap();
     await row(page, 1).fill('mkHero'); await row(page, 1).blur();
-    const from = await center(page.getByRole('button',{name:'Use result r1',exact:true}));
+    const from = await center(page.locator('.row-result[data-func-name="r1"]'));
     const to = await center(row(page, 1));
     // Right edge inserts next to the function instead of opening the picker.
     const bounds = await row(page,1).boundingBox(); to.x = bounds.x+bounds.width-12;
@@ -206,7 +206,7 @@ test.describe('phone rows', () => {
     await load(page,6,'f1 z');
     await page.getByRole('button',{name:'+ Add row',exact:true}).tap(); await row(page,1).fill('f3 z');
     await page.getByRole('button',{name:'+ Add row',exact:true}).tap(); await row(page,2).fill('r1'); await row(page,2).blur();
-    const from=await center(page.getByRole('button',{name:'Use result r2',exact:true}));
+    const from=await center(page.locator('.row-result[data-func-name="r2"]'));
     const to=await center(page.locator('.program-row').nth(2).locator('[data-name="r1"]'));
     await (await touch(page)).drag(from,to);
     await expect(page.getByRole('dialog',{name:'Choose an operator'})).toBeVisible();
