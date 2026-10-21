@@ -399,6 +399,11 @@ function mountRowEditor() {
     if (isOperatorName(name) && text.slice(0, pos).trim()) name = name.slice(1, -1);
     return text.slice(0, pos) + prefix + name + suffix + text.slice(pos);
   }
+  function stockAllows(next) {
+    const error = functionUsageIncreaseError(level, RowProgram.source(getRows()), RowProgram.source(next));
+    if (error) notice(error);
+    return !error;
+  }
   function mutateDrop(name, rowIndex, pos, source, connector) {
     const next = structuredClone(getRows());
     const createsRow = rowIndex === next.length;
@@ -427,6 +432,7 @@ function mountRowEditor() {
       const left = connector.swapped ? name : target, right = connector.swapped ? target : name;
       next[rowIndex].expr = text.slice(0, connector.start) + `${left} ${connector.op ? connector.op + ' ' : ''}${right}` + text.slice(connector.end);
     } else next[rowIndex].expr = inserted(next[rowIndex].expr, pos, name);
+    if (!stockAllows(next)) return;
     rememberRows(); rowPrograms[currentLevel] = next; activeRow = rowIndex; commit(createsRow); activate(activeRow);
   }
   function slotAt(point) {
@@ -462,6 +468,7 @@ function mountRowEditor() {
     }
     next[index].expr = RowProgram.setArgument(next[index].expr, position, value ? RowProgram.print({ kind: 'name', name: value }) : null);
     if (JSON.stringify(next) === rowSnapshot()) return;
+    if (!stockAllows(next)) return;
     rememberRows(); rowPrograms[currentLevel] = next; activeRow = index; commit(); activate(activeRow);
   }
   function chooseArgument(slot) {
@@ -473,7 +480,9 @@ function mountRowEditor() {
     dialog.setAttribute('aria-label', `Choose input ${position + 1} of ${call.name}`);
     dialog.innerHTML = `<h2>Choose input ${position + 1}</h2><p>For ${rowSymbol(call.name)}. Functions can be inputs too.</p><div class="argument-choices"></div><button type="button" class="connection-cancel">Cancel</button>`;
     const close = () => { dialog.close(); dialog.remove(); };
-    const choices = [...params, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error).map(row => row.id), ...level.funcs.map(f => f.name)];
+    const stock = functionUsage(level, RowProgram.source(getRows()));
+    const available = stock.filter(f => f.remaining || f.name.replace(/^\(|\)$/g, '') === call.args[position]).map(f => f.name);
+    const choices = [...params, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error).map(row => row.id), ...available];
     for (const name of [...choices, null]) {
       if (!name && !call.args[position]) continue;
       const button = document.createElement('button'); button.type = 'button'; button.className = 'argument-choice';
@@ -571,7 +580,8 @@ function mountRowEditor() {
       const left = swapped ? name : target.name, right = swapped ? target.name : name;
       dialog.querySelector('#connection-order-label').innerHTML = rowSymbol(left) + ' → ' + rowSymbol(right);
       const holder = dialog.querySelector('.connection-options'); holder.replaceChildren();
-      for (const op of [...operators.map(f => f.name.slice(1, -1)), '']) {
+      const available = new Set(functionUsage(level, RowProgram.source(getRows())).filter(f => f.remaining).map(f => f.name));
+      for (const op of [...operators.filter(f => available.has(f.name)).map(f => f.name.slice(1, -1)), '']) {
         const button = document.createElement('button');
         button.className = 'connection-option'; button.dataset.operator = op;
         button.setAttribute('aria-label', op ? `Use ${op}` : 'Insert without operator');

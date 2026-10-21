@@ -14,19 +14,21 @@ for (const phone of [false, true]) {
         for (const gecko of [false, true]) {
           geckoOn = gecko;
           LEVELS.forEach((level, index) => {
-            currentLevel = index; setEditorContent(level.solution); render();
-            for (const atom of document.querySelectorAll('.type-atom, .type-placeholder')) {
-              const box = atom.getBoundingClientRect();
-              if (Math.abs(box.width - 15) > .01 || Math.abs(box.height - 15) > .01)
-                failures.push({ level: level.level, type: atom.dataset.type, width: box.width, height: box.height });
-              for (const selector of ['.func-card', '.parameter-icon', '.function-head', '.argument-slot', '.row-result'])
-                if (atom.closest(selector)) locations.add(selector);
-            }
-            if (document.documentElement.scrollWidth > document.documentElement.clientWidth)
-              failures.push({ level: level.level, overflow: document.documentElement.scrollWidth });
-            for (const container of document.querySelectorAll('.program-row, .function-block, .argument-slot, .parameter-prefix, .icon-palette .func-card')) {
-              if (container.scrollWidth > container.clientWidth + 1)
-                failures.push({ level: level.level, gecko, container: container.className, overflow: container.scrollWidth - container.clientWidth });
+            for (const code of ['', level.solution]) {
+              currentLevel = index; setEditorContent(code); render();
+              for (const atom of document.querySelectorAll('.type-atom, .type-placeholder')) {
+                const box = atom.getBoundingClientRect();
+                if (Math.abs(box.width - 15) > .01 || Math.abs(box.height - 15) > .01)
+                  failures.push({ level: level.level, type: atom.dataset.type, width: box.width, height: box.height });
+                for (const selector of ['.func-card', '.parameter-icon', '.function-head', '.argument-slot', '.row-result'])
+                  if (atom.closest(selector)) locations.add(selector);
+              }
+              if (document.documentElement.scrollWidth > document.documentElement.clientWidth)
+                failures.push({ level: level.level, overflow: document.documentElement.scrollWidth });
+              for (const container of document.querySelectorAll('.program-row, .function-block, .argument-slot, .parameter-prefix, .icon-palette .func-card')) {
+                if (container.scrollWidth > container.clientWidth + 1)
+                  failures.push({ level: level.level, gecko, container: container.className, overflow: container.scrollWidth - container.clientWidth });
+              }
             }
           });
         }
@@ -72,7 +74,7 @@ test('diagrams reflow when a pane narrows and expand again when it widens', asyn
   await page.goto(URL);
   await page.evaluate(() => {
     showIntro = false; iconMode = true; geckoOn = false; currentLevel = 14;
-    setEditorContent(LEVELS[currentLevel].solution); render();
+    setEditorContent(''); render();
   });
   const diagram = page.locator('.icon-palette .func-card svg[data-diagram-type]').last();
   const wide = await diagram.boundingBox();

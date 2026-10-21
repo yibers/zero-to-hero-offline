@@ -7,7 +7,7 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
-      { name: "f", sig: "Zero a -> Hero a" }
+      { name: "f", sig: "Zero a -> Hero a", uses: 1 }
     ],
     solution: "f z"
   },
@@ -18,8 +18,8 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
-      { name: "runZero", sig: "Zero a -> a" },
-      { name: "mkHero", sig: "a -> Hero a" }
+      { name: "runZero", sig: "Zero a -> a", uses: 1 },
+      { name: "mkHero", sig: "a -> Hero a", uses: 1 }
     ],
     solution: "let\n  r1 = runZero z\nin\n  mkHero r1"
   },
@@ -30,9 +30,9 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
-      { name: "runZero", sig: "Zero a -> a" },
-      { name: "mkHero", sig: "a -> Hero a" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "runZero", sig: "Zero a -> a", uses: 1 },
+      { name: "mkHero", sig: "a -> Hero a", uses: 1 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
     solution: "let\n  r1 = (.) mkHero runZero\nin\n  r1 z"
   },
@@ -43,9 +43,9 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
-      { name: "f1", sig: "Zero a -> Hero a" },
-      { name: "f3", sig: "Hero a -> Hero (a, a)" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "f1", sig: "Zero a -> Hero a", uses: 1 },
+      { name: "f3", sig: "Hero a -> Hero (a, a)", uses: 1 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
     solution: "let\n  r1 = (.) f3 f1\nin\n  r1 z"
   },
@@ -56,9 +56,9 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
-      { name: "f2", sig: "Zero a a -> Hero a a" },
-      { name: "f4", sig: "Zero a b -> Zero b b" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "f2", sig: "Zero a a -> Hero a a", uses: 1 },
+      { name: "f4", sig: "Zero a b -> Zero b b", uses: 1 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
     solution: "let\n  r1 = (.) f2 f4\nin\n  r1 z"
   },
@@ -69,10 +69,10 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
-      { name: "snd", sig: "(a, b) -> b" },
-      { name: "f1", sig: "Zero a b -> Zero a (a, b)" },
-      { name: "f3", sig: "Zero a b -> (Hero a, Hero b)" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "snd", sig: "(a, b) -> b", uses: 1 },
+      { name: "f1", sig: "Zero a b -> Zero a (a, b)", uses: 1 },
+      { name: "f3", sig: "Zero a b -> (Hero a, Hero b)", uses: 1 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
     ],
     solution: "let\n  r1 = (.) f3 f1\n  r2 = (.) snd r1\nin\n  r2 z"
   },
@@ -83,10 +83,10 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
-      { name: "f1", sig: "Zero a b c -> Zero c b a" },
-      { name: "f2", sig: "Zero a b c -> Zero a c c" },
-      { name: "f3", sig: "Zero a b c -> Hero b c" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "f1", sig: "Zero a b c -> Zero c b a", uses: 1 },
+      { name: "f2", sig: "Zero a b c -> Zero a c c", uses: 1 },
+      { name: "f3", sig: "Zero a b c -> Hero b c", uses: 1 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
     ],
     solution: "let\n  r1 = (.) f1 f2\n  r2 = (.) f3 r1\nin\n  r2 z"
   },
@@ -97,12 +97,12 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
-      { name: "f1", sig: "Zero a b c -> Hero (a -> b)" },
-      { name: "f2", sig: "Zero a b c -> Hero (b -> c)" },
-      { name: "f3", sig: "Zero a b c -> Hero a" },
-      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b" },
-      { name: "(<*>)", sig: "Hero (a -> c) -> Hero a -> Hero c" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "f1", sig: "Zero a b c -> Hero (a -> b)", uses: 1 },
+      { name: "f2", sig: "Zero a b c -> Hero (b -> c)", uses: 1 },
+      { name: "f3", sig: "Zero a b c -> Hero a", uses: 1 },
+      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b", uses: 1 },
+      { name: "(<*>)", sig: "Hero (a -> c) -> Hero a -> Hero c", uses: 2 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
     solution: "let\n  r1 = f2 z\n  r2 = (<$>) (.) r1\n  r3 = f1 z\n  r4 = (<*>) r2 r3\n  r5 = f3 z\nin\n  (<*>) r4 r5"
   },
@@ -113,10 +113,10 @@ const LEVELS = [
     lhs: "zeroToHero ad bd cd z =",
     testing: "b = zeroToHero (undefined :: SKOLEMa -> SKOLEMd) (undefined :: SKOLEMb -> SKOLEMd) (undefined :: SKOLEMc -> SKOLEMd) (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
-      { name: "fmap", sig: "(c -> d) -> Zero a b c -> Zero a b d" },
-      { name: "f1", sig: "Zero a b c -> Zero c a b" },
-      { name: "f2", sig: "Zero a b c -> Hero a b c" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "fmap", sig: "(c -> d) -> Zero a b c -> Zero a b d", uses: 1 },
+      { name: "f1", sig: "Zero a b c -> Zero c a b", uses: 3 },
+      { name: "f2", sig: "Zero a b c -> Hero a b c", uses: 1 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 4 }
     ],
     solution: "let\n  r1 = fmap bd\n  r2 = (.) r1 f1\n  r3 = (.) f1 r2\n  r4 = (.) f1 r3\n  r5 = (.) f2 r4\nin\n  r5 z"
   },
@@ -127,10 +127,10 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc SKOLEMd)",
     funcs: [
-      { name: "f1", sig: "Zero a b c d -> Zero a a b b" },
-      { name: "f2", sig: "Zero a b c d -> Hero c c d d" },
-      { name: "f3", sig: "Zero a b c d -> Zero d c b a" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "f1", sig: "Zero a b c d -> Zero a a b b", uses: 2 },
+      { name: "f2", sig: "Zero a b c d -> Hero c c d d", uses: 1 },
+      { name: "f3", sig: "Zero a b c d -> Zero d c b a", uses: 1 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 3 }
     ],
     solution: "let\n  r1 = (.) f1 f3\n  r2 = (.) f1 r1\n  r3 = (.) f2 r2\nin\n  r3 z"
   },
@@ -141,10 +141,10 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero (SKOLEMa -> SKOLEMb -> SKOLEMc -> SKOLEMd) SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
-      { name: "f1", sig: "Zero (a -> b) a c d -> Zero () b c d" },
-      { name: "f2", sig: "Zero a b c d -> Zero b c d a" },
-      { name: "f3", sig: "Zero a b c d -> Hero d" },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
+      { name: "f1", sig: "Zero (a -> b) a c d -> Zero () b c d", uses: 3 },
+      { name: "f2", sig: "Zero a b c d -> Zero b c d a", uses: 4 },
+      { name: "f3", sig: "Zero a b c d -> Hero d", uses: 1 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 7 }
     ],
     solution: "let\n  r1 = (.) f2 f1\n  r2 = (.) f1 r1\n  r3 = (.) f2 r2\n  r4 = (.) f1 r3\n  r5 = (.) f2 r4\n  r6 = (.) f2 r5\n  r7 = (.) f3 r6\nin\n  r7 z"
   },
@@ -156,8 +156,8 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
-      { name: "wrap", sig: "Zero a -> Hero (Hero a)" },
-      { name: "join", sig: "Hero (Hero a) -> Hero a" }
+      { name: "wrap", sig: "Zero a -> Hero (Hero a)", uses: 1 },
+      { name: "join", sig: "Hero (Hero a) -> Hero a", uses: 1 }
     ],
     solution: "let\n  r1 = wrap z\nin\n  join r1"
   },
@@ -168,9 +168,9 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
-      { name: "f", sig: "Zero a -> Hero a" },
-      { name: "dup", sig: "a -> Hero (a, a)" },
-      { name: "(>>=)", sig: "Hero a -> (a -> Hero b) -> Hero b" }
+      { name: "f", sig: "Zero a -> Hero a", uses: 1 },
+      { name: "dup", sig: "a -> Hero (a, a)", uses: 1 },
+      { name: "(>>=)", sig: "Hero a -> (a -> Hero b) -> Hero b", uses: 1 }
     ],
     solution: "let\n  r1 = f z\nin\n  r1 >>= dup"
   },
@@ -181,9 +181,9 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
-      { name: "f", sig: "Zero a b -> Hero (a, b)" },
-      { name: "swap", sig: "(a, b) -> (b, a)" },
-      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b" }
+      { name: "f", sig: "Zero a b -> Hero (a, b)", uses: 1 },
+      { name: "swap", sig: "(a, b) -> (b, a)", uses: 1 },
+      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b", uses: 1 }
     ],
     solution: "let\n  r1 = f z\nin\n  swap <$> r1"
   },
@@ -194,10 +194,10 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
-      { name: "f", sig: "Zero a -> Hero a" },
-      { name: "dup", sig: "a -> Hero (a, a)" },
-      { name: "nest", sig: "(a, a) -> Hero (a, (a, a))" },
-      { name: "(>>=)", sig: "Hero a -> (a -> Hero b) -> Hero b" }
+      { name: "f", sig: "Zero a -> Hero a", uses: 1 },
+      { name: "dup", sig: "a -> Hero (a, a)", uses: 1 },
+      { name: "nest", sig: "(a, a) -> Hero (a, (a, a))", uses: 1 },
+      { name: "(>>=)", sig: "Hero a -> (a -> Hero b) -> Hero b", uses: 2 }
     ],
     solution: "let\n  r1 = f z\n  r2 = r1 >>= dup\nin\n  r2 >>= nest"
   },
@@ -208,11 +208,11 @@ const LEVELS = [
     lhs: "zeroToHero z =",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
-      { name: "f", sig: "Zero a b -> Hero a" },
-      { name: "g", sig: "Zero a b -> Hero b" },
-      { name: "pair", sig: "a -> b -> (a, b)" },
-      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b" },
-      { name: "(<*>)", sig: "Hero (a -> b) -> Hero a -> Hero b" }
+      { name: "f", sig: "Zero a b -> Hero a", uses: 1 },
+      { name: "g", sig: "Zero a b -> Hero b", uses: 1 },
+      { name: "pair", sig: "a -> b -> (a, b)", uses: 1 },
+      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b", uses: 1 },
+      { name: "(<*>)", sig: "Hero (a -> b) -> Hero a -> Hero b", uses: 1 }
     ],
     solution: "let\n  r1 = g z\n  r2 = pair <$> r1\n  r3 = f z\nin\n  r2 <*> r3"
   }

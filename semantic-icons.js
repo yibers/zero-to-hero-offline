@@ -141,7 +141,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       }
       else if (node.closest('.row-result, .goal-picture')) { holder = node.closest('.row-flow'); reserve = 36; }
       else if (node.closest('.parameter-icon')) { holder = node.closest('.parameter-prefix'); reserve = 2; }
-      else if (node.closest('.func-card')) holder = node.closest('.func-card');
+      else if (node.closest('.func-card')) holder = node.closest('.function-card-content') || node.closest('.func-card');
       else if (node.closest('.argument-choice')) { holder = node.closest('.argument-choices'); reserve = 26; }
       else if (node.closest('.delete-preview-expression')) holder = node.closest('.delete-preview-expression');
       else if (node.closest('.connection-picker')) { holder = node.closest('.connection-picker'); reserve = 26; }

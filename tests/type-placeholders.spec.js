@@ -40,7 +40,7 @@ test('supplying, clearing and undoing an argument specializes only its call and 
   await choose(page, 0, 0, 'z');
   expect(await atoms(head(page))).toEqual(['a', 'a']);
   expect(await markers(head(page))).toEqual([]);
-  expect(await markers(page.locator('.icon-palette'))).toEqual(['1', '1']);
+  await expect(page.locator('#function-palette .func-card')).toHaveCount(0);
   expect(await atoms(page.locator('.row-result'))).toEqual(['a']);
   await page.reload();
   expect(await atoms(head(page))).toEqual(['a', 'a']);
@@ -89,7 +89,7 @@ test('generic function arguments specialize together with their surrounding call
   expect(await markers(argument)).toEqual([]);
   expect(await atoms(argument)).toEqual(['a', 'a', 'a']);
   expect(await atoms(page.locator('.row-result').last())).toEqual(['a', 'a']);
-  expect(await markers(page.locator('.func-card[data-func-name="dup"]'))).toEqual(['1', '1', '1']);
+  await expect(page.locator('.func-card[data-func-name="dup"]')).toHaveCount(0);
   await choose(page, 1, 0, null);
   expect(await atoms(argument)).toEqual([]);
   expect(await markers(argument)).toEqual(['1', '1', '1']);

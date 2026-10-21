@@ -22,12 +22,12 @@ test('all 16 palettes contain exactly the required functions and every reference
  for (const icons of [true, false]) {
   const levels = await page.evaluate(icons => LEVELS.map((level, index) => {
    currentLevel = index; iconMode = icons; setEditorContent(level.solution); render();
-   return { functions: [...document.querySelectorAll('.right-panel .func-card')].filter(el => level.funcs.some(f => f.name === el.dataset.funcName)).map(el => el.dataset.funcName),
+   return { functions: level.funcs.map(f => f.name), available: document.querySelectorAll('#function-palette .func-card').length,
     ok: checkSolution(level, getCodeFromEditor()).ok, complete: completedLevels.has(index),
     next: !document.getElementById('next-level').hidden, ready: !!document.querySelector('.ready-row'),
     solvedGoal: !icons || !!document.querySelector('.goal-reached') };
   }), icons);
-  expect(levels).toEqual(expectedFunctions.map(functions => ({ functions, ok: true, complete: true, next: true, ready: false, solvedGoal: true })));
+  expect(levels).toEqual(expectedFunctions.map(functions => ({ functions, available: 0, ok: true, complete: true, next: true, ready: false, solvedGoal: true })));
  }
  await expect(page.locator('nav')).not.toContainText(/Attempt|Optimal/);
  await expect(page.locator('#status-output')).not.toContainText(/operations|conciseness/i);
@@ -54,7 +54,7 @@ test('required functions must reach the final answer: unused bindings, aliases a
    live: checkSolution(level, live).ok,
    extraWork: checkSolution(LEVELS[0], 'let\n  extra = f z\n  alias = f\nin\n  alias z').ok };
  });
- expect(results).toEqual({ typed: [true, true, true], missing: [['map','id'],['map','id'],['map','id']], live: true, extraWork: true });
+ expect(results).toEqual({ typed: [true, true, true], missing: [['map','id'],['map','id'],['map','id']], live: true, extraWork: false });
 });
 
 test('a matching target with a missing function keeps the goal unsolved and the spare row available', async ({ page }) => {
@@ -141,7 +141,7 @@ test('version 1 completions are rechecked for restored operators while row and t
  await page.goto(URL);
  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
  expect(saved.completed).toEqual([0]);
- expect(saved.completionVersion).toBe(3);
+ expect(saved.completionVersion).toBe(4);
  expect(saved.bypassCount).toBe(3);
  expect(saved.rowPrograms[3]).toEqual([{ id: 'r1', expr: 'f1 z' }, { id: 'r2', expr: 'f3 r1' }]);
  expect(saved.textDrafts[7]).toBe(manualSeven);
@@ -179,7 +179,7 @@ test('old completion records are rechecked without discarding drafts or preferen
  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
  expect(saved.completed).toEqual([0,1]);
  expect(saved.optimal).toBeUndefined();
- expect(saved.completionVersion).toBe(3);
+ expect(saved.completionVersion).toBe(4);
  expect(saved.editorContents[3]).toBe('zeroToHero z = f2 z');
  expect(saved.iconMode).toBe(true); expect(saved.geckoOn).toBe(false);
  await expect(page.locator('#status-output')).toContainText('Unknown identifier: f2');

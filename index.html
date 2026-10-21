@@ -159,6 +159,9 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .touch-drag-ghost .drag-action { display: none; font: 12px 'Exo', sans-serif; }
 .touch-drag-ghost.removing { background: #b91c1c; }
 .touch-drag-ghost.removing .drag-action { display: block; }
+.function-card-content { flex: 1; min-width: 0; }
+#function-palette .func-card { display: flex; align-items: center; gap: 8px; }
+.function-stock { flex: none; padding: 2px 5px; border-radius: 5px; background: #e2e8f0; color: #334155; font-size: 12px; font-weight: bold; }
 .func-card.dragging { opacity: 0.4; cursor: grabbing; }
 .editor-wrap.drag-over { outline: 2px solid #60a5fa; }
 .editor-wrap.drag-over textarea { cursor: copy; }
@@ -221,12 +224,12 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=104dc1040346"></script>
-<script src="semantic-icons.js?v=28187bf19f2c"></script>
+<script src="levels.js?v=81a1f682b165"></script>
+<script src="semantic-icons.js?v=21c76559f830"></script>
 <script src="row-program.js?v=816f5987f6e1"></script>
-<script src="puzzle-rules.js?v=f05229b9ca19"></script>
-<script src="row-editor.js?v=6f64ac319eca"></script>
-<script src="text-editor.js?v=8b64fa28133a"></script>
+<script src="puzzle-rules.js?v=6d1d57ff9b9b"></script>
+<script src="row-editor.js?v=487bcf36d2dd"></script>
+<script src="text-editor.js?v=d1f5168d4cb9"></script>
 <script>
 
 // ─── Haskell Type Parser & Unifier ───
@@ -928,7 +931,7 @@ try {
     }
     // Recheck old achievements against the current learning requirements;
     // keep all saved work and preferences so it can still be edited.
-    if (parsed.completionVersion !== 3) {
+    if (parsed.completionVersion !== 4) {
       completedLevels = new Set([...completedLevels].filter(index => {
         if (!LEVELS[index]) return false;
         try {
@@ -938,7 +941,7 @@ try {
         } catch (_) { return false; }
       }));
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 3 || parsed.levelOrderVersion !== 1) saveProgress();
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 4 || parsed.levelOrderVersion !== 1) saveProgress();
   }
 } catch(e) {}
 
@@ -955,7 +958,7 @@ function saveProgress() {
     iconMode,
     showIntro: false,
     connectionVersion: 1,
-    completionVersion: 3,
+    completionVersion: 4,
     levelOrderVersion: 1
   }));
 }
@@ -974,7 +977,7 @@ function render() {
         <p>Welcome to the game of Zero to Hero. In this game, you will complete each level by implementing
         the function "zeroToHero". This function converts a "Zero" type value to a "Hero" type value.
         The definition of "Zero" and "Hero" may vary from level to level.</p>
-        <p>Use every available function at least once in the steps that produce your final result. Unused rows do not count. The level completes automatically when the result matches the goal and all functions have been used.</p>
+        <p>Each level supplies an exact number of copies of each function. Use them all in the steps that produce your final result. Adding a function uses one copy; removing it returns that copy to the palette. Unused rows do not count.</p>
         <br>
         <button onclick="dismissIntro()">OK</button>
       </div>
@@ -1023,7 +1026,7 @@ function render() {
           <li>Fully self-contained &mdash; works offline, no server needed</li>
           <li>Progress, editor contents, and bypass points persist in localStorage</li>
           <li>One operation per row, reusable results, and a generated Haskell let definition</li>
-          <li>Automatic completion: reach the target and use every available function in the final solution</li>
+          <li>Automatic completion: reach the target and use exactly the supplied copies of each function</li>
         </ul>
         <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
           All credit for the game design, puzzles, and GeckoGraph notation belongs to the original authors.
@@ -1073,7 +1076,7 @@ function render() {
           <div class="code-block">
             <div class="type-sig" id="inferred-type" style="font-size:1rem">${renderTypeSig('zeroToHero', 'a')}</div>
             ${geckoOn ? `<div id="inferred-gecko" style="margin-top:4px">${renderGeckoLeafVar('a')}</div>` : ''}
-            <div class="syntax-hint" id="syntax-hint">Your definition has valid syntax. Completion also requires the target type and every available function.</div>
+            <div class="syntax-hint" id="syntax-hint">Your definition has valid syntax. Completion also requires the target type and exactly the supplied copies of each function.</div>
           </div>
 
           <div class="gutter-row"></div>
@@ -1101,13 +1104,7 @@ function render() {
         <div class="gutter-col"></div>
 
         <div class="right-panel${iconMode ? ' icon-palette' : ''}" role="region" aria-label="Available functions">
-          ${level.funcs.map(f => `
-            <div class="func-card" draggable="true" data-func-name="${f.name}">
-              <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
-              ${geckoOn ? `<div class="palette-gecko" style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
-              ${iconMode ? `<p class="icon-explanation" title="${escHtml(ICON_DESCRIPTIONS[level.level][f.name])}">${escHtml(ICON_CAPTIONS[level.level][f.name])}</p>` : ''}
-            </div>
-          `).join('')}
+          <div id="function-palette"></div>
           ${!iconMode ? `<h2 style="margin-top:12px"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208ZM76,88a12,12,0,1,1,12,12A12,12,0,0,1,76,88Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,128Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,168Zm88-80H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Z"/></svg> Available Parameters</h2>
           ${params.map(p => `
             <div class="func-card" draggable="true" data-func-name="${p}">
@@ -1121,6 +1118,26 @@ function render() {
 
   if (iconMode) mountRowEditor();
   else mountTextEditor();
+}
+
+function updateFunctionPalette(level, code) {
+  const palette = document.getElementById('function-palette');
+  if (!palette) return;
+  const stock = functionUsage(level, code), key = JSON.stringify(stock.map(f => f.remaining));
+  if (palette.dataset.stock === key) return;
+  palette.dataset.stock = key;
+  palette.innerHTML = stock.map((entry, i) => {
+    if (!entry.remaining) return '';
+    const f = level.funcs[i], label = `${f.name}: ${entry.remaining} of ${entry.limit} copies remaining`;
+    return `<div class="func-card" draggable="true" data-func-name="${f.name}" data-remaining="${entry.remaining}" title="${escHtml(label)}" aria-label="${escHtml(label)}">
+      <div class="function-card-content">
+        <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
+        ${geckoOn ? `<div class="palette-gecko" style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
+        ${iconMode ? `<p class="icon-explanation" title="${escHtml(ICON_DESCRIPTIONS[level.level][f.name])}">${escHtml(ICON_CAPTIONS[level.level][f.name])}</p>` : ''}
+      </div>${entry.limit > 1 ? `<span class="function-stock" aria-hidden="true">×${entry.remaining}</span>` : ''}
+    </div>`;
+  }).join('');
+  fitSemanticDiagrams(palette);
 }
 
 function getEditorContent(levelIndex = currentLevel) {
@@ -1503,6 +1520,7 @@ function renderGeckoLeafVar(name) {
 function runLiveCheck() {
   const code = getCodeFromEditor();
   const level = LEVELS[currentLevel];
+  updateFunctionPalette(level, code);
   const inferredEl = document.getElementById('inferred-type');
   const geckoEl = document.getElementById('inferred-gecko');
   const hintEl = document.getElementById('syntax-hint');
@@ -1513,7 +1531,7 @@ function runLiveCheck() {
     if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', 'a');
     if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
     if (hintEl) {
-      hintEl.textContent = 'Your definition has valid syntax. Completion also requires the target type and every available function.';
+      hintEl.textContent = 'Your definition has valid syntax. Completion also requires the target type and exactly the supplied copies of each function.';
       hintEl.className = 'syntax-hint';
     }
     if (statusBar) { statusBar.className = 'status-bar checking'; statusBar.textContent = 'Status: Init'; }
@@ -1530,7 +1548,7 @@ function runLiveCheck() {
       try { geckoEl.innerHTML = renderGeckoArrow(result.typeSig); } catch(e) {}
     }
     if (hintEl) {
-      hintEl.textContent = 'Your definition has valid syntax. Completion also requires the target type and every available function.';
+      hintEl.textContent = 'Your definition has valid syntax. Completion also requires the target type and exactly the supplied copies of each function.';
       hintEl.className = 'syntax-hint';
     }
     const solution = checkSolution(level, code);

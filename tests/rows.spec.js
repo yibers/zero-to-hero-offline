@@ -48,7 +48,7 @@ test('level 2 builds with a result reference, generates let, solves and survives
   await expect(row(page, 1)).toHaveValue('mkHero r1');
 
   await expect(page.locator('#status-bar')).toHaveClass(/success/);
-  await expect(page.locator('#status-output')).toContainText('every available function is used');
+  await expect(page.locator('#status-output')).toContainText('every function is used exactly as many times as supplied');
 });
 
 test('nested calls and applied operands are rejected, but f x y and function values are allowed', async ({ page }) => {

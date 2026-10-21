@@ -1,5 +1,25 @@
-// Learning requirements are separate from type inference: a well-typed answer
-// must also use every supplied function in the path to the final expression.
+// Count placed function cards, including function-valued arguments. Reusing a
+// binding's result does not consume another card. Count unfinished drafts too,
+// so a temporarily invalid expression cannot refill the palette.
+function functionUsage(level, code) {
+  const expressions = code.replace(/\b[a-z][A-Za-z0-9_']*\s*=(?!=)/g, '');
+  const counts = new Map();
+  for (const token of expressions.match(/[a-zA-Z_][a-zA-Z0-9_']*|[!@#$%^&*\-+=<>?/|~:.\\]+/g) || []) {
+    counts.set(token, (counts.get(token) || 0) + 1);
+  }
+  return level.funcs.map(f => {
+    const used = counts.get(f.name.replace(/^\(|\)$/g, '')) || 0, limit = f.uses ?? 1;
+    return { name: f.name, limit, used, remaining: Math.max(0, limit - used) };
+  });
+}
+function functionUsageIncreaseError(level, before, after) {
+  const previous = functionUsage(level, before);
+  const excess = functionUsage(level, after).filter((entry, i) => entry.used > entry.limit && entry.used > previous[i].used);
+  return excess.length ? `No copies left: ${excess.map(f => f.name).join(', ')}. Remove a copy from the program before adding another.` : null;
+}
+
+// Learning requirements are separate from type inference: the exact supplied
+// copies must contribute to the final expression; unused rows cannot fill gaps.
 function checkSolution(level, code) {
   try {
     const program = RowProgram.parseLet(code);
@@ -8,22 +28,25 @@ function checkSolution(level, code) {
     const errors = RowProgram.validate(rows, level);
     const index = errors.findIndex(Boolean);
     if (index >= 0) return { ok: false, msg: `Row ${index + 1}: ${errors[index]}` };
+    const excess = functionUsage(level, code).filter(f => f.used > f.limit);
+    if (excess.length) return { ok: false, excess: excess.map(f => f.name),
+      msg: `Too many copies: ${excess.map(f => `${f.name} (${f.used} used, exactly ${f.limit} allowed)`).join(', ')}. Remove the extra copies.` };
     const typed = typeCheck(level, code);
     if (!typed.ok) return typed;
     const bindings = new Map((program?.bindings || []).map(row => [row.id, RowProgram.parse(row.expr)]));
-    const used = new Set(), visited = new Set();
+    const used = new Map(), visited = new Set();
     function visit(tree) {
       for (const name of RowProgram.names(tree)) {
         if (bindings.has(name)) {
           if (!visited.has(name)) { visited.add(name); visit(bindings.get(name)); }
-        } else used.add(name);
+        } else used.set(name, (used.get(name) || 0) + 1);
       }
     }
     visit(RowProgram.parse(program ? program.final : code));
-    const missing = level.funcs.filter(f => !used.has(f.name.replace(/^\(|\)$/g, ''))).map(f => f.name);
+    const missing = level.funcs.filter(f => (used.get(f.name.replace(/^\(|\)$/g, '')) || 0) < (f.uses ?? 1)).map(f => f.name);
     if (missing.length) return { ok: false, missing,
-      msg: `Use every available function in the steps that produce the final result. Still needed: ${missing.join(', ')}. Unused rows do not count.` };
-    return { ok: true, msg: 'Level complete! The result matches the goal and every available function is used.' };
+      msg: `Use every supplied copy in the steps that produce the final result. Still needed: ${missing.join(', ')}. Unused rows do not count.` };
+    return { ok: true, msg: 'Level complete! The result matches the goal and every function is used exactly as many times as supplied.' };
   } catch (error) { return { ok: false, msg: error.message }; }
 }
 function finalRowName(bindings) {
