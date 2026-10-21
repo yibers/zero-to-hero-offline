@@ -148,7 +148,8 @@ test('replace and clear infix inputs without deleting their operator', async ({ 
 });
 
 test('rendered results update dependent rows and are removed when inference fails', async ({ page }) => {
-  await open(page, 3, 'f3 $ f1 z');
+  // Keep the dependent result intermediate so it remains reusable.
+  await open(page, 3, 'let r1 = f1 z; r2 = f3 r1 in (.)');
   await expect(page.locator('.row-result').nth(1).locator('svg')).toHaveAttribute('aria-label', 'Expected result r2: Hero (a, a)');
   await expect(page.locator('.row-result').nth(1).locator('.type-atom')).toHaveCount(2);
   await fillRow(page, 0, 'f3');
@@ -160,7 +161,7 @@ test('rendered results update dependent rows and are removed when inference fail
   await expect(page.locator('.row-result')).toHaveCount(0);
   await expect(page.locator('#code-editor')).toHaveValue(/let\n.*\nin\n/s);
   await page.evaluate(() => toggleIconMode());
-  await expect(page.locator('.row-result')).toHaveCount(2);
+  await expect(page.locator('.row-result')).toHaveCount(3);
 });
 
 test('drag the output picture itself into a later input; self references remain blocked', async ({ page }) => {

@@ -116,7 +116,7 @@ test('depleted functions disappear from argument and operator pickers and cannot
   await expect(page.getByRole('button', { name: 'Use .', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   const before = await page.evaluate(() => rowSnapshot());
-  await page.locator('.empty-row-drop').evaluate(node => {
+  await slot(page, 0, 0).evaluate(node => {
     const dataTransfer = new DataTransfer(); dataTransfer.setData('text/plain', '(.)');
     const r = node.getBoundingClientRect();
     node.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }));

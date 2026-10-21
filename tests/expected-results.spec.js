@@ -15,7 +15,7 @@ async function choose(page, row, position, name) {
   await page.getByRole('button', { name: name ? `Use input ${name}` : 'Clear input', exact: true }).click();
 }
 
-test('every palette function starts with a generic output and every solved level shows its concrete goal', async ({ page }) => {
+test('each function shows its output or the compatible goal, and every solved level shows its concrete result', async ({ page }) => {
   await open(page, 0, '');
   const failures = await page.evaluate(() => {
     const failures = [];
@@ -24,7 +24,11 @@ test('every palette function starts with a generic output and every solved level
       for (const f of level.funcs) {
         setEditorContent(f.name); render();
         const output = document.querySelector('.row-feedback .semantic-diagram');
-        if (!output || output.querySelector('.type-atom')) failures.push([level.level, f.name]);
+        if (document.querySelector('.ready-row')) {
+          if (!output || output.querySelector('.type-atom')) failures.push([level.level, f.name, 'intermediate output']);
+        } else if (output || !document.querySelector('.program-row .goal-picture .type-atom')) {
+          failures.push([level.level, f.name, 'pending goal']);
+        }
         const inputs = document.querySelectorAll('.argument-slot');
         if (!inputs.length || [...inputs].some(slot => slot.querySelectorAll('svg').length !== 1)
           || document.querySelectorAll('.function-block svg').length !== inputs.length) {
@@ -43,18 +47,18 @@ test('every palette function starts with a generic output and every solved level
 });
 
 test('the output specializes on input, survives refresh, and resets when the input is cleared', async ({ page }) => {
-  await open(page, 0, 'f');
+  await open(page, 1, 'let r1 = runZero in mkHero');
   const picture = page.locator('.row-result > svg[data-diagram-type]');
-  await expect(picture).toHaveAttribute('aria-label', 'Expected result r1: Hero a');
+  await expect(picture).toHaveAttribute('aria-label', 'Expected result r1: a');
   await expect(picture.locator('.icon-inputs')).toHaveCount(0);
   await expect(picture.locator('.type-placeholder')).toHaveCount(1);
-  await expect(page.locator('.row-result')).toHaveAttribute('aria-label', /Zero a -> Hero a/);
+  await expect(page.locator('.row-result')).toHaveAttribute('aria-label', /Zero a -> a/);
   await choose(page, 0, 0, 'z');
-  await expect(picture).toHaveAttribute('aria-label', 'Expected result r1: Hero a');
+  await expect(picture).toHaveAttribute('aria-label', 'Expected result r1: a');
   await expect(picture.locator('.type-atom')).toHaveAttribute('data-type', 'a');
   await expect(picture.locator('.type-placeholder, .icon-inputs')).toHaveCount(0);
-  await expect(page.locator('.row-result')).toHaveAttribute('aria-label', 'Drag result r1: Hero a');
-  await expect(page.locator('#status-bar')).toHaveClass(/success/);
+  await expect(page.locator('.row-result')).toHaveAttribute('aria-label', 'Drag result r1: a');
+  await expect(page.locator('.goal-reached')).toHaveCount(0);
   await page.reload();
   await expect(picture.locator('.type-atom')).toHaveAttribute('data-type', 'a');
   await choose(page, 0, 0, null);
@@ -100,7 +104,8 @@ test('composition previews its returned function without repeating its two funct
   await expect(output.locator('.type-atom')).toHaveCount(0);
   await expect(page.locator('.row-result')).toHaveAttribute('aria-label', /Zero a -> Hero a/);
   await page.locator('.row-result').dragTo(page.locator('.empty-row-drop'));
-  await expect(page.locator('.row-result').nth(1).locator('svg[data-diagram-type]')).toHaveAttribute('aria-label', 'Expected result r2: Hero a');
+  await expect(page.locator('.program-row').nth(1).locator('.goal-picture svg[data-diagram-type]')).toHaveAttribute('aria-label', 'Goal: Hero a');
+  await expect(page.locator('.ready-row')).toHaveCount(0);
   await choose(page, 1, 0, 'z');
   await expect(page.locator('#status-bar')).toHaveClass(/success/);
   await expect(page.locator('.goal-reached .type-atom')).toHaveAttribute('data-type', 'a');
@@ -109,9 +114,9 @@ test('composition previews its returned function without repeating its two funct
 test.describe('phone output specialization', () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   test('dragging the concrete input updates the output and dragging it out restores its placeholder', async ({ page }) => {
-    await open(page, 0, 'f');
+    await open(page, 1, 'let r1 = runZero in mkHero');
     const cdp = await page.context().newCDPSession(page);
-    const input = page.locator('.argument-slot');
+    const input = page.locator('.argument-slot').first();
     const output = page.locator('.row-result');
     async function drag(source, target) {
       await target.scrollIntoViewIfNeeded(); await source.scrollIntoViewIfNeeded();

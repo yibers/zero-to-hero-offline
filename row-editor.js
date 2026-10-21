@@ -143,6 +143,7 @@ function mountRowEditor() {
   let goalType = parseType(level.target);
   for (const _ of params) goalType = goalType.to;
   const goalSignature = typeToString(goalType);
+  const fixedGoalType = fixedSemanticType(goalType);
   const operators = level.funcs.filter(f => isOperatorName(f.name));
   const sourceRows = new Set();
   const editors = () => [...container.querySelectorAll('textarea')];
@@ -231,19 +232,24 @@ function mountRowEditor() {
   function paintReadyRow() {
     const rows = getRows();
     const last = rows.at(-1), diagnostic = rowDiagnostics.at(-1);
-    const state = JSON.stringify([rows.length, last.id, last.expr, diagnostic?.signature, diagnostic?.error]);
+    const state = JSON.stringify([rows.length, last.id, last.expr, diagnostic?.expected?.type, diagnostic?.signature, diagnostic?.error]);
     const changed = state !== readyRowState;
     readyRowState = state;
     const solved = rowDiagnostics.every(row => !row.error)
       && checkSolution(level, RowProgram.source(rows)).ok;
+    // Unfilled inputs leave the output polymorphic. Keep the goal here while
+    // that output can still become the target, without constraining the inputs
+    // from the answer or treating compatibility as a completed solution.
+    const canMatchGoal = diagnostic?.expected?.type
+      && !!unify(diagnostic.expected.type, fixedGoalType, {});
     container.querySelectorAll('.program-row:not(.ready-row)').forEach((row, index) => {
       row.classList.toggle('final-row', solved && index === rows.length - 1);
     });
     let ready = container.querySelector('.ready-row');
-    if (!last.expr.trim() || solved) { ready?.remove(); paintGoal(solved); return; }
+    if (!last.expr.trim() || solved || canMatchGoal) { ready?.remove(); paintGoal(solved); return; }
     const created = !ready;
-    // Always offer the next step below the last expression, even if an earlier
-    // row was cleared. Keep the empty step out of the source until it is used,
+    // An incompatible output needs another step. Keep that empty step out of
+    // the source until it is used,
     // so it cannot replace the result or affect validation, scoring or undo.
     if (!ready) {
       ready = document.createElement('section');
@@ -271,9 +277,12 @@ function mountRowEditor() {
       result.title = `Goal reached: ${goalSignature}`;
       result.insertAdjacentHTML('beforeend', '<span class="goal-badge" aria-label="Goal reached">✓</span>');
     } else {
+      // The pending final row shows the fixed puzzle goal once. It is not yet
+      // a computed result that can be picked up or reused.
+      lastRow.querySelector('.row-feedback')?.replaceChildren();
       const goal = document.createElement('div');
       goal.className = 'goal-output';
-      goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedSemanticType(goalType), 'Goal: ' + goalSignature)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
+      goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedGoalType, 'Goal: ' + goalSignature)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
       lastRow.querySelector('.row-flow').append(goal);
     }
   }

@@ -33,16 +33,21 @@ test('clearing the last step removes it in the same undo action and restores the
   expect(await state(page)).toEqual([rows[0]]);
 });
 
-test('removing an empty row preserves other work and never reuses an unresolved result name', async ({ page }) => {
+test('removing an earlier row preserves other work and allows its missing argument to be repaired', async ({ page }) => {
   const rows = [{ id: 'r1', expr: 'runZero z' }, { id: 'r2', expr: 'mkHero r1' }];
   await open(page, rows);
   await dragOut(page, 0);
   expect(await state(page)).toEqual([rows[1]]);
   await expect(page.locator('.row-error')).toContainText('not an earlier result');
+  await expect(page.locator('.ready-row')).toHaveCount(0);
+  await page.locator('.argument-slot').click();
+  await page.getByRole('button', { name: 'Use input z', exact: true }).click();
   await page.locator('.right-panel [data-func-name="runZero"]').dragTo(page.getByRole('button', { name: 'New function row', exact: true }));
-  expect(await state(page)).toEqual([rows[1], { id: 'r3', expr: 'runZero' }]);
+  expect(await state(page)).toEqual([{ id: 'r2', expr: 'mkHero z' }, { id: 'r1', expr: 'runZero' }]);
   expect(await page.evaluate(() => activeRow)).toBe(1);
   await page.locator('.program-row').first().press('Control+z');
+  await page.locator('.program-row').first().press('Control+z');
+  expect(await state(page)).toEqual([rows[1]]);
   await page.locator('.program-row').first().press('Control+z');
   expect(await state(page)).toEqual(rows);
 });

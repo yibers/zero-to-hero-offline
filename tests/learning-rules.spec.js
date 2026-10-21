@@ -57,7 +57,7 @@ test('required functions must reach the final answer: unused bindings, aliases a
  expect(results).toEqual({ typed: [true, true, true], missing: [['map','id'],['map','id'],['map','id']], live: true, extraWork: false });
 });
 
-test('a matching target with a missing function keeps the goal unsolved and the spare row available', async ({ page }) => {
+test('a matching target with a missing function keeps the goal unsolved in the current row', async ({ page }) => {
  await open(page);
  await page.evaluate(() => {
   // Exercise the completion gate independently of whether this level admits
@@ -68,7 +68,8 @@ test('a matching target with a missing function keeps the goal unsolved and the 
  await expect(page.locator('#status-bar')).toHaveClass(/error/);
  await expect(page.locator('#status-output')).toContainText('Still needed: mkHero');
  await expect(page.locator('.goal-reached')).toHaveCount(0);
- await expect(page.locator('.ready-row')).toHaveCount(1);
+ await expect(page.locator('.ready-row')).toHaveCount(0);
+ await expect(page.locator('.program-row').last().locator('.goal-picture')).toBeVisible();
  await expect(page.locator('#next-level')).toBeHidden();
  expect(await page.evaluate(() => completedLevels.has(1))).toBe(false);
 });

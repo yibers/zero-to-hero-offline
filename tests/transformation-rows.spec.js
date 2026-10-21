@@ -25,7 +25,7 @@ test('each level begins with its fixed output goal, including levels with functi
       count: document.querySelectorAll('.puzzle-goal').length,
       last: goal.closest('.program-row') === document.querySelector('.program-row:last-child') };
   }));
-  const expected = ['Hero a', 'Hero a', 'Hero (a, a)', 'Hero b b', 'Hero (a, b)', 'Hero c a',
+  const expected = ['Hero a', 'Hero a', 'Hero a', 'Hero (a, a)', 'Hero b b', 'Hero (a, b)', 'Hero c a',
     'Hero c', 'Hero a d c', 'Hero d d d d', 'Hero d', 'Hero a', 'Hero (a, a)',
     'Hero (b, a)', 'Hero (a, (a, a))', 'Hero (b, a)'];
   expect(goals).toEqual(expected.map(type => ({ label: `Goal: ${type}`, count: 1, last: true })));
@@ -70,9 +70,9 @@ test.describe('phone transformation rows', () => {
       .toEqual({ code: 'let\n  r1 = runZero z\nin\n  mkHero r1', score: 2 });
     await page.screenshot({ path: '/tmp/zth-goal-reached-phone.png' });
     await page.locator('.program-row').first().press('Control+z');
-    await expect(page.locator('.ready-row .puzzle-goal')).toBeVisible();
+    await expect(page.locator('.program-row').last().locator('.goal-picture')).toBeVisible();
     await page.reload();
-    await expect(page.locator('.ready-row .puzzle-goal')).toBeVisible();
+    await expect(page.locator('.program-row').last().locator('.goal-picture')).toBeVisible();
     await page.evaluate(() => toggleIconMode());
     await expect(page.locator('.puzzle-goal')).toHaveCount(0);
   });
