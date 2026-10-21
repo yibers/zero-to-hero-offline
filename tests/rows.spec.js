@@ -54,14 +54,14 @@ test('level 2 builds with a result reference, generates let, solves and survives
 test('nested calls and applied operands are rejected, but f x y and function values are allowed', async ({ page }) => {
   await open(page, 8);
   await row(page, 0).fill('fmap bd z');
-  await expect(page.locator('.row-feedback')).not.toContainText('One operation');
+  await expect(page.locator('.row-error')).not.toContainText('One operation');
   await row(page, 0).fill('f2 (f1 z)');
-  await expect(page.locator('.row-feedback')).toContainText('One operation per row');
+  await expect(page.locator('.row-error')).toContainText('One operation per row');
 
   await expect(page.locator('#status-output')).toContainText('One operation per row');
   await load(page, 7, '');
   await row(page, 0).fill('f2 z <*> f3 z');
-  await expect(page.locator('.row-feedback')).toContainText('One operation per row');
+  await expect(page.locator('.row-error')).toContainText('One operation per row');
   await row(page, 0).fill('(<*>) f2 f1');
   expect(await page.evaluate(() => RowProgram.validate(getRows(), LEVELS[currentLevel]))).toEqual([null]);
 });
@@ -69,9 +69,9 @@ test('nested calls and applied operands are rejected, but f x y and function val
 test('self and forward references are rejected and changing an earlier row updates dependents', async ({ page }) => {
   await open(page, 1);
   await row(page, 0).fill('mkHero r1');
-  await expect(page.locator('.row-feedback')).toContainText('not an earlier result');
+  await expect(page.locator('.row-error')).toContainText('not an earlier result');
   await row(page, 0).fill('mkHero r2');
-  await expect(page.locator('.row-feedback')).toContainText('not an earlier result');
+  await expect(page.locator('.row-error')).toContainText('not an earlier result');
   await load(page, 1, 'mkHero $ runZero z');
   await expect(page.locator('.row-feedback').last()).toContainText('Hero');
   await fillRow(page, 0, 'mkHero z');
@@ -141,7 +141,7 @@ test('unfinished legacy expressions are retained with an actionable error', asyn
   await open(page, 1);
   await load(page, 1, 'mkHero $ (runZero');
   await expect(row(page, 0)).toHaveValue('mkHero $ (runZero');
-  await expect(page.locator('.row-feedback')).toContainText('closing parenthesis');
+  await expect(page.locator('.row-error')).toContainText('closing parenthesis');
 });
 
 test('score ignores generated names and includes unused operations', async ({ page }) => {

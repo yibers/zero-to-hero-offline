@@ -39,8 +39,8 @@ test('drop an argument inside a function, without a connector, and render its ou
   await expect(row(page)).toHaveValue('f z');
   await expect(page.locator('#connection-picker')).toHaveCount(0);
   await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of f: z');
-  await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Result r1: Hero a');
-  await expect(page.locator('.row-result svg circle')).toHaveCount(1);
+  await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Expected result r1: Hero a');
+  await expect(page.locator('.row-result .type-placeholder')).toHaveCount(1);
 
   await expect(page.locator('#status-bar')).toHaveClass(/success/);
 });
@@ -104,13 +104,13 @@ test('fill a later input first, keep the hole through reload, then supply a func
   await open(page, 8, 'fmap');
   await choose(page, 0, 1, 'z');
   await expect(row(page)).toHaveValue('fmap _ z');
-  await expect(page.locator('.row-feedback')).toContainText('Fill the empty input');
+  await expect(page.locator('.row-error')).toContainText('Fill the empty input');
   await expect(page.locator('.row-result')).toHaveCount(0);
   await page.reload();
   await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of fmap: empty');
   await choose(page, 0, 0, 'cd');
   await expect(row(page)).toHaveValue('fmap cd z');
-  await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Result r1: Zero a b d');
+  await expect(page.locator('.row-result')).toHaveAttribute('aria-label', 'Drag result r1: Zero a b d');
   expect(await page.evaluate(() => getRowError())).toBe(null);
   await page.locator('.program-row:not(.ready-row)').first().press('Control+z');
   await expect(row(page)).toHaveValue('fmap _ z');
@@ -121,7 +121,7 @@ test('slots accept ordinary functions and operators as values, and partial appli
   await choose(page, 1, 0, 'swap');
   await expect(row(page, 1)).toHaveValue('(<$>) swap');
   await choose(page, 1, 1, 'r1');
-  await expect(page.locator('.row-result').last().locator('svg')).toHaveAttribute('aria-label', 'Result r2: Hero (b, a)');
+  await expect(page.locator('.row-result').last()).toHaveAttribute('aria-label', 'Drag result r2: Hero (b, a)');
   await open(page, 15, 'pair');
   await choose(page, 0, 0, '(<*>)');
   await expect(row(page)).toHaveValue('pair (<*>)');
@@ -141,13 +141,13 @@ test('replace and clear infix inputs without deleting their operator', async ({ 
 
 test('rendered results update dependent rows and are removed when inference fails', async ({ page }) => {
   await open(page, 3, 'f3 $ f1 z');
-  await expect(page.locator('.row-result').nth(1).locator('svg')).toHaveAttribute('aria-label', 'Result r2: Hero (a, a)');
-  await expect(page.locator('.row-result').nth(1).locator('circle')).toHaveCount(2);
+  await expect(page.locator('.row-result').nth(1).locator('svg')).toHaveAttribute('aria-label', 'Expected result r2: Hero (a, a)');
+  await expect(page.locator('.row-result').nth(1).locator('.type-placeholder')).toHaveCount(2);
   await fillRow(page, 0, 'f3');
   await expect(page.locator('.program-row').nth(1).locator('.row-result')).toHaveCount(0);
   await expect(page.locator('.program-row').nth(1)).toHaveClass(/row-invalid/);
   await fillRow(page, 0, 'f1 z');
-  await expect(page.locator('.row-result').nth(1).locator('svg circle')).toHaveCount(2);
+  await expect(page.locator('.row-result').nth(1).locator('.type-placeholder')).toHaveCount(2);
   await page.evaluate(() => toggleIconMode());
   await expect(page.locator('.row-result')).toHaveCount(0);
   await expect(page.locator('#code-editor')).toHaveValue(/let\n.*\nin\n/s);

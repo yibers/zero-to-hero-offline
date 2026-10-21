@@ -301,7 +301,7 @@ test.describe('Phone touch dragging', () => {
     await expect(editor).toHaveValue('f3 $ f1 z');
     // Use one application in the row when checking a move between functions.
     // The saved nested expression above is retained, with a row validation error.
-    await expect(page.locator('.row-feedback')).toContainText('One operation per row');
+    await expect(page.locator('.row-error')).toContainText('One operation per row');
     await editor.fill('f3 f1');
     await editor.blur();
     // Moving an existing function offers a choice without editing until chosen.

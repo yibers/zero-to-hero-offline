@@ -38,7 +38,7 @@ test('removing an empty row preserves other work and never reuses an unresolved 
   await open(page, rows);
   await dragOut(page, 0);
   expect(await state(page)).toEqual([rows[1]]);
-  await expect(page.locator('.row-feedback')).toContainText('not an earlier result');
+  await expect(page.locator('.row-error')).toContainText('not an earlier result');
   await page.locator('.right-panel [data-func-name="runZero"]').dragTo(page.getByRole('button', { name: 'New function row', exact: true }));
   expect(await state(page)).toEqual([rows[1], { id: 'r3', expr: 'runZero' }]);
   expect(await page.evaluate(() => activeRow)).toBe(1);

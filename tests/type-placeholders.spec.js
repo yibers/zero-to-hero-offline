@@ -41,7 +41,8 @@ test('supplying, clearing and undoing an argument specializes only its call and 
   expect(await atoms(head(page))).toEqual(['a', 'a']);
   expect(await markers(head(page))).toEqual([]);
   await expect(page.locator('#function-palette .func-card')).toHaveCount(0);
-  expect(await atoms(page.locator('.row-result'))).toEqual(['a']);
+  expect(await atoms(page.locator('.row-result'))).toEqual([]);
+  expect(await markers(page.locator('.row-result'))).toEqual(['1']);
   await page.reload();
   expect(await atoms(head(page))).toEqual(['a', 'a']);
   await choose(page, 0, 0, null);
@@ -56,10 +57,11 @@ test('partial application retains unresolved markers and fixed function paramete
   await choose(page, 0, 0, 'cd');
   expect(await atoms(head(page))).toEqual(['c', 'd', 'c', 'd']);
   expect(await markers(head(page))).toEqual(['3', '4', '3', '4']);
-  expect(await markers(page.locator('.row-result'))).toEqual(['3', '4', '3', '4']);
+  expect(await markers(page.locator('.row-result'))).toEqual(['3', '4', '2']);
   await choose(page, 0, 1, 'z');
   expect(await markers(head(page))).toEqual([]);
-  expect(await atoms(page.locator('.row-result'))).toEqual(['a', 'b', 'd']);
+  expect(await atoms(page.locator('.row-result'))).toEqual([]);
+  expect(await markers(page.locator('.row-result'))).toEqual(['3', '4', '2']);
   await choose(page, 0, 0, null);
   expect(await markers(head(page))).toEqual(['2', '2']);
   await choose(page, 0, 0, 'bd');
@@ -80,7 +82,7 @@ test('a placeholder accepts an entire tuple, and separate placeholders may becom
   await page.evaluate(() => { getRows()[2].expr = 'r2 r1'; persistRows(); render(); });
   expect(await markers(head(page, 2))).toEqual([]);
   expect(await atoms(head(page, 2))).toEqual(['a', 'a', 'a']);
-  expect(await markers(page.locator('.row-result').nth(1))).toEqual(['2', '2']);
+  expect(await markers(page.locator('.row-result').nth(1))).toEqual(['1', '2']);
 });
 
 test('generic function arguments specialize together with their surrounding call', async ({ page }) => {
@@ -88,7 +90,8 @@ test('generic function arguments specialize together with their surrounding call
   const argument = page.locator('.argument-slot[data-row="1"][data-slot="1"]');
   expect(await markers(argument)).toEqual([]);
   expect(await atoms(argument)).toEqual(['a', 'a', 'a']);
-  expect(await atoms(page.locator('.row-result').last())).toEqual(['a', 'a']);
+  expect(await atoms(page.locator('.row-result').last())).toEqual([]);
+  expect(await markers(page.locator('.row-result').last())).toEqual(['1', '1']);
   await expect(page.locator('.func-card[data-func-name="dup"]')).toHaveCount(0);
   await choose(page, 1, 0, null);
   expect(await atoms(argument)).toEqual([]);

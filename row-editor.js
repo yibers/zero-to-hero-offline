@@ -64,6 +64,14 @@ function rowTypeSignatures(types) {
     return renamed[variable];
   }));
 }
+// Output previews describe the declared result pattern, independently of the
+// concrete types inferred for the supplied arguments or a reused row value.
+function genericRowType(type) {
+  if (type.tag === 'con' && type.name.startsWith('SKOLEM')) return { tag: 'var', name: type.name.slice(6) };
+  if (type.tag === 'fun') return { ...type, from: genericRowType(type.from), to: genericRowType(type.to) };
+  if (type.tag === 'app') return { ...type, con: genericRowType(type.con), arg: genericRowType(type.arg) };
+  return type;
+}
 function diagnoseCall(code, env, params, compositionLimit = null) {
   const model = RowProgram.call(code);
   if (!model) return null;
@@ -96,6 +104,7 @@ function diagnoseCall(code, env, params, compositionLimit = null) {
     let remaining = headType;
     for (const _ of model.args) remaining = remaining.to;
     return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))),
+      expected: { type: genericRowType(type), variables: [...findVars(genericRowType(headType))] },
       diagram: { type: applySubst(subst, headType), variables, arity: inputs.length },
       arguments: actuals.map(actual => actual && ({ type: applySubst(subst, actual), variables })),
       result: { type: applySubst(subst, remaining), variables } };
@@ -121,9 +130,10 @@ function diagnoseRows() {
       const type = inferExpr(row.expr, env, params);
       if (!type) throw Error('Incomplete expression.');
       env[row.id] = type;
-      return { type, signature: rowTypeSignatures([type])[0], diagram: call?.result || { type }, call };
+      return { type, signature: rowTypeSignatures([type])[0], diagram: call?.result || { type },
+        expected: call?.expected || { type: genericRowType(type) }, call };
     } catch (e) {
-      return { error: errors[index] || normalizeTypeError(e.message), call };
+      return { error: errors[index] || normalizeTypeError(e.message), expected: call?.expected, call };
     }
   });
 }
@@ -200,10 +210,13 @@ function mountRowEditor() {
       paintInputs(row, diagnostic.call, i);
       drawOverlay(editor);
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
+      const expected = diagnostic.expected;
+      const picture = expected ? renderSemanticType(expected.type,
+        'Expected result ' + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables) : '';
       feedback.innerHTML = diagnostic.error
-        ? (rows[i].expr.trim() ? `<span>${escHtml(diagnostic.error)}</span>` : '')
-        : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${renderSemanticType(diagnostic.diagram.type, 'Result ' + rows[i].id + ': ' + diagnostic.signature, diagnostic.diagram.variables)}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
-      feedback.classList.toggle('error-feedback', !!diagnostic.error);
+        ? (picture ? `<div class="row-result-preview" title="Expected result; complete this row before reusing it">${picture}</div>` : '')
+        : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${picture}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
+      row.querySelector('.row-error').textContent = rows[i].expr.trim() ? diagnostic.error || '' : '';
     });
     paintReadyRow();
     fitSemanticDiagrams();
@@ -290,8 +303,8 @@ function mountRowEditor() {
     container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}">
       <div class="row-heading"><span class="row-number">${index + 1}</span><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
       <button type="button" class="row-delete" data-action="remove" aria-label="Delete row ${index + 1}" title="Delete row">×</button></div>
-      <div class="row-flow"><div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" inputmode="none" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
-      <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div></div></section>`).join('');
+      <div class="row-flow"><div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" inputmode="none" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index} row-error-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
+      <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div><div class="row-error" id="row-error-${index}" aria-live="polite"></div></div></section>`).join('');
     paint();
   }
   function commit(rebuild = false, keepNewDropArea = false) {

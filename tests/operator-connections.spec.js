@@ -41,7 +41,7 @@ test('ordinary application stays literal in both modes; all level solutions stil
   expect(await page.evaluate(() => getCodeFromEditor())).toBe('mkHero runZero z');
   await expect(page.locator('#status-bar')).toHaveClass(/error/);
   await editor.fill('mkHero $ runZero z');
-  await expect(page.locator('.row-feedback')).toContainText('One operation per row');
+  await expect(page.locator('.row-error')).toContainText('One operation per row');
   await editor.fill('mkHero runZero z');
   await page.evaluate(() => toggleIconMode());
   await expect(editor).toHaveValue('mkHero runZero z');
