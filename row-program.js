@@ -65,6 +65,19 @@ const RowProgram = (() => {
         : { name: tree.fn.name, args: tree.args.map(arg => arg.name), infix: false };
     } catch (_) { return null; }
   }
+  // Composition builds a function in one step; applying that function is a
+  // later step. Track aliases/partial applications without changing its type.
+  function compositionInputs(rows) {
+    const remaining = new Map([['.', 2]]);
+    return rows.map(row => {
+      const model = call(row.expr);
+      const limit = model ? remaining.get(model.name) ?? null : null;
+      if (limit !== null && model.args.length < limit && !model.args.includes('_')) {
+        remaining.set(row.id, limit - model.args.length);
+      }
+      return limit;
+    });
+  }
   function setArgument(code, index, name) {
     const model = call(code);
     if (!model || !Number.isInteger(index) || index < 0) throw Error('Choose a function first.');
@@ -132,11 +145,12 @@ const RowProgram = (() => {
     }
   }
   function validate(rows, level) {
+    const compositionLimits = compositionInputs(rows);
     const available = new Set([
       ...level.funcs.map(f => f.name.replace(/^\(|\)$/g, '')),
       ...level.lhs.split('=')[0].trim().split(/\s+/).slice(1)
     ]);
-    return rows.map(row => {
+    return rows.map((row, index) => {
       let error = null;
       try {
         if (!/^[a-z][A-Za-z0-9_']*$/.test(row.id) || /^(let|in)$/.test(row.id)) throw Error('Use a lowercase name for each binding.');
@@ -145,6 +159,10 @@ const RowProgram = (() => {
         if (/\bundefined\b/.test(row.expr)) throw Error('Using undefined is not allowed.');
         const tree = parse(row.expr);
         if (count(tree) > 1) throw Error('One operation per row. Move the nested call to an earlier row and use its result.');
+        const limit = compositionLimits[index];
+        if (limit !== null && call(row.expr).args.length > limit) {
+          throw Error('Composition takes two functions. Apply the composed result in a separate row.');
+        }
         if (names(tree).includes('_')) throw Error('Fill the empty input slot before using this result.');
         for (const name of names(tree)) {
           if (!available.has(name)) throw Error(/^r\d+$/.test(name)
@@ -161,5 +179,5 @@ const RowProgram = (() => {
     const rows = program ? [...program.bindings, { expr: program.final }] : migrate(code);
     return rows.reduce((n, row) => n + count(parse(row.expr)), 0);
   }
-  return { parse, print, count, names, call, setArgument, parseLet, source, migrate, validate, score };
+  return { parse, print, count, names, call, compositionInputs, setArgument, parseLet, source, migrate, validate, score };
 })();

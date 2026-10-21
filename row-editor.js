@@ -64,14 +64,16 @@ function rowTypeSignatures(types) {
     return renamed[variable];
   }));
 }
-function diagnoseCall(code, env, params) {
+function diagnoseCall(code, env, params, compositionLimit = null) {
   const model = RowProgram.call(code);
   if (!model) return null;
   try {
     const headType = inferExpr(RowProgram.print({ kind: 'name', name: model.name }), env, params);
     let type = headType;
     const inputs = [], actuals = [];
-    while (type?.tag === 'fun') { inputs.push(type.from); type = type.to; }
+    while (type?.tag === 'fun' && (compositionLimit === null || inputs.length < compositionLimit)) {
+      inputs.push(type.from); type = type.to;
+    }
     if (!inputs.length || model.args.length > inputs.length) return null;
     let subst = {};
     model.args.forEach((name, i) => {
@@ -94,7 +96,7 @@ function diagnoseCall(code, env, params) {
     let remaining = headType;
     for (const _ of model.args) remaining = remaining.to;
     return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))),
-      diagram: { type: applySubst(subst, headType), variables, arity: model.name === '.' ? 2 : inputs.length },
+      diagram: { type: applySubst(subst, headType), variables, arity: inputs.length },
       arguments: actuals.map(actual => actual && ({ type: applySubst(subst, actual), variables })),
       result: { type: applySubst(subst, remaining), variables } };
   } catch (_) { return null; }
@@ -102,6 +104,7 @@ function diagnoseCall(code, env, params) {
 function diagnoseRows() {
   const level = LEVELS[currentLevel], rows = getRows();
   const errors = RowProgram.validate(rows, level);
+  const compositionLimits = RowProgram.compositionInputs(rows);
   const env = {}, params = {};
   for (const f of level.funcs) env[f.name.replace(/^\(|\)$/g, '')] = parseType(f.sig);
   const target = parseType(level.target), subst = {};
@@ -112,7 +115,7 @@ function diagnoseRows() {
   }
   substCounter = 0;
   rowDiagnostics = rows.map((row, index) => {
-    const call = diagnoseCall(row.expr, env, params);
+    const call = diagnoseCall(row.expr, env, params, compositionLimits[index]);
     try {
       if (errors[index]) throw Error(errors[index]);
       const type = inferExpr(row.expr, env, params);
