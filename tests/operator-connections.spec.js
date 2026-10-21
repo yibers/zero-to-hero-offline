@@ -65,7 +65,7 @@ test('old implicit solutions migrate once, preserving all saved levels and prefe
   await expect(page.locator('textarea.row-editor').nth(1)).toHaveValue('f3 r1');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
   expect(saved.editorContents[1]).toBe('zeroToHero z = mkHero $ runZero z');
-  expect(saved.editorContents[6]).toBe('zeroToHero z = f2 z <*> (f1 z <*> f3 z)');
+  expect(saved.editorContents[7]).toBe('zeroToHero z = f2 z <*> (f1 z <*> f3 z)');
   expect(saved.completed).toEqual([1]);
   expect(saved.optimal).toBeUndefined();
   expect(saved.iconMode).toBe(true);

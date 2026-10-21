@@ -52,7 +52,7 @@ test('supplying, clearing and undoing an argument specializes only its call and 
 });
 
 test('partial application retains unresolved markers and fixed function parameters remain fixed', async ({ page }) => {
-  await open(page, 7, 'fmap');
+  await open(page, 8, 'fmap');
   await choose(page, 0, 0, 'cd');
   expect(await atoms(head(page))).toEqual(['c', 'd', 'c', 'd']);
   expect(await markers(head(page))).toEqual(['3', '4', '3', '4']);
@@ -68,7 +68,7 @@ test('partial application retains unresolved markers and fixed function paramete
 });
 
 test('a placeholder accepts an entire tuple, and separate placeholders may become the same fixed type', async ({ page }) => {
-  await open(page, 14, 'let r1 = f z; r2 = pair r1 r1; r3 = pair r2 r1 in r3');
+  await open(page, 15, 'let r1 = f z; r2 = pair r1 r1; r3 = pair r2 r1 in r3');
   expect(await markers(head(page, 1))).toEqual([]);
   expect(await atoms(head(page, 1))).toEqual(['a', 'a', 'a', 'a']);
   expect(await atoms(head(page, 2))).toEqual(['a', 'a', 'a', 'a', 'a', 'a']);
@@ -84,7 +84,7 @@ test('a placeholder accepts an entire tuple, and separate placeholders may becom
 });
 
 test('generic function arguments specialize together with their surrounding call', async ({ page }) => {
-  await open(page, 13, 'let r1 = f z; r2 = (>>=) r1 dup in r2');
+  await open(page, 14, 'let r1 = f z; r2 = (>>=) r1 dup in r2');
   const argument = page.locator('.argument-slot[data-row="1"][data-slot="1"]');
   expect(await markers(argument)).toEqual([]);
   expect(await atoms(argument)).toEqual(['a', 'a', 'a']);

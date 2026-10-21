@@ -221,8 +221,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=84b68514a8ca"></script>
-<script src="semantic-icons.js?v=bcfd232c750b"></script>
+<script src="levels.js?v=104dc1040346"></script>
+<script src="semantic-icons.js?v=28187bf19f2c"></script>
 <script src="row-program.js?v=c84c05a60c11"></script>
 <script src="puzzle-rules.js?v=f05229b9ca19"></script>
 <script src="row-editor.js?v=a520e73c3fb7"></script>
@@ -887,6 +887,18 @@ try {
   const saved = localStorage.getItem('zth_progress');
   if (saved) {
     const parsed = JSON.parse(saved);
+    // Version 1 inserts the composition introduction after the old level 2.
+    // Move every saved field together so later work still belongs to its puzzle.
+    if (parsed.levelOrderVersion !== 1) {
+      const shift = index => Number(index) >= 2 ? Number(index) + 1 : Number(index);
+      for (const key of ['editorContents', 'rowPrograms', 'textDrafts']) {
+        if (parsed[key] && typeof parsed[key] === 'object') {
+          parsed[key] = Object.fromEntries(Object.entries(parsed[key]).map(([index, value]) => [shift(index), value]));
+        }
+      }
+      if (Array.isArray(parsed.completed)) parsed.completed = parsed.completed.map(shift);
+      if (parsed.currentLevel != null) parsed.currentLevel = shift(parsed.currentLevel);
+    }
     completedLevels = new Set(parsed.completed || []);
     editorContents = parsed.editorContents || {};
     if (parsed.textDrafts && typeof parsed.textDrafts === 'object') {
@@ -926,7 +938,7 @@ try {
         } catch (_) { return false; }
       }));
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 2) saveProgress();
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 2 || parsed.levelOrderVersion !== 1) saveProgress();
   }
 } catch(e) {}
 
@@ -943,7 +955,8 @@ function saveProgress() {
     iconMode,
     showIntro: false,
     connectionVersion: 1,
-    completionVersion: 2
+    completionVersion: 2,
+    levelOrderVersion: 1
   }));
 }
 

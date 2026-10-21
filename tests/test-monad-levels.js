@@ -18,11 +18,11 @@ const path = require('path');
   await p.waitForTimeout(200);
 
   const tests = [
-    { level: 11, solution: 'join $ wrap z' },
-    { level: 12, solution: 'f z >>= dup' },
-    { level: 13, solution: 'swap <$> f z' },
-    { level: 14, solution: 'f z >>= dup >>= nest' },
-    { level: 15, solution: 'pair <$> g z <*> f z' },
+    { level: 12, solution: 'join $ wrap z' },
+    { level: 13, solution: 'f z >>= dup' },
+    { level: 14, solution: 'swap <$> f z' },
+    { level: 15, solution: 'f z >>= dup >>= nest' },
+    { level: 16, solution: 'pair <$> g z <*> f z' },
   ];
 
   // Test each solution by calling typeCheck directly
@@ -51,11 +51,11 @@ const path = require('path');
     if (!pass) allPassed = false;
   }
 
-  // Also test via UI for level 11 to verify full flow
-  // Grant bypass points via evaluate so we can skip to level 11
-  console.log('\n--- UI test: bypass to L11 and solve ---');
+  // Also test via UI for level 12 to verify full flow
+  // Grant bypass points via evaluate so we can skip to level 12
+  console.log('\n--- UI test: bypass to L12 and solve ---');
   await p.evaluate(() => {
-    bypassCount = 10;
+    bypassCount = 11;
     saveProgress();
   });
   await p.reload();
@@ -67,7 +67,7 @@ const path = require('path');
 
   {
     const bypassBtn = p.locator('button', { hasText: 'Bypass' });
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 11; i++) {
       await bypassBtn.click();
       await p.waitForTimeout(100);
     }

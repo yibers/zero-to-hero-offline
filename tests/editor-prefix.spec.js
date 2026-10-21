@@ -33,7 +33,7 @@ test('prefix stays above a left-aligned playground and survives selecting all', 
   await expect(prefix).toHaveText('zeroToHero z =');
 });
 
-test('existing level 8 progress loads and preserves the extra parameters', async ({ page }) => {
+test('legacy level 8 progress moves to level 9 and preserves the extra parameters', async ({ page }) => {
   const solution = 'f2 $ f1 $ f1 $ fmap bd $ f1 z';
   await loadProgress(page, {
     currentLevel: 7,
@@ -44,7 +44,7 @@ test('existing level 8 progress loads and preserves the extra parameters', async
   await expect(page.locator('#editor-prefix')).toHaveText('zeroToHero ad bd cd z =');
   await expect(page.locator('textarea.row-editor')).toHaveCount(0);
   await expect(editor).toHaveValue(/let\n.*\nin\n/s);
-  expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
+  expect(await page.evaluate(() => typeCheck(LEVELS[8], getCodeFromEditor()).ok)).toBe(true);
   await expect(page.locator('#inferred-type')).toContainText('Hero');
   await page.getByText('Icons', { exact: true }).click();
   await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(4);
@@ -53,13 +53,14 @@ test('existing level 8 progress loads and preserves the extra parameters', async
   await expect(page.locator('.row-instructions')).toHaveCount(0);
   await page.getByText('Gecko Graph', { exact: true }).click();
   await expect(page.locator('textarea.row-editor')).toHaveCount(5);
-  expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
+  expect(await page.evaluate(() => typeCheck(LEVELS[8], getCodeFromEditor()).ok)).toBe(true);
   await page.reload();
   await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(4);
   await expect(page.locator('textarea.row-editor')).toHaveCount(5);
-  expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
+  expect(await page.evaluate(() => typeCheck(LEVELS[8], getCodeFromEditor()).ok)).toBe(true);
 
-  await expect(page.locator('#status-bar')).toHaveClass(/success/);
+  await expect(page.locator('.level-badge')).toContainText('Level 9 / 16');
+  await expect(page.locator('#status-output')).toContainText('Still needed: (.)');
 });
 
 test('Enter adds a source line and preserves the let program after refresh', async ({ page }) => {

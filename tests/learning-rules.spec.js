@@ -3,7 +3,7 @@ const { pathToFileURL } = require('url');
 const path = require('path');
 const URL = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
 const expectedFunctions = [
- ['f'], ['runZero', 'mkHero'], ['f1', 'f3', '(.)'], ['f2', 'f4', '(.)'], ['snd', 'f1', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
+ ['f'], ['runZero', 'mkHero'], ['runZero', 'mkHero', '(.)'], ['f1', 'f3', '(.)'], ['f2', 'f4', '(.)'], ['snd', 'f1', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
  ['f1', 'f2', 'f3', '(<$>)', '(<*>)', '(.)'], ['fmap', 'f1', 'f2', '(.)'], ['f1', 'f2', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
  ['wrap', 'join'], ['f', 'dup', '(>>=)'], ['f', 'swap', '(<$>)'], ['f', 'dup', 'nest', '(>>=)'],
  ['f', 'g', 'pair', '(<$>)', '(<*>)']
@@ -17,7 +17,7 @@ async function open(page, icons = true) {
  }, icons);
 }
 
-test('all 15 palettes contain exactly the required functions and every reference solves in both modes', async ({ page }) => {
+test('all 16 palettes contain exactly the required functions and every reference solves in both modes', async ({ page }) => {
  await open(page);
  for (const icons of [true, false]) {
   const levels = await page.evaluate(icons => LEVELS.map((level, index) => {
@@ -31,7 +31,7 @@ test('all 15 palettes contain exactly the required functions and every reference
  }
  await expect(page.locator('nav')).not.toContainText(/Attempt|Optimal/);
  await expect(page.locator('#status-output')).not.toContainText(/operations|conciseness/i);
- expect(await page.evaluate(() => bypassCount)).toBe(15);
+ expect(await page.evaluate(() => bypassCount)).toBe(16);
  await page.getByRole('button', { name: 'Finish', exact: true }).click();
  await expect(page.locator('#complete-dialog')).toBeVisible();
 });
@@ -76,11 +76,11 @@ test('a matching target with a missing function keeps the goal unsolved and the 
 test('removed functions and operators cannot be used in current solutions', async ({ page }) => {
  await open(page);
  const outcomes = await page.evaluate(() => [
-  checkSolution(LEVELS[2], 'f2 z'),
-  checkSolution(LEVELS[3], 'f1 z'),
-  checkSolution(LEVELS[4], 'fst z'),
+  checkSolution(LEVELS[3], 'f2 z'),
+  checkSolution(LEVELS[4], 'f1 z'),
+  checkSolution(LEVELS[5], 'fst z'),
   checkSolution(LEVELS[1], 'mkHero $ z'),
-  checkSolution(LEVELS[14], 'f >>= g')
+  checkSolution(LEVELS[15], 'f >>= g')
  ].map(r => ({ ok: r.ok, unknown: /Unknown identifier/.test(r.msg) })));
  expect(outcomes).toEqual(Array(5).fill({ ok: false, unknown: true }));
 });
@@ -88,7 +88,7 @@ test('removed functions and operators cannot be used in current solutions', asyn
 test('operator aliases and prefix notation satisfy the same requirements as infix notation', async ({ page }) => {
  await open(page);
  const results = await page.evaluate(() => {
-  const level = LEVELS[11];
+  const level = LEVELS[12];
   return [level.solution, 'let\n  bind = (>>=)\n  value = f z\nin\n  bind value dup',
    'let\n  value = f z\nin\n  (>>=) value dup'].map(code => checkSolution(level, code).ok);
  });
@@ -109,7 +109,7 @@ test('manual solutions cannot bypass composition or lifted composition in the re
    'let r1 = f1 z; r2 = f2 r1; r3 = f1 r2; r4 = f2 r3; r5 = f1 r4; r6 = f2 r5; r7 = f2 r6 in f3 r7'
   ];
   return manual.map((code, i) => {
-   const level = LEVELS[i + 2];
+   const level = LEVELS[i + 3];
    const unused = code.replace('let ', 'let unused = (.); ');
    return { level: level.level, typed: typeCheck(level, code).ok,
     manual: checkSolution(level, code), unused: checkSolution(level, unused),
@@ -119,7 +119,7 @@ test('manual solutions cannot bypass composition or lifted composition in the re
  for (const result of outcomes) {
   expect(result.typed, `Level ${result.level}: manual solution still has the target type`).toBe(true);
   expect(result.composed, `Level ${result.level}: composed solution passes`).toBe(true);
-  const missing = result.level === 7 ? ['(<$>)', '(.)'] : ['(.)'];
+  const missing = result.level === 8 ? ['(<$>)', '(.)'] : ['(.)'];
   for (const attempt of [result.manual, result.unused]) {
    expect(attempt.ok, `Level ${result.level}: required operators cannot be skipped`).toBe(false);
    expect(attempt.missing).toEqual(missing);
@@ -143,8 +143,8 @@ test('version 1 completions are rechecked for restored operators while row and t
  expect(saved.completed).toEqual([0]);
  expect(saved.completionVersion).toBe(2);
  expect(saved.bypassCount).toBe(3);
- expect(saved.rowPrograms[2]).toEqual([{ id: 'r1', expr: 'f1 z' }, { id: 'r2', expr: 'f3 r1' }]);
- expect(saved.textDrafts[6]).toBe(manualSeven);
+ expect(saved.rowPrograms[3]).toEqual([{ id: 'r1', expr: 'f1 z' }, { id: 'r2', expr: 'f3 r1' }]);
+ expect(saved.textDrafts[7]).toBe(manualSeven);
  await expect(page.locator('#status-output')).toContainText('Still needed: (<$>), (.)');
  await expect(page.locator('#next-level')).toBeHidden();
  await expect(page.locator('.ready-row')).toHaveCount(1);
@@ -180,7 +180,7 @@ test('old completion records are rechecked without discarding drafts or preferen
  expect(saved.completed).toEqual([0,1]);
  expect(saved.optimal).toBeUndefined();
  expect(saved.completionVersion).toBe(2);
- expect(saved.editorContents[2]).toBe('zeroToHero z = f2 z');
+ expect(saved.editorContents[3]).toBe('zeroToHero z = f2 z');
  expect(saved.iconMode).toBe(true); expect(saved.geckoOn).toBe(false);
  await expect(page.locator('#status-output')).toContainText('Unknown identifier: f2');
 });

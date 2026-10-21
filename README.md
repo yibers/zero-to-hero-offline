@@ -19,7 +19,7 @@ The original game also features **GeckoGraph**, a visual notation for polymorphi
 This reimplements the game with no server dependencies:
 
 - **Client-side type checker** — Hindley-Milner type inference engine written in JavaScript, replacing the original's server-side GHC calls
-- **15 levels** — 10 original levels plus 5 monad levels (Functor, Applicative, Monad, MonadFish, MonadJoin)
+- **16 levels** — 10 original levels, an introductory composition puzzle, and 5 additional functional-programming puzzles
 - **GeckoGraph rendering** — SVG-based gecko graph visualization running entirely in the browser
 - **Self-hosted fonts** — Fira Code, Exo, and Orbitron in `fonts/` (OFL licensed)
 - **Offline-capable** — Works by opening `index.html` directly, no web server needed
@@ -28,7 +28,7 @@ This reimplements the game with no server dependencies:
 
 ```
 index.html      — Main app and type checker
-levels.js       — 15 puzzle definitions
+levels.js       — 16 puzzle definitions
 semantic-icons.js — SVG type patterns and per-level action descriptions
 row-program.js  — Expression parsing, row validation and migration
 puzzle-rules.js — Target checking and required-function dependency checks
@@ -69,29 +69,30 @@ tests/          — Playwright + unit tests
 
 ## Required functions by level
 
-Every listed function is required; repeated use is allowed. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Starting parameters, including the function parameters in level 8, remain puzzle inputs.
+Every listed function is required; repeated use is allowed. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Starting parameters, including the function parameters in level 9, remain puzzle inputs.
 
 | Level | Functions |
 | --- | --- |
 | 1 | `f` |
 | 2 | `runZero`, `mkHero` |
-| 3 | `f1`, `f3`, `(.)` |
-| 4 | `f2`, `f4`, `(.)` |
-| 5 | `snd`, `f1`, `f3`, `(.)` |
-| 6 | `f1`, `f2`, `f3`, `(.)` |
-| 7 | `f1`, `f2`, `f3`, `(<$>)`, `(<*>)`, `(.)` |
-| 8 | `fmap`, `f1`, `f2`, `(.)` |
-| 9 | `f1`, `f2`, `f3`, `(.)` |
+| 3 | `runZero`, `mkHero`, `(.)` |
+| 4 | `f1`, `f3`, `(.)` |
+| 5 | `f2`, `f4`, `(.)` |
+| 6 | `snd`, `f1`, `f3`, `(.)` |
+| 7 | `f1`, `f2`, `f3`, `(.)` |
+| 8 | `f1`, `f2`, `f3`, `(<$>)`, `(<*>)`, `(.)` |
+| 9 | `fmap`, `f1`, `f2`, `(.)` |
 | 10 | `f1`, `f2`, `f3`, `(.)` |
-| 11 | `wrap`, `join` |
-| 12 | `f`, `dup`, `(>>=)` |
-| 13 | `f`, `swap`, `(<$>)` |
-| 14 | `f`, `dup`, `nest`, `(>>=)` |
-| 15 | `f`, `g`, `pair`, `(<$>)`, `(<*>)` |
+| 11 | `f1`, `f2`, `f3`, `(.)` |
+| 12 | `wrap`, `join` |
+| 13 | `f`, `dup`, `(>>=)` |
+| 14 | `f`, `swap`, `(<$>)` |
+| 15 | `f`, `dup`, `nest`, `(>>=)` |
+| 16 | `f`, `g`, `pair`, `(<$>)`, `(<*>)` |
 
-Composition is introduced in level 3 and remains required through level 10. In these levels, build reusable transformations with `(.)` instead of bypassing it with a chain of value-only rows. Level 7 also requires `(<$>)` to lift composition into `Hero`, then `(<*>)` to combine the wrapped functions and apply them to the wrapped value.
+Level 3 repeats level 2’s `runZero`/`mkHero` puzzle and adds required composition. Existing saved work and completion records move with their original levels; the new level starts unsolved. Composition is introduced in level 3 and remains required through level 11. In these levels, build reusable transformations with `(.)` instead of bypassing it with a chain of value-only rows. Level 8 also requires `(<$>)` to lift composition into `Hero`, then `(<*>)` to combine the wrapped functions and apply them to the wrapped value.
 
-Levels 12 and 14 teach bind; level 15 focuses on combining independent `Hero` values with `(<$>)` and `(<*>)`. Its removed bind operator has no useful matching step with the existing helpers. `($)` stays removed because rows already provide application and intermediate results. The removed `f2` in level 3, `f1`/`f3` in level 4, and `fst`/`f2` in level 5 stay removed because they do not contribute to these lessons' solutions.
+Levels 13 and 15 teach bind; level 16 focuses on combining independent `Hero` values with `(<$>)` and `(<*>)`. Its removed bind operator has no useful matching step with the existing helpers. `($)` stays removed because rows already provide application and intermediate results. The removed `f2` in level 4, `f1`/`f3` in level 5, and `fst`/`f2` in level 6 stay removed because they do not contribute to these lessons' solutions.
 
 ## Running
 

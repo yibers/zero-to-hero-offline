@@ -39,7 +39,7 @@ for (const phone of [false, true]) {
     test('wrappers grow around nested values and wide rows wrap to keep their full output visible', async ({ page }) => {
       await page.goto(URL);
       const sizes = await page.evaluate(() => {
-        showIntro = false; iconMode = true; geckoOn = false; currentLevel = 13;
+        showIntro = false; iconMode = true; geckoOn = false; currentLevel = 14;
         setEditorContent(LEVELS[currentLevel].solution); render();
         return ['a', 'Hero a', 'Hero (Hero a)', 'Hero (a, (a, a))'].map(type => {
           const holder = document.createElement('div'); holder.innerHTML = renderSemanticType(type);
@@ -71,7 +71,7 @@ test('diagrams reflow when a pane narrows and expand again when it widens', asyn
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(URL);
   await page.evaluate(() => {
-    showIntro = false; iconMode = true; geckoOn = false; currentLevel = 13;
+    showIntro = false; iconMode = true; geckoOn = false; currentLevel = 14;
     setEditorContent(LEVELS[currentLevel].solution); render();
   });
   const diagram = page.locator('.icon-palette .func-card svg[data-diagram-type]').last();

@@ -114,7 +114,7 @@ test.describe('Phone touch dragging', () => {
   });
 
   test('icon drops below the code use the horizontal start or middle position', async ({ page }) => {
-    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    await page.evaluate(() => { currentLevel = 3; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
     const code = 'f3 f1 z';
@@ -136,7 +136,7 @@ test.describe('Phone touch dragging', () => {
   });
 
   test('icon drops follow wrapped code rather than append to the end', async ({ page }) => {
-    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    await page.evaluate(() => { currentLevel = 3; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
     await editor.fill('f1 f2 f3 $ f1 f2 f3 $ f1 f2 f3 z');
@@ -155,7 +155,7 @@ test.describe('Phone touch dragging', () => {
   });
 
   test('icon drops follow scrolled rows without adding indentation', async ({ page }) => {
-    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    await page.evaluate(() => { currentLevel = 3; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     for (let i = 0; i < 5; i++) {
       if (i) await page.locator('#add-row').evaluate(button => button.click());
@@ -174,7 +174,7 @@ test.describe('Phone touch dragging', () => {
   });
 
   test('large icon tiles immediately show the picked-up icon, reorder, and explain removal', async ({ page }) => {
-    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    await page.evaluate(() => { currentLevel = 3; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
     await editor.fill('f1 f2 z');
@@ -245,7 +245,7 @@ test.describe('Phone touch dragging', () => {
   });
 
   test('adjacent touch insertion and reordering never add implicit connections', async ({ page }) => {
-    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    await page.evaluate(() => { currentLevel = 3; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
     const tile = name => page.locator(`#editor-overlay > span:has([title="${name}"])`);
@@ -269,7 +269,7 @@ test.describe('Phone touch dragging', () => {
 
   test('phone center drop offers operators, swaps order, and saves the selected connection', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 800 });
-    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    await page.evaluate(() => { currentLevel = 3; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
     const tile = name => page.locator(`#editor-overlay > span:has([title="${name}"])`);
@@ -316,7 +316,7 @@ test.describe('Phone touch dragging', () => {
   });
 
   test('dragging functions out removes one adjacent explicit connector', async ({ page }) => {
-    await page.evaluate(() => { currentLevel = 2; iconMode = true; geckoOn = false; render(); });
+    await page.evaluate(() => { currentLevel = 3; iconMode = true; geckoOn = false; render(); });
     const touch = await gestures(page);
     const editor = page.locator('#code-editor');
     for (const [code, token, expected] of [
@@ -396,7 +396,7 @@ test.describe('Phone touch dragging', () => {
 
   test('background swipes scroll the cards without starting a drag', async ({ page }) => {
     // A later level has enough real cards to overflow the phone viewport.
-    await page.evaluate(() => { currentLevel = 9; render(); });
+    await page.evaluate(() => { currentLevel = 10; render(); });
     const touch = await gestures(page);
     const panel = page.locator('.right-panel');
     const r = await panel.boundingBox();

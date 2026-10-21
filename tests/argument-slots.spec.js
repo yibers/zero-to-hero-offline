@@ -46,7 +46,7 @@ test('drop an argument inside a function, without a connector, and render its ou
 });
 
 test('arguments appear once inside the function rectangle and code editing is a separate view', async ({ page }) => {
-  await open(page, 7, 'fmap cd z');
+  await open(page, 8, 'fmap cd z');
   await expect(page.locator('.function-block')).toBeVisible();
   await expect(row(page)).not.toBeVisible();
   for (const name of ['fmap', 'cd', 'z']) await expect(page.locator(`.row-call [data-name="${name}"]:visible`)).toHaveCount(1);
@@ -74,7 +74,7 @@ test('arguments appear once inside the function rectangle and code editing is a 
 });
 
 test('dropping on the function head still opens the operator chooser', async ({ page }) => {
-  await open(page, 11, 'f z');
+  await open(page, 12, 'f z');
   await mouseDrag(page, page.locator('.right-panel [data-func-name="dup"]'), page.locator('.function-head'));
   await expect(page.getByRole('dialog', { name: 'Choose an operator' })).toBeVisible();
   await page.getByRole('button', { name: 'Use >>=', exact: true }).click();
@@ -82,7 +82,7 @@ test('dropping on the function head still opens the operator chooser', async ({ 
 });
 
 test('dragging a function out clears its whole call in block and code views; undo restores it', async ({ page }) => {
-  for (const [level, code, headName] of [[7, 'fmap cd z', 'fmap'], [7, 'fmap _ z', 'fmap'], [11, 'z >>= dup', '>>=']]) {
+  for (const [level, code, headName] of [[8, 'fmap cd z', 'fmap'], [8, 'fmap _ z', 'fmap'], [12, 'z >>= dup', '>>=']]) {
     for (const codeView of [false, true]) {
       await open(page, level, codeView ? '' : code);
       if (codeView) await row(page).fill(code);
@@ -101,7 +101,7 @@ test('dragging a function out clears its whole call in block and code views; und
 });
 
 test('fill a later input first, keep the hole through reload, then supply a function parameter', async ({ page }) => {
-  await open(page, 7, 'fmap');
+  await open(page, 8, 'fmap');
   await choose(page, 0, 1, 'z');
   await expect(row(page)).toHaveValue('fmap _ z');
   await expect(page.locator('.row-feedback')).toContainText('Fill the empty input');
@@ -117,19 +117,19 @@ test('fill a later input first, keep the hole through reload, then supply a func
 });
 
 test('slots accept ordinary functions and operators as values, and partial application stays valid', async ({ page }) => {
-  await open(page, 12, 'let r1 = f z in (<$>)');
+  await open(page, 13, 'let r1 = f z in (<$>)');
   await choose(page, 1, 0, 'swap');
   await expect(row(page, 1)).toHaveValue('(<$>) swap');
   await choose(page, 1, 1, 'r1');
   await expect(page.locator('.row-result').last().locator('svg')).toHaveAttribute('aria-label', 'Result r2: Hero (b, a)');
-  await open(page, 14, 'pair');
+  await open(page, 15, 'pair');
   await choose(page, 0, 0, '(<*>)');
   await expect(row(page)).toHaveValue('pair (<*>)');
   expect(await page.evaluate(() => getRowError())).toBe(null);
 });
 
 test('replace and clear infix inputs without deleting their operator', async ({ page }) => {
-  await open(page, 11, '');
+  await open(page, 12, '');
   await fillRow(page, 0, 'z >>= dup');
   await choose(page, 0, 1, 'f');
   await expect(row(page)).toHaveValue('z >>= f');
@@ -140,7 +140,7 @@ test('replace and clear infix inputs without deleting their operator', async ({ 
 });
 
 test('rendered results update dependent rows and are removed when inference fails', async ({ page }) => {
-  await open(page, 2, 'f3 $ f1 z');
+  await open(page, 3, 'f3 $ f1 z');
   await expect(page.locator('.row-result').nth(1).locator('svg')).toHaveAttribute('aria-label', 'Result r2: Hero (a, a)');
   await expect(page.locator('.row-result').nth(1).locator('circle')).toHaveCount(2);
   await fillRow(page, 0, 'f3');
@@ -193,7 +193,7 @@ test.describe('phone input slots', () => {
     }};
   }
   test('drag out a whole call, cancel safely, and keep function-valued argument removal separate', async ({ page }) => {
-    await open(page, 14, 'pair f g');
+    await open(page, 15, 'pair f g');
     const t = await touch(page);
     // A function used as an argument removes only that input.
     await t.drag(await center(slot(page, 0, 0)), { x: 8, y: 10 });
@@ -214,7 +214,7 @@ test.describe('phone input slots', () => {
     await expect(slot(page, 0, 1)).toHaveAttribute('aria-label', 'Input 2 of pair: g');
   });
   test('immediately drag into a slot, replace it, drag out and undo', async ({ page }) => {
-    await open(page, 7, 'fmap');
+    await open(page, 8, 'fmap');
     const t = await touch(page);
     const to = await center(slot(page, 0, 0));
     await t.drag(await center(page.locator('#editor-prefix [data-func-name="bd"]')), to);
@@ -246,7 +246,7 @@ test.describe('phone input slots', () => {
     await expect(page.locator('#status-bar')).toHaveClass(/success/);
   });
   test('move a filled input between slots, preserve argument position, and cancel without changes', async ({ page }) => {
-    await open(page, 14, 'pair f g');
+    await open(page, 15, 'pair f g');
     const t = await touch(page);
     // Function-valued inputs wrap inside the block, so both targets remain
     // reachable without horizontally scrolling the row.

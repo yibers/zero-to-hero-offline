@@ -17,6 +17,17 @@ async function enterSolution(page, expression) {
   }
 }
 
+// Follow the curriculum rather than assuming a fixed number of earlier levels.
+async function advanceTo(page, name) {
+  const count = await page.evaluate(() => LEVELS.length);
+  for (let i = 0; i < count; i++) {
+    if (await page.evaluate(() => LEVELS[currentLevel].name) === name) return;
+    await enterSolution(page, await page.evaluate(() => LEVELS[currentLevel].solution));
+    await page.getByRole('button', { name: 'Next level', exact: true }).click();
+  }
+  throw new Error('Level not reached: ' + name);
+}
+
 test.describe('Zero to Hero', () => {
 
   test.beforeEach(async ({ page }) => {
@@ -33,7 +44,7 @@ test.describe('Zero to Hero', () => {
 
   test('shows level 1 with correct UI elements', async ({ page }) => {
     await expect(page.locator('nav')).toContainText('Trial');
-    await expect(page.locator('nav')).toContainText('Level 1 / 15');
+    await expect(page.locator('nav')).toContainText('Level 1 / 16');
     await expect(page.locator('body')).toContainText('To Implement');
     await expect(page.locator('body')).toContainText('Your Solution');
     await expect(page.locator('body')).toContainText('Code Editor');
@@ -136,7 +147,7 @@ test.describe('Zero to Hero', () => {
     await page.waitForTimeout(200);
 
     await expect(page.locator('nav')).toContainText('Assembly required');
-    await expect(page.locator('nav')).toContainText('Level 2 / 15');
+    await expect(page.locator('nav')).toContainText('Level 2 / 16');
   });
 
   test('level 2 correct solution: mkHero $ runZero z', async ({ page }) => {
@@ -265,32 +276,9 @@ test.describe('Zero to Hero', () => {
   });
 
   test('cursor remains visible in editor after dragging a function in', async ({ page }) => {
-    // Navigate to level 4 by solving levels 1-3
     const editor = page.locator('#code-editor');
-
-    // Solve level 1
-    await editor.fill('f z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    // Solve level 2
-    await enterSolution(page, 'mkHero $ runZero z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    // Solve level 3
-    await enterSolution(page, 'f3 $ f1 z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    // Now on level 4: "A repeating pattern"
-    await expect(page.locator('nav')).toContainText('Level 4');
+    await advanceTo(page, 'A repeating pattern');
+    await expect(page.locator('nav')).toContainText('Level 5');
 
     // Click editor to place cursor
     await editor.click();
@@ -321,39 +309,9 @@ test.describe('Zero to Hero', () => {
   });
 
   test('no extra spaces after drag-in, selection delete, drag-in cycle', async ({ page }) => {
-    // Navigate to level 5 by solving levels 1-4
     const editor = page.locator('#code-editor');
-
-    // Solve level 1
-    await editor.fill('f z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    // Solve level 2
-    await enterSolution(page, 'mkHero $ runZero z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    // Solve level 3
-    await enterSolution(page, 'f3 $ f1 z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    // Solve level 4
-    await enterSolution(page, 'f2 $ f4 z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    // Now on level 5
-    await expect(page.locator('nav')).toContainText('Level 5');
+    await advanceTo(page, 'A perfect pair');
+    await expect(page.locator('nav')).toContainText('Level 6');
 
     // Step 1: Drag f1 into the editor
     const f1Card = page.locator('.func-card', { hasText: 'f1' }).first();
@@ -379,34 +337,9 @@ test.describe('Zero to Hero', () => {
   });
 
   test('drag-in/backspace-delete/drag-in cycle does not shift token rightward', async ({ page }) => {
-    // Navigate to level 5 by solving levels 1-4
     const editor = page.locator('#code-editor');
-
-    await editor.fill('f z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    await enterSolution(page, 'mkHero $ runZero z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    await enterSolution(page, 'f3 $ f1 z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    await enterSolution(page, 'f2 $ f4 z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    await expect(page.locator('nav')).toContainText('Level 5');
+    await advanceTo(page, 'A perfect pair');
+    await expect(page.locator('nav')).toContainText('Level 6');
 
     const f1Card = page.locator('.func-card', { hasText: 'f1' }).first();
 
@@ -626,9 +559,9 @@ test.describe('Zero to Hero', () => {
 
   test('arrow keys navigate through parentheses token by token', async ({ page }) => {
     await page.evaluate(() => { iconMode = true; render(); });
-    // Jump directly to level 12 (index 11) which has parens and >>= operator
-    await page.evaluate(() => { currentLevel = 11; render(); });
-    await expect(page.locator('.level-badge')).toContainText('Level 12');
+    // Jump directly to level 13 (index 12) which has parens and >>= operator
+    await page.evaluate(() => { currentLevel = 12; render(); });
+    await expect(page.locator('.level-badge')).toContainText('Level 13');
     const editor = page.locator('#code-editor');
     // Type: (f z) >>= dup
     await editor.fill('(f z) >>= dup');

@@ -23,7 +23,7 @@ async function alignedGhost(page, at) {
 }
 
 test('mouse editor drag preview is centered on its drop point, including the lower target edge', async ({ page }) => {
-  await open(page, 14, 'pair f g');
+  await open(page, 15, 'pair f g');
   const from = await point(page.locator('.argument-slot').first());
   const to = await point(page.locator('.argument-slot').nth(1), .5, .9);
   await page.mouse.move(from.x, from.y); await page.mouse.down();
@@ -63,7 +63,7 @@ test.describe('phone drop targets', () => {
     return (type, at) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: at ? [{ ...at, id: 1 }] : [] });
   }
   test('the whole input accepts touch drops and the preview matches the highlighted target', async ({ page }) => {
-    await open(page, 7, 'fmap');
+    await open(page, 8, 'fmap');
     const send = await touch(page);
     for (const [x, y] of [[.5,.1], [.5,.5], [.5,.9], [.1,.9], [.9,.9]]) {
       await page.evaluate(() => { setEditorContent('fmap'); render(); });
@@ -77,7 +77,7 @@ test.describe('phone drop targets', () => {
     }
   });
   test('the lower edge of a spare row stays a valid target while holding near the scroll boundary', async ({ page }) => {
-    await open(page, 7, 'let r1 = fmap bd z; r2 = f1 r1; r3 = f1 r2; r4 = f1 r3 in f1 r4');
+    await open(page, 8, 'let r1 = fmap bd z; r2 = f1 r1; r3 = f1 r2; r4 = f1 r3 in f1 r4');
     const send = await touch(page);
     const target = page.locator('.empty-row-drop');
     const to = await point(target, .5, .95);

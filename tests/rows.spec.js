@@ -52,14 +52,14 @@ test('level 2 builds with a result reference, generates let, solves and survives
 });
 
 test('nested calls and applied operands are rejected, but f x y and function values are allowed', async ({ page }) => {
-  await open(page, 7);
+  await open(page, 8);
   await row(page, 0).fill('fmap bd z');
   await expect(page.locator('.row-feedback')).not.toContainText('One operation');
   await row(page, 0).fill('f2 (f1 z)');
   await expect(page.locator('.row-feedback')).toContainText('One operation per row');
 
   await expect(page.locator('#status-output')).toContainText('One operation per row');
-  await load(page, 6, '');
+  await load(page, 7, '');
   await row(page, 0).fill('f2 z <*> f3 z');
   await expect(page.locator('.row-feedback')).toContainText('One operation per row');
   await row(page, 0).fill('(<*>) f2 f1');
@@ -81,10 +81,10 @@ test('self and forward references are rejected and changing an earlier row updat
 });
 
 test('function-valued results can be applied and reused polymorphically', async ({ page }) => {
-  await open(page, 14);
+  await open(page, 15);
   const result = await page.evaluate(() => {
     const code = 'let\n  r1 = pair\n  r2 = g z\n  r3 = r1 <$> r2\n  r4 = f z\nin\n  r3 <*> r4';
-    return typeCheck(LEVELS[14], code);
+    return typeCheck(LEVELS[15], code);
   });
   expect(result.ok).toBe(true);
   await load(page, 1, '');
@@ -131,7 +131,7 @@ test('legacy saved progress preserves settings and rechecks the learning require
   await page.reload();
   await expect(page.locator('.program-row:not(.ready-row)')).toHaveCount(5);
   await expect(page.locator('.ready-row')).toHaveCount(1);
-  expect(await page.evaluate(() => typeCheck(LEVELS[6], getCodeFromEditor()).ok)).toBe(true);
+  expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await page.getByText('Icons', { exact: true }).click();
   await page.reload();
   expect(await page.evaluate(() => ({ count: getRows().length, completed: [...completedLevels], bypassCount, geckoOn, iconMode }))).toEqual({ count: 5, completed: [], bypassCount: 2, geckoOn: false, iconMode: false });
@@ -208,8 +208,8 @@ test.describe('phone rows', () => {
     await expect(row(page,0)).toHaveValue('f z');
   });
   test('dropping result on result offers an operator; edges remain ordinary insertion', async ({ page }) => {
-    await open(page,6,true);
-    await load(page,6,'f1 z');
+    await open(page,7,true);
+    await load(page,7,'f1 z');
     await page.locator('#add-row').evaluate(button => button.click()); await row(page,1).fill('f3 z');
     await page.locator('#add-row').evaluate(button => button.click()); await row(page,2).fill('r1'); await row(page,2).blur();
     const from=await center(page.locator('.row-result[data-func-name="r2"]'));
