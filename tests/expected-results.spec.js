@@ -25,8 +25,11 @@ test('every palette function starts with a generic output and every solved level
         setEditorContent(f.name); render();
         const output = document.querySelector('.row-feedback .semantic-diagram');
         if (!output || output.querySelector('.type-atom')) failures.push([level.level, f.name]);
-        const inputs = document.querySelector('.function-head .icon-inputs');
-        if (!inputs || inputs.parentElement.children.length !== 1) failures.push([level.level, f.name, 'repeated output in head']);
+        const inputs = document.querySelectorAll('.argument-slot');
+        if (!inputs.length || [...inputs].some(slot => slot.querySelectorAll('svg').length !== 1)
+          || document.querySelectorAll('.function-block svg').length !== inputs.length) {
+          failures.push([level.level, f.name, 'input diagram must appear once, inside its drop target']);
+        }
       }
       setEditorContent(level.solution); render();
       if (document.querySelectorAll('.row-result').length !== getRows().length

@@ -15,7 +15,7 @@ async function dragOut(page, index) {
   const head = page.locator('.program-row').nth(index).locator('.function-head');
   await head.scrollIntoViewIfNeeded();
   const box = await head.boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width / 2, box.y + 3);
   await page.mouse.down(); await page.mouse.move(8, 10, { steps: 8 }); await page.mouse.up();
 }
 
@@ -64,7 +64,7 @@ test('moving the sole function from an earlier row keeps the target active after
   await open(page, [{ id: 'r1', expr: 'runZero' }, { id: 'r2', expr: 'mkHero' }]);
   const source = page.locator('.function-head').first(), target = page.locator('.argument-slot').nth(1);
   const from = await source.boundingBox(), to = await target.boundingBox();
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.move(from.x + from.width / 2, from.y + 3);
   await page.mouse.down(); await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 8 }); await page.mouse.up();
   expect(await state(page)).toEqual([{ id: 'r2', expr: 'mkHero runZero' }]);
   expect(await page.evaluate(() => activeRow)).toBe(0);

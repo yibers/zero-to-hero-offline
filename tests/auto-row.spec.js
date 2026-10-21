@@ -18,7 +18,7 @@ async function dragFunctionOut(page, index = 0) {
   const head = page.locator('.program-row').nth(index).locator('.function-head');
   await head.scrollIntoViewIfNeeded();
   const box = await head.boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width / 2, box.y + 3);
   await page.mouse.down(); await page.mouse.move(8, 10, { steps: 8 }); await page.mouse.up();
 }
 async function choose(page, index, name) {

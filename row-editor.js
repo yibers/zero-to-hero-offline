@@ -96,6 +96,7 @@ function diagnoseCall(code, env, params, compositionLimit = null) {
     let remaining = headType;
     for (const _ of model.args) remaining = remaining.to;
     return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))),
+      inputDiagrams: inputs.map(input => ({ type: applySubst(subst, input), variables })),
       // Show only the output, specializing it as each supplied input constrains
       // the template. Unfilled inputs leave the remaining placeholders generic.
       expected: { type: applySubst(subst, type), variables },
@@ -182,16 +183,23 @@ function mountRowEditor() {
     const holder = row.querySelector('.function-block');
     const structured = iconMode && !!call && !sourceRows.has(getRows()[index].id);
     holder.hidden = !structured;
+    holder.classList.toggle('function-head', structured);
     row.querySelector('.editor-container').hidden = structured;
     row.querySelector('.row-call').classList.toggle('structured-call', structured);
     if (!structured) { holder.replaceChildren(); return; }
     const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
     const head = ts[call.infix ? 1 : 0];
-    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name, null, call.diagram, true)}</button><div class="input-slots">` + call.inputs.map((_, slot) => {
+    Object.assign(holder.dataset, { row: index, start: head.start, end: head.end, name: head.name });
+    holder.setAttribute('role', 'group');
+    holder.setAttribute('aria-label', `Function ${call.name} in row ${index + 1}`);
+    holder.title = `${ICON_CAPTIONS[level.level]?.[call.name] || call.name}. Drag the blue border to move or remove this function.`;
+    holder.innerHTML = '<div class="input-slots">' + call.inputs.map((_, slot) => {
       const name = call.args[slot], filled = name && name !== '_';
       const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
+      const picture = filled ? rowSymbol(name, null, call.arguments[slot])
+        : rowSymbol(`Input ${slot + 1} of ${call.name}`, null, call.inputDiagrams[slot]);
       return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${filled ? escHtml(name) : 'Drop an argument here'}">
-        <span class="input-number">${slot + 1}</span>${filled ? `<span class="input-picture">${rowSymbol(name, null, call.arguments[slot])}</span>` : ''}</button>`;
+        <span class="input-picture">${picture}</span></button>`;
     }).join('') + '</div>';
   }
   function paint() {
@@ -776,10 +784,14 @@ function mountRowEditor() {
   listen(document, 'pointerdown', e => {
     if (drag && e.pointerId !== drag.id) { cleanupDrag(); return; }
     if (e.button !== 0 || e.target.closest('dialog')) return;
-    const card = e.target.closest('[data-func-name]');
-    const editor = e.target.closest('textarea.row-editor');
-    const slot = e.target.closest('.argument-slot');
-    const head = e.target.closest('.function-head');
+    // Mobile browsers may retarget a border touch to a nearby input button.
+    // Use the actual contact point to distinguish the function from its inputs.
+    const target = e.target.closest('.function-block')
+      ? document.elementFromPoint(e.clientX, e.clientY) || e.target : e.target;
+    const card = target.closest('[data-func-name]');
+    const editor = target.closest('textarea.row-editor');
+    const slot = target.closest('.argument-slot');
+    const head = target.closest('.function-head');
     if (!card && !editor && !slot && !head) return;
     if (card && e.pointerType === 'mouse') return; // native HTML drag on desktop cards
     const index = Number((editor || slot || head)?.dataset.row);
@@ -790,7 +802,9 @@ function mountRowEditor() {
     if (card) card.draggable = false;
     drag = { card, id: e.pointerId, name: card?.dataset.funcName || source.name, source, x: e.clientX, y: e.clientY, moved: false, snapshot: rowSnapshot() };
     ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost row-drag-ghost';
-    ghost.innerHTML = (source?.node?.querySelector('svg.semantic-diagram')?.outerHTML || rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1'))) + `<span class="drag-action">${isRowHead(source) ? 'Release outside to clear row' : 'Release outside to remove'}</span>`;
+    const picture = isRowHead(source) ? rowSymbol(source.name, null, rowDiagnostics[source.index]?.call?.diagram, true)
+      : source?.node?.querySelector('svg.semantic-diagram')?.outerHTML;
+    ghost.innerHTML = (picture || rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1'))) + `<span class="drag-action">${isRowHead(source) ? 'Release outside to clear row' : 'Release outside to remove'}</span>`;
     document.body.append(ghost); fitSemanticDiagrams(ghost); moveGhost(e);
     source?.node.classList.add('drag-source'); card?.classList.add('dragging');
   });

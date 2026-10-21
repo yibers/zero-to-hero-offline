@@ -21,6 +21,8 @@ async function pointerDrag(page, source, target, cdp) {
   await target.scrollIntoViewIfNeeded(); await source.scrollIntoViewIfNeeded();
   const a = await source.boundingBox(), b = await target.boundingBox();
   const from = { x: a.x + a.width / 2, y: a.y + a.height / 2 }, to = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  if (await source.evaluate(node => node.matches('.function-head'))) from.y = a.y + 3;
+  if (await target.evaluate(node => node.matches('.function-head'))) to.y = b.y + 3;
   if (cdp) {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ ...from, id: 1 }] });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ ...to, id: 1 }] });
@@ -157,7 +159,7 @@ test.describe('phone function inventory', () => {
     const head = page.locator('.function-head').first();
     await head.scrollIntoViewIfNeeded();
     const r = await head.boundingBox();
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: r.x + r.width / 2, y: r.y + r.height / 2, id: 1 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: r.x + r.width / 2, y: r.y + 3, id: 1 }] });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
     await expect(card(page, '(.)')).toHaveCount(0);
     await pointerDrag(page, head, page.locator('nav'), cdp);

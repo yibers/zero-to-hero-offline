@@ -240,7 +240,7 @@ test.describe('Phone touch dragging', () => {
     const area = await page.locator('.function-block').boundingBox();
     expect(tile.x).toBeGreaterThanOrEqual(area.x);
     expect(tile.x + tile.width).toBeLessThanOrEqual(area.x + area.width);
-    await touch.drag({ x: tile.x + tile.width / 2, y: tile.y + tile.height / 2 }, { x: 20, y: 80 });
+    await touch.drag({ x: tile.x + tile.width / 2, y: tile.y + 3 }, { x: 20, y: 80 });
     await expect(editor).toHaveValue('');
   });
 

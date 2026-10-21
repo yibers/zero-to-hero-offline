@@ -14,7 +14,9 @@ async function open(page, level = 0, code = '') {
 }
 async function center(locator) {
   await locator.scrollIntoViewIfNeeded();
-  const r = await locator.boundingBox(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  const r = await locator.boundingBox();
+  const border = await locator.evaluate(node => node.matches('.function-head'));
+  return { x: r.x + r.width / 2, y: r.y + (border ? 3 : r.height / 2) };
 }
 async function mouseDrag(page, source, target) {
   const to = await center(target), from = await center(source);
@@ -35,8 +37,14 @@ async function choose(page, index, n, name) {
 
 test('drop an argument inside a function, without a connector, and render its output', async ({ page }) => {
   await open(page, 0, 'f');
+  // The displayed input pattern is the drop target, and is replaced in place.
+  await expect(slot(page, 0, 0).locator('svg')).toHaveCount(1);
+  await expect(slot(page, 0, 0).locator('.type-placeholder')).toHaveCount(1);
+  await expect(page.locator('.function-block svg')).toHaveCount(1);
   await mouseDrag(page, page.locator('#editor-prefix [data-func-name="z"]'), slot(page, 0, 0));
   await expect(row(page)).toHaveValue('f z');
+  await expect(slot(page, 0, 0).locator('.type-placeholder')).toHaveCount(0);
+  await expect(page.locator('.function-block .type-atom')).toHaveCount(1);
   await expect(page.locator('#connection-picker')).toHaveCount(0);
   await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of f: z');
   await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Expected result r1: Hero a');
