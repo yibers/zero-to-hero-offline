@@ -66,7 +66,7 @@ test('old implicit solutions migrate once, preserving all saved levels and prefe
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
   expect(saved.editorContents[1]).toBe('zeroToHero z = mkHero $ runZero z');
   expect(saved.editorContents[6]).toBe('zeroToHero z = f2 z <*> (f1 z <*> f3 z)');
-  expect(saved.completed).toEqual([1, 2]);
+  expect(saved.completed).toEqual([1]);
   expect(saved.optimal).toBeUndefined();
   expect(saved.iconMode).toBe(true);
   expect(saved.geckoOn).toBe(false);
@@ -171,8 +171,8 @@ test('later levels offer their operators, text mode works, and rendering cancels
   await editor.fill('f2 z');
   await editor.blur();
   await dropCard(page, 'f1', tile(page, 'f2'));
-  await expect(page.locator('#connection-picker [data-operator]')).toHaveCount(2);
-  for (const op of ['<*>']) {
+  await expect(page.locator('#connection-picker [data-operator]')).toHaveCount(4);
+  for (const op of ['<$>', '<*>', '.']) {
     await expect(page.getByRole('button', { name: `Use ${op}`, exact: true })).toBeVisible();
   }
   await page.evaluate(() => toggleIconMode());
@@ -189,7 +189,7 @@ test('the function pane presents operators as ordinary functions in both display
     await page.evaluate(mode => { iconMode = mode; render(); }, mode);
     await expect(page.locator('.operator-badge, .func-card-operator')).toHaveCount(0);
     await expect(page.locator('.right-panel [data-func-name="($)"]')).toHaveCount(0);
-    for (const name of ['(<*>)']) {
+    for (const name of ['(<$>)', '(<*>)', '(.)']) {
       await expect(page.locator(`.right-panel [data-func-name="${name}"]`)).toHaveClass('func-card');
     }
     await expect(page.locator('.right-panel [data-func-name="f1"]')).toHaveClass('func-card');

@@ -3,8 +3,8 @@ const { pathToFileURL } = require('url');
 const path = require('path');
 const URL = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
 const expectedFunctions = [
- ['f'], ['runZero', 'mkHero'], ['f1', 'f3'], ['f2', 'f4'], ['snd', 'f1', 'f3'], ['f1', 'f2', 'f3'],
- ['f1', 'f2', 'f3', '(<*>)'], ['fmap', 'f1', 'f2'], ['f1', 'f2', 'f3'], ['f1', 'f2', 'f3'],
+ ['f'], ['runZero', 'mkHero'], ['f1', 'f3', '(.)'], ['f2', 'f4', '(.)'], ['snd', 'f1', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
+ ['f1', 'f2', 'f3', '(<$>)', '(<*>)', '(.)'], ['fmap', 'f1', 'f2', '(.)'], ['f1', 'f2', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
  ['wrap', 'join'], ['f', 'dup', '(>>=)'], ['f', 'swap', '(<$>)'], ['f', 'dup', 'nest', '(>>=)'],
  ['f', 'g', 'pair', '(<$>)', '(<*>)']
 ];
@@ -80,10 +80,9 @@ test('removed functions and operators cannot be used in current solutions', asyn
   checkSolution(LEVELS[3], 'f1 z'),
   checkSolution(LEVELS[4], 'fst z'),
   checkSolution(LEVELS[1], 'mkHero $ z'),
-  checkSolution(LEVELS[2], 'f3 . f1'),
   checkSolution(LEVELS[14], 'f >>= g')
  ].map(r => ({ ok: r.ok, unknown: /Unknown identifier/.test(r.msg) })));
- expect(outcomes).toEqual(Array(6).fill({ ok: false, unknown: true }));
+ expect(outcomes).toEqual(Array(5).fill({ ok: false, unknown: true }));
 });
 
 test('operator aliases and prefix notation satisfy the same requirements as infix notation', async ({ page }) => {
@@ -94,6 +93,61 @@ test('operator aliases and prefix notation satisfy the same requirements as infi
    'let\n  value = f z\nin\n  (>>=) value dup'].map(code => checkSolution(level, code).ok);
  });
  expect(results).toEqual([true, true, true]);
+});
+
+test('manual solutions cannot bypass composition or lifted composition in the revised lessons', async ({ page }) => {
+ await open(page);
+ const outcomes = await page.evaluate(() => {
+  const manual = [
+   'let r1 = f1 z in f3 r1',
+   'let r1 = f4 z in f2 r1',
+   'let r1 = f1 z; r2 = f3 r1 in snd r2',
+   'let r1 = f2 z; r2 = f1 r1 in f3 r2',
+   'let r1 = f2 z; r2 = f1 z; r3 = f3 z; r4 = r2 <*> r3 in r1 <*> r4',
+   'let r1 = f1 z; r2 = fmap bd r1; r3 = f1 r2; r4 = f1 r3 in f2 r4',
+   'let r1 = f3 z; r2 = f1 r1; r3 = f1 r2 in f2 r3',
+   'let r1 = f1 z; r2 = f2 r1; r3 = f1 r2; r4 = f2 r3; r5 = f1 r4; r6 = f2 r5; r7 = f2 r6 in f3 r7'
+  ];
+  return manual.map((code, i) => {
+   const level = LEVELS[i + 2];
+   const unused = code.replace('let ', 'let unused = (.); ');
+   return { level: level.level, typed: typeCheck(level, code).ok,
+    manual: checkSolution(level, code), unused: checkSolution(level, unused),
+    composed: checkSolution(level, level.solution).ok };
+  });
+ });
+ for (const result of outcomes) {
+  expect(result.typed, `Level ${result.level}: manual solution still has the target type`).toBe(true);
+  expect(result.composed, `Level ${result.level}: composed solution passes`).toBe(true);
+  const missing = result.level === 7 ? ['(<$>)', '(.)'] : ['(.)'];
+  for (const attempt of [result.manual, result.unused]) {
+   expect(attempt.ok, `Level ${result.level}: required operators cannot be skipped`).toBe(false);
+   expect(attempt.missing).toEqual(missing);
+  }
+ }
+});
+
+test('version 1 completions are rechecked for restored operators while row and text drafts survive', async ({ page }) => {
+ const manualSeven = 'let r1 = f2 z; r2 = f1 z; r3 = f3 z; r4 = r2 <*> r3 in r1 <*> r4';
+ await page.addInitScript(manualSeven => {
+  localStorage.setItem('zth_progress', JSON.stringify({
+   completed: [0,2,6], completionVersion: 1, connectionVersion: 1, rowVersion: 1,
+   bypassCount: 3, currentLevel: 6, showIntro: false, iconMode: true, geckoOn: false,
+   editorContents: { 0: 'zeroToHero z = f z' },
+   rowPrograms: { 2: [{ id: 'r1', expr: 'f1 z' }, { id: 'r2', expr: 'f3 r1' }] },
+   textDrafts: { 6: manualSeven }
+  }));
+ }, manualSeven);
+ await page.goto(URL);
+ const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
+ expect(saved.completed).toEqual([0]);
+ expect(saved.completionVersion).toBe(2);
+ expect(saved.bypassCount).toBe(3);
+ expect(saved.rowPrograms[2]).toEqual([{ id: 'r1', expr: 'f1 z' }, { id: 'r2', expr: 'f3 r1' }]);
+ expect(saved.textDrafts[6]).toBe(manualSeven);
+ await expect(page.locator('#status-output')).toContainText('Still needed: (<$>), (.)');
+ await expect(page.locator('#next-level')).toBeHidden();
+ await expect(page.locator('.ready-row')).toHaveCount(1);
 });
 
 test('automatic completion preserves editing, rewards once, survives reload, and advances only on Next', async ({ page }) => {
@@ -125,7 +179,7 @@ test('old completion records are rechecked without discarding drafts or preferen
  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
  expect(saved.completed).toEqual([0,1]);
  expect(saved.optimal).toBeUndefined();
- expect(saved.completionVersion).toBe(1);
+ expect(saved.completionVersion).toBe(2);
  expect(saved.editorContents[2]).toBe('zeroToHero z = f2 z');
  expect(saved.iconMode).toBe(true); expect(saved.geckoOn).toBe(false);
  await expect(page.locator('#status-output')).toContainText('Unknown identifier: f2');

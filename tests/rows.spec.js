@@ -121,7 +121,7 @@ test('deleting dependent rows requires confirmation and undo restores the full p
   await expect(row(page, 0)).toHaveValue('');
 });
 
-test('legacy saved progress migrates once without losing settings or completion', async ({ page }) => {
+test('legacy saved progress preserves settings and rechecks the learning requirements', async ({ page }) => {
   await page.goto(URL);
   await page.evaluate(() => { window.removeEventListener('beforeunload', saveProgress); localStorage.setItem('zth_progress', JSON.stringify({
     currentLevel: 6, showIntro: false, iconMode: true, geckoOn: false, connectionVersion: 1,
@@ -129,11 +129,12 @@ test('legacy saved progress migrates once without losing settings or completion'
     editorContents: { 6: 'zeroToHero z = f2 z <*> (f1 z <*> f3 z)' }
   })); });
   await page.reload();
-  await expect(page.locator('.program-row')).toHaveCount(5);
+  await expect(page.locator('.program-row:not(.ready-row)')).toHaveCount(5);
+  await expect(page.locator('.ready-row')).toHaveCount(1);
   expect(await page.evaluate(() => typeCheck(LEVELS[6], getCodeFromEditor()).ok)).toBe(true);
   await page.getByText('Icons', { exact: true }).click();
   await page.reload();
-  expect(await page.evaluate(() => ({ count: getRows().length, completed: [...completedLevels], bypassCount, geckoOn, iconMode }))).toEqual({ count: 5, completed: [6], bypassCount: 3, geckoOn: false, iconMode: false });
+  expect(await page.evaluate(() => ({ count: getRows().length, completed: [...completedLevels], bypassCount, geckoOn, iconMode }))).toEqual({ count: 5, completed: [], bypassCount: 2, geckoOn: false, iconMode: false });
 });
 
 test('unfinished legacy expressions are retained with an actionable error', async ({ page }) => {

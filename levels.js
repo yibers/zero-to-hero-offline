@@ -31,9 +31,10 @@ const LEVELS = [
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
       { name: "f1", sig: "Zero a -> Hero a" },
-      { name: "f3", sig: "Hero a -> Hero (a, a)" }
+      { name: "f3", sig: "Hero a -> Hero (a, a)" },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
     ],
-    solution: "let\n  r1 = f1 z\nin\n  f3 r1"
+    solution: "let\n  r1 = (.) f3 f1\nin\n  r1 z"
   },
   {
     level: 4, name: "A repeating pattern",
@@ -43,9 +44,10 @@ const LEVELS = [
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
       { name: "f2", sig: "Zero a a -> Hero a a" },
-      { name: "f4", sig: "Zero a b -> Zero b b" }
+      { name: "f4", sig: "Zero a b -> Zero b b" },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
     ],
-    solution: "let\n  r1 = f4 z\nin\n  f2 r1"
+    solution: "let\n  r1 = (.) f2 f4\nin\n  r1 z"
   },
   {
     level: 5, name: "A perfect pair",
@@ -56,9 +58,10 @@ const LEVELS = [
     funcs: [
       { name: "snd", sig: "(a, b) -> b" },
       { name: "f1", sig: "Zero a b -> Zero a (a, b)" },
-      { name: "f3", sig: "Zero a b -> (Hero a, Hero b)" }
+      { name: "f3", sig: "Zero a b -> (Hero a, Hero b)" },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
     ],
-    solution: "let\n  r1 = f1 z\n  r2 = f3 r1\nin\n  snd r2"
+    solution: "let\n  r1 = (.) f3 f1\n  r2 = (.) snd r1\nin\n  r2 z"
   },
   {
     level: 6, name: "Monty Hall",
@@ -69,9 +72,10 @@ const LEVELS = [
     funcs: [
       { name: "f1", sig: "Zero a b c -> Zero c b a" },
       { name: "f2", sig: "Zero a b c -> Zero a c c" },
-      { name: "f3", sig: "Zero a b c -> Hero b c" }
+      { name: "f3", sig: "Zero a b c -> Hero b c" },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
     ],
-    solution: "let\n  r1 = f2 z\n  r2 = f1 r1\nin\n  f3 r2"
+    solution: "let\n  r1 = (.) f1 f2\n  r2 = (.) f3 r1\nin\n  r2 z"
   },
   {
     level: 7, name: "TIE fighter",
@@ -83,9 +87,11 @@ const LEVELS = [
       { name: "f1", sig: "Zero a b c -> Hero (a -> b)" },
       { name: "f2", sig: "Zero a b c -> Hero (b -> c)" },
       { name: "f3", sig: "Zero a b c -> Hero a" },
-      { name: "(<*>)", sig: "Hero (a -> c) -> Hero a -> Hero c" }
+      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b" },
+      { name: "(<*>)", sig: "Hero (a -> c) -> Hero a -> Hero c" },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
     ],
-    solution: "let\n  r1 = f2 z\n  r2 = f1 z\n  r3 = f3 z\n  r4 = r2 <*> r3\nin\n  r1 <*> r4"
+    solution: "let\n  r1 = f2 z\n  r2 = (<$>) (.) r1\n  r3 = f1 z\n  r4 = (<*>) r2 r3\n  r5 = f3 z\nin\n  (<*>) r4 r5"
   },
   {
     level: 8, name: "The middle man",
@@ -96,9 +102,10 @@ const LEVELS = [
     funcs: [
       { name: "fmap", sig: "(c -> d) -> Zero a b c -> Zero a b d" },
       { name: "f1", sig: "Zero a b c -> Zero c a b" },
-      { name: "f2", sig: "Zero a b c -> Hero a b c" }
+      { name: "f2", sig: "Zero a b c -> Hero a b c" },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
     ],
-    solution: "let\n  r1 = f1 z\n  r2 = fmap bd r1\n  r3 = f1 r2\n  r4 = f1 r3\nin\n  f2 r4"
+    solution: "let\n  r1 = fmap bd\n  r2 = (.) r1 f1\n  r3 = (.) f1 r2\n  r4 = (.) f1 r3\n  r5 = (.) f2 r4\nin\n  r5 z"
   },
   {
     level: 9, name: "Split the difference",
@@ -109,9 +116,10 @@ const LEVELS = [
     funcs: [
       { name: "f1", sig: "Zero a b c d -> Zero a a b b" },
       { name: "f2", sig: "Zero a b c d -> Hero c c d d" },
-      { name: "f3", sig: "Zero a b c d -> Zero d c b a" }
+      { name: "f3", sig: "Zero a b c d -> Zero d c b a" },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
     ],
-    solution: "let\n  r1 = f3 z\n  r2 = f1 r1\n  r3 = f1 r2\nin\n  f2 r3"
+    solution: "let\n  r1 = (.) f1 f3\n  r2 = (.) f1 r1\n  r3 = (.) f2 r2\nin\n  r3 z"
   },
   {
     level: 10, name: "The roller coaster",
@@ -122,9 +130,10 @@ const LEVELS = [
     funcs: [
       { name: "f1", sig: "Zero (a -> b) a c d -> Zero () b c d" },
       { name: "f2", sig: "Zero a b c d -> Zero b c d a" },
-      { name: "f3", sig: "Zero a b c d -> Hero d" }
+      { name: "f3", sig: "Zero a b c d -> Hero d" },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c" }
     ],
-    solution: "let\n  r1 = f1 z\n  r2 = f2 r1\n  r3 = f1 r2\n  r4 = f2 r3\n  r5 = f1 r4\n  r6 = f2 r5\n  r7 = f2 r6\nin\n  f3 r7"
+    solution: "let\n  r1 = (.) f2 f1\n  r2 = (.) f1 r1\n  r3 = (.) f2 r2\n  r4 = (.) f1 r3\n  r5 = (.) f2 r4\n  r6 = (.) f2 r5\n  r7 = (.) f3 r6\nin\n  r7 z"
   },
   // ─── Monad levels ───
   {

@@ -69,25 +69,29 @@ tests/          — Playwright + unit tests
 
 ## Required functions by level
 
-Every listed function is required; repeated use is allowed. Starting parameters, including the function parameters in level 8, remain puzzle inputs.
+Every listed function is required; repeated use is allowed. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Starting parameters, including the function parameters in level 8, remain puzzle inputs.
 
 | Level | Functions |
 | --- | --- |
 | 1 | `f` |
 | 2 | `runZero`, `mkHero` |
-| 3 | `f1`, `f3` |
-| 4 | `f2`, `f4` |
-| 5 | `snd`, `f1`, `f3` |
-| 6 | `f1`, `f2`, `f3` |
-| 7 | `f1`, `f2`, `f3`, `(<*>)` |
-| 8 | `fmap`, `f1`, `f2` |
-| 9 | `f1`, `f2`, `f3` |
-| 10 | `f1`, `f2`, `f3` |
+| 3 | `f1`, `f3`, `(.)` |
+| 4 | `f2`, `f4`, `(.)` |
+| 5 | `snd`, `f1`, `f3`, `(.)` |
+| 6 | `f1`, `f2`, `f3`, `(.)` |
+| 7 | `f1`, `f2`, `f3`, `(<$>)`, `(<*>)`, `(.)` |
+| 8 | `fmap`, `f1`, `f2`, `(.)` |
+| 9 | `f1`, `f2`, `f3`, `(.)` |
+| 10 | `f1`, `f2`, `f3`, `(.)` |
 | 11 | `wrap`, `join` |
 | 12 | `f`, `dup`, `(>>=)` |
 | 13 | `f`, `swap`, `(<$>)` |
 | 14 | `f`, `dup`, `nest`, `(>>=)` |
 | 15 | `f`, `g`, `pair`, `(<$>)`, `(<*>)` |
+
+Composition is introduced in level 3 and remains required through level 10. In these levels, build reusable transformations with `(.)` instead of bypassing it with a chain of value-only rows. Level 7 also requires `(<$>)` to lift composition into `Hero`, then `(<*>)` to combine the wrapped functions and apply them to the wrapped value.
+
+Levels 12 and 14 teach bind; level 15 focuses on combining independent `Hero` values with `(<$>)` and `(<*>)`. Its removed bind operator has no useful matching step with the existing helpers. `($)` stays removed because rows already provide application and intermediate results. The removed `f2` in level 3, `f1`/`f3` in level 4, and `fst`/`f2` in level 5 stay removed because they do not contribute to these lessons' solutions.
 
 ## Running
 
