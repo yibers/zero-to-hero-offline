@@ -40,7 +40,7 @@ test('all levels define explicit exact budgets that match their reference soluti
     valid: checkSolution(level, level.solution).ok
   })));
   const expected = [[1], [1,1], [1,1,1], [1,1,1], [1,1,1], [1,1,1,2], [1,1,1,2],
-    [1,1,1,1,2,1], [1,3,1,4], [2,1,1,3], [3,4,1,7], [1,1], [1,1,1], [1,1,1], [1,1,1,2], [1,1,1,1,1]];
+    [1,1,1,1,2,1], [1,3,1,4], [2,1,1,3], [3,4,1,7], [1,1], [1,1,1], [1,1,1], [1,1,1,2], [1,1,1,1,1], [1]];
   expect(levels.map(l => l.counts)).toEqual(expected);
   for (const level of levels) {
     expect(level.valid).toBe(true);
@@ -197,7 +197,7 @@ test('every level has finite starting arguments and every reference solution fit
   }));
   for (const [index, level] of levels.entries()) {
     expect(level.solved).toBe(true);
-    expect(level.supplied.z).toBe(index === 7 ? 3 : index === 15 ? 2 : 1);
+    expect(level.supplied.z ?? level.supplied.value).toBe(index === 7 ? 3 : index === 15 ? 2 : 1);
     expect(level.stock.every(p => p.limit >= 1 && p.used <= p.limit)).toBe(true);
     expect(level.visible).toEqual(index === 8 ? ['ad', 'cd'] : []);
   }

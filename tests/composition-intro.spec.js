@@ -16,7 +16,7 @@ test('the new third level repeats Assembly required and requires meaningful comp
   const result = await page.evaluate(() => {
     const previous = LEVELS[1], intro = LEVELS[2];
     const goal = level => ({ init: level.init, target: level.target, lhs: level.lhs, testing: level.testing });
-    return { count: LEVELS.length, numbers: LEVELS.map(level => level.level),
+    return { count: LEVELS.length, numbers: LEVEL_ORDER.map(index => LEVELS[index].level),
       sameGoal: JSON.stringify(goal(previous)) === JSON.stringify(goal(intro)),
       sameHelpers: JSON.stringify(previous.funcs) === JSON.stringify(intro.funcs.slice(0, 2)),
       functions: intro.funcs.map(f => f.name),
@@ -27,8 +27,8 @@ test('the new third level repeats Assembly required and requires meaningful comp
       prefix: checkSolution(intro, intro.solution).ok,
       infix: checkSolution(intro, 'let pipeline = mkHero . runZero in pipeline z').ok };
   });
-  expect(result.count).toBe(16);
-  expect(result.numbers).toEqual(Array.from({ length: 16 }, (_, i) => i + 1));
+  expect(result.count).toBe(17);
+  expect(result.numbers).toEqual(Array.from({ length: 17 }, (_, i) => i));
   expect(result.sameGoal).toBe(true); expect(result.sameHelpers).toBe(true);
   expect(result.functions).toEqual(['runZero', 'mkHero', '(.)']);
   expect(result.oldSolutionPassesOldLevel).toBe(true); expect(result.oldSolutionHasRightType).toBe(true);
@@ -132,7 +132,7 @@ test('previous one-step composition completions are rechecked without losing sav
 test('inserting a level preserves every old puzzle draft, completion, setting and position exactly once', async ({ page }) => {
   await open(page);
   const old = await page.evaluate(() => {
-    const oldLevels = LEVELS.filter((_, index) => index !== 2);
+    const oldLevels = LEVELS.filter((level, index) => index !== 2 && level.level > 0);
     const saved = {
       currentLevel: 7, completed: oldLevels.map((_, index) => index), bypassCount: 4,
       showIntro: false, iconMode: true, geckoOn: false,

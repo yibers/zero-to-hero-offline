@@ -27,7 +27,7 @@ test('each level begins with its fixed output goal, including levels with functi
   }));
   const expected = ['Hero a', 'Hero a', 'Hero a', 'Hero (a, a)', 'Hero b b', 'Hero (a, b)', 'Hero c a',
     'Hero c', 'Hero a d c', 'Hero d d d d', 'Hero d', 'Hero a', 'Hero (a, a)',
-    'Hero (b, a)', 'Hero (a, (a, a))', 'Hero (b, a)'];
+    'Hero (b, a)', 'Hero (a, (a, a))', 'Hero (b, a)', 'Zero a'];
   expect(goals).toEqual(expected.map(type => ({ label: `Goal: ${type}`, count: 1, last: true })));
 });
 

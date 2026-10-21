@@ -183,6 +183,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     }
   }
   const data = {
+    0: { wrap: ['Wrap a value', 'Put a value inside Zero, keeping the same value and its type.'] },
     1: { f: ['Change Zero to Hero', 'Change Zero to Hero, keeping the same value.'] },
     2: {
       runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
@@ -288,7 +289,9 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     const {args} = parts(parseType(level.target), names.length);
     names.forEach((name, i) => {
       const type = args[i];
-      const info = name === 'z' ? (level.level === 11 ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.') : `Function from ${typeToString(type.from)} to ${typeToString(type.to)}.`;
+      const info = type.tag === 'fun' ? `Function from ${typeToString(type.from)} to ${typeToString(type.to)}.`
+        : name === 'z' ? (level.level === 11 ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.')
+        : 'Your starting value, before it is wrapped.';
       labels[name] = details[name] = info;
       map[name] = renderType(fixedType(type), `${name}: ${info} Type: ${typeToString(type)}`);
     });

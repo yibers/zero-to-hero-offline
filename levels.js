@@ -231,5 +231,20 @@ const LEVELS = [
       { name: "(<*>)", sig: "Hero (a -> b) -> Hero a -> Hero b", uses: 1 }
     ],
     solution: "let\n  r1 = g z\n  r2 = pair <$> r1\n  r3 = f z\nin\n  r2 <*> r3"
+  },
+  {
+    level: 0, name: "Wrap a value",
+    init: ["data Zero a = DontUseMeZero a"],
+    target: "a -> Zero a",
+    lhs: "wrapValue value =",
+    parameterUses: { value: 1 },
+    testing: "b = wrapValue (undefined :: SKOLEMa)",
+    funcs: [
+      { name: "wrap", sig: "a -> Zero a", uses: 1 }
+    ],
+    solution: "wrap value"
   }
 ];
+
+// Keep saved array indices stable; navigation follows the displayed level order.
+const LEVEL_ORDER = LEVELS.map((_, index) => index).sort((a, b) => LEVELS[a].level - LEVELS[b].level);

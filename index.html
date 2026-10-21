@@ -224,8 +224,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=e8f44a2ac8af"></script>
-<script src="semantic-icons.js?v=00812005d416"></script>
+<script src="levels.js?v=b5b9acce71e4"></script>
+<script src="semantic-icons.js?v=61912d85afe0"></script>
 <script src="row-program.js?v=816f5987f6e1"></script>
 <script src="puzzle-rules.js?v=1a0a058171db"></script>
 <script src="row-editor.js?v=445c766dcabd"></script>
@@ -872,7 +872,7 @@ function inferExpr(code, env, paramTypes) {
 
 // ─── UI Rendering ───
 
-let currentLevel = 0;
+let currentLevel = LEVEL_ORDER[0];
 let showIntro = true;
 let showComplete = false;
 let showAbout = false;
@@ -914,7 +914,7 @@ try {
         if (Array.isArray(rows) && rows.length && rows.every(r => r && /^[a-z][A-Za-z0-9_']*$/.test(r.id) && typeof r.expr === 'string') && new Set(rows.map(r => r.id)).size === rows.length) rowPrograms[key] = rows;
       }
     }
-    currentLevel = Math.max(0, Math.min(parsed.currentLevel || 0, LEVELS.length - 1));
+    currentLevel = Math.max(0, Math.min(parsed.currentLevel ?? LEVEL_ORDER[0], LEVELS.length - 1));
     bypassCount = parsed.bypassCount || 0;
     iconMode = parsed.iconMode !== false;
     showIntro = parsed.showIntro !== false;
@@ -962,6 +962,10 @@ function saveProgress() {
   }));
 }
 
+function levelProgressLabel(level = LEVELS[currentLevel]) {
+  return level.level === 0 ? 'Introduction' : `Level ${level.level} / ${LEVELS[LEVEL_ORDER.at(-1)].level}`;
+}
+
 function render() {
   document.getElementById('connection-picker')?.remove();
   if (touchDragCleanup) touchDragCleanup();
@@ -972,9 +976,8 @@ function render() {
     ${showIntro ? `
     <div class="dialog-overlay" id="intro-dialog">
       <div class="dialog">
-        <p>Welcome to the game of Zero to Hero. In this game, you will complete each level by implementing
-        the function "zeroToHero". This function converts a "Zero" type value to a "Hero" type value.
-        The definition of "Zero" and "Hero" may vary from level to level.</p>
+        <p>Welcome to Zero to Hero. First, wrap a value in Zero. Then use the supplied functions to turn Zero values into Hero values.</p>
+        <p>A solid shape represents a value of a particular type. A dashed shape is a type placeholder. In <code>Zero a</code>, <code>a</code> is the type of the value inside; <code>Zero</code> is the type constructor that describes the wrapper. The pictures track types, not actual contents such as numbers.</p>
         <p>Each level supplies an exact number of copies of each function. Use them all in the steps that produce your final result. Adding a function uses one copy; removing it returns that copy to the palette. Unused rows do not count. Starting arguments also have a limited supply; using a copy removes it, and clearing it returns it.</p>
         <br>
         <button onclick="dismissIntro()">OK</button>
@@ -1035,9 +1038,9 @@ function render() {
 
     <nav>
       <div style="display:flex;gap:4px">
-        <button onclick="prevLevel()" ${currentLevel === 0 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg> Prev</button>
+        <button onclick="prevLevel()" ${currentLevel === LEVEL_ORDER[0] ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg> Prev</button>
         <button id="bypass-button" onclick="bypass()" ${bypassCount === 0 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg> Bypass (${bypassCount})</button>
-        <button id="next-level" onclick="nextLevel()" ${completedLevels.has(currentLevel) ? '' : 'hidden'}>${currentLevel === LEVELS.length - 1 ? 'Finish' : 'Next level'}</button>
+        <button id="next-level" onclick="nextLevel()" ${completedLevels.has(currentLevel) ? '' : 'hidden'}>${currentLevel === LEVEL_ORDER.at(-1) ? 'Finish' : 'Next level'}</button>
       </div>
       <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${level.name}</div>
       <div style="display:flex;align-items:center;gap:12px">
@@ -1047,7 +1050,7 @@ function render() {
             <div class="gecko-toggle-knob"></div>
           </div>
         </div>
-        <span class="level-badge" id="level-badge">${completedLevels.has(currentLevel) ? '<span title="Solved" style="color:#22c55e">&#10003; </span>' : ''}Level ${level.level} / ${LEVELS.length}</span>
+        <span class="level-badge" id="level-badge">${completedLevels.has(currentLevel) ? '<span title="Solved" style="color:#22c55e">&#10003; </span>' : ''}${levelProgressLabel(level)}</span>
         <button onclick="showAboutDialog()" title="About" style="background:#475569;color:#d1d5db;border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:13px;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:0">?</button>
       </div>
     </nav>
@@ -1062,7 +1065,7 @@ function render() {
           ${!iconMode ? `
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M137.54,186.36a8,8,0,0,1,0,11.31l-9.94,10a56,56,0,0,1-79.22-79.27l24.12-24.12a56,56,0,0,1,76.81-2.28,8,8,0,1,1-10.64,12,40,40,0,0,0-54.85,1.63L59.7,139.72a40,40,0,0,0,56.58,56.58l9.94-9.94A8,8,0,0,1,137.54,186.36Zm70.08-138a56.08,56.08,0,0,0-79.22,0l-9.94,9.95a8,8,0,0,0,11.32,11.31l9.94-9.94a40,40,0,0,1,56.58,56.58L172.18,140.4a40,40,0,0,1-54.85,1.63,8,8,0,1,0-10.64,12,56,56,0,0,0,76.81-2.28l24.12-24.12A56.08,56.08,0,0,0,207.62,48.38Z"/></svg> To Implement</div>
           <div class="code-block">
-            <div class="type-sig" style="font-size:1rem">${renderTypeSig('zeroToHero', level.target)}</div>
+            <div class="type-sig" style="font-size:1rem">${renderTypeSig(level.lhs.trim().split(/\s+/)[0], level.target)}</div>
             ${geckoOn ? `<div style="margin-top:8px">${renderGeckoArrow(level.target)}</div>` : ''}
           </div>
 
@@ -1070,7 +1073,7 @@ function render() {
 
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M172,108a12,12,0,0,1-12,12H96a12,12,0,0,1,0-24h64A12,12,0,0,1,172,108Zm-12,28H96a12,12,0,0,0,0,24h64a12,12,0,0,0,0-24Zm76-8A108,108,0,0,1,128.67,236H128a107.55,107.55,0,0,1-57.23-16.41L46.34,235A20,20,0,0,1,21,209.66l15.38-24.43A108,108,0,1,1,236,128Zm-24,0a84,84,0,1,0-156.73,42.06,12,12,0,0,1,1,9.81l-9.93,29.79,29.79-9.93a12.1,12.1,0,0,1,3.8-.62,12,12,0,0,1,6,1.62A84,84,0,0,0,212,128Z"/></svg> Your Solution</div>
           <div class="code-block">
-            <div class="type-sig" id="inferred-type" style="font-size:1rem">${renderTypeSig('zeroToHero', 'a')}</div>
+            <div class="type-sig" id="inferred-type" style="font-size:1rem">${renderTypeSig(level.lhs.trim().split(/\s+/)[0], 'a')}</div>
             ${geckoOn ? `<div id="inferred-gecko" style="margin-top:4px">${renderGeckoLeafVar('a')}</div>` : ''}
             <div class="syntax-hint" id="syntax-hint">Your definition has valid syntax. Completion also requires the target type and exactly the supplied copies of each function.</div>
           </div>
@@ -1530,7 +1533,7 @@ function runLiveCheck() {
   const statusOutput = document.getElementById('status-output');
 
   if (!code || code === 'undefined') {
-    if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', 'a');
+    if (inferredEl) inferredEl.innerHTML = renderTypeSig(level.lhs.trim().split(/\s+/)[0], 'a');
     if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
     if (hintEl) {
       hintEl.textContent = 'Your definition has valid syntax. Completion also requires the target type and exactly the supplied copies of each function.';
@@ -1545,7 +1548,7 @@ function runLiveCheck() {
   const result = rowError ? { valid: false, error: rowError } : liveInfer(level, code);
 
   if (result.valid && result.typeSig) {
-    if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', result.typeSig);
+    if (inferredEl) inferredEl.innerHTML = renderTypeSig(level.lhs.trim().split(/\s+/)[0], result.typeSig);
     if (geckoEl) {
       try { geckoEl.innerHTML = renderGeckoArrow(result.typeSig); } catch(e) {}
     }
@@ -1564,7 +1567,7 @@ function runLiveCheck() {
     }
     if (solution.ok) recordCompletion();
   } else {
-    if (inferredEl) inferredEl.innerHTML = renderTypeSig('zeroToHero', 'a');
+    if (inferredEl) inferredEl.innerHTML = renderTypeSig(level.lhs.trim().split(/\s+/)[0], 'a');
     if (geckoEl) geckoEl.innerHTML = renderGeckoLeafVar('a');
     if (hintEl) {
       hintEl.textContent = result.error || 'Your definition has a syntax or type error.';
@@ -1702,22 +1705,22 @@ function recordCompletion() {
   const next = document.getElementById('next-level');
   if (next) next.hidden = false;
   const badge = document.getElementById('level-badge');
-  if (badge) badge.innerHTML = `<span title="Solved" style="color:#22c55e">&#10003; </span>Level ${currentLevel + 1} / ${LEVELS.length}`;
+  if (badge) badge.innerHTML = `<span title="Solved" style="color:#22c55e">&#10003; </span>${levelProgressLabel()}`;
   const bypassButton = document.getElementById('bypass-button');
   if (bypassButton) { bypassButton.disabled = bypassCount === 0; bypassButton.textContent = `Bypass (${bypassCount})`; }
 }
 
 window.nextLevel = function() {
   if (!completedLevels.has(currentLevel)) return;
-  if (currentLevel === LEVELS.length - 1) showComplete = true;
-  else currentLevel++;
+  if (currentLevel === LEVEL_ORDER.at(-1)) showComplete = true;
+  else currentLevel = LEVEL_ORDER[LEVEL_ORDER.indexOf(currentLevel) + 1];
   saveProgress();
   render();
 };
 
 window.resetGame = function() {
   showComplete = false;
-  currentLevel = 0;
+  currentLevel = LEVEL_ORDER[0];
   completedLevels.clear();
   editorContents = {};
   rowPrograms = {};
@@ -1752,8 +1755,9 @@ window.dismissAbout = function() {
 };
 
 window.prevLevel = function() {
-  if (currentLevel > 0) {
-    currentLevel--;
+  const position = LEVEL_ORDER.indexOf(currentLevel);
+  if (position > 0) {
+    currentLevel = LEVEL_ORDER[position - 1];
     saveProgress();
     render();
   }
@@ -1762,10 +1766,10 @@ window.prevLevel = function() {
 window.bypass = function() {
   if (bypassCount <= 0) return;
   bypassCount--;
-  if (currentLevel === LEVELS.length - 1) {
+  if (currentLevel === LEVEL_ORDER.at(-1)) {
     showComplete = true;
   } else {
-    currentLevel++;
+    currentLevel = LEVEL_ORDER[LEVEL_ORDER.indexOf(currentLevel) + 1];
   }
   saveProgress();
   render();

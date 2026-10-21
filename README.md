@@ -19,7 +19,7 @@ The original game also features **GeckoGraph**, a visual notation for polymorphi
 This reimplements the game with no server dependencies:
 
 - **Client-side type checker** — Hindley-Milner type inference engine written in JavaScript, replacing the original's server-side GHC calls
-- **16 levels** — 10 original levels, an introductory composition puzzle, and 5 additional functional-programming puzzles
+- **17 puzzles** — a wrapping introduction before level 1, 10 original levels, an introductory composition puzzle, and 5 additional functional-programming puzzles
 - **GeckoGraph rendering** — SVG-based gecko graph visualization running entirely in the browser
 - **Self-hosted fonts** — Fira Code, Exo, and Orbitron in `fonts/` (OFL licensed)
 - **Offline-capable** — Works by opening `index.html` directly, no web server needed
@@ -28,7 +28,7 @@ This reimplements the game with no server dependencies:
 
 ```
 index.html      — Main app and type checker
-levels.js       — 16 puzzle definitions
+levels.js       — 17 puzzle definitions
 semantic-icons.js — SVG type patterns and per-level action descriptions
 row-program.js  — Expression parsing, row validation and migration
 puzzle-rules.js — Target checking and required-function dependency checks
@@ -75,6 +75,7 @@ Every listed function is required; repeated use is allowed. The palette follows 
 
 | Level | Functions |
 | --- | --- |
+| Introduction | `wrap` |
 | 1 | `f` |
 | 2 | `runZero`, `mkHero` |
 | 3 | `runZero`, `mkHero`, `(.)` |
@@ -92,6 +93,8 @@ Every listed function is required; repeated use is allowed. The palette follows 
 | 15 | `f`, `dup`, `nest`, `(>>=)` |
 | 16 | `f`, `g`, `pair`, `(<$>)`, `(<*>)` |
 
+The introduction starts with a plain value and supplies `wrap :: a -> Zero a`. Its goal is that same value inside Zero. In `Zero a`, `Zero` is a type constructor and `a` is the type of the contained value; the game displays type shapes rather than concrete contents such as numbers. Existing level numbers stay 1–16, and saved programs and completions remain attached to their original puzzles.
+
 Level 3 repeats level 2’s `runZero`/`mkHero` puzzle and adds required composition. Existing saved work and completion records move with their original levels; the new level starts unsolved. Composition is introduced in level 3 and remains required through level 11. In these levels, build reusable transformations with `(.)` instead of bypassing it with a chain of value-only rows. Level 8 also requires `(<$>)` to lift composition into `Hero`, then `(<*>)` to combine the wrapped functions and apply them to the wrapped value.
 
 Levels 13 and 15 teach bind; level 16 focuses on combining independent `Hero` values with `(<$>)` and `(<*>)`. Its removed bind operator has no useful matching step with the existing helpers. `($)` stays removed because rows already provide application and intermediate results. The removed `f2` in level 4, `f1`/`f3` in level 5, and `fst`/`f2` in level 6 stay removed because they do not contribute to these lessons' solutions.
@@ -105,6 +108,7 @@ Before publishing JavaScript or CSS changes, run `npm run version:assets`. This 
 ## Testing
 
 ```bash
+node --test tests/wrapping-intro.test.cjs
 npx playwright test
 ```
 

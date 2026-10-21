@@ -6,7 +6,7 @@ const expectedFunctions = [
  ['f'], ['runZero', 'mkHero'], ['runZero', 'mkHero', '(.)'], ['f1', 'f3', '(.)'], ['f2', 'f4', '(.)'], ['snd', 'f1', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
  ['f1', 'f2', 'f3', '(<$>)', '(<*>)', '(.)'], ['fmap', 'f1', 'f2', '(.)'], ['f1', 'f2', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
  ['wrap', 'join'], ['f', 'dup', '(>>=)'], ['f', 'swap', '(<$>)'], ['f', 'dup', 'nest', '(>>=)'],
- ['f', 'g', 'pair', '(<$>)', '(<*>)']
+ ['f', 'g', 'pair', '(<$>)', '(<*>)'], ['wrap']
 ];
 async function open(page, icons = true) {
  await page.goto(URL);
@@ -17,7 +17,7 @@ async function open(page, icons = true) {
  }, icons);
 }
 
-test('all 16 palettes contain exactly the required functions and every reference solves in both modes', async ({ page }) => {
+test('all 17 palettes contain exactly the required functions and every reference solves in both modes', async ({ page }) => {
  await open(page);
  for (const icons of [true, false]) {
   const levels = await page.evaluate(icons => LEVELS.map((level, index) => {
@@ -31,7 +31,8 @@ test('all 16 palettes contain exactly the required functions and every reference
  }
  await expect(page.locator('nav')).not.toContainText(/Attempt|Optimal/);
  await expect(page.locator('#status-output')).not.toContainText(/operations|conciseness/i);
- expect(await page.evaluate(() => bypassCount)).toBe(16);
+ expect(await page.evaluate(() => bypassCount)).toBe(17);
+ await page.evaluate(() => { currentLevel = LEVEL_ORDER.at(-1); render(); });
  await page.getByRole('button', { name: 'Finish', exact: true }).click();
  await expect(page.locator('#complete-dialog')).toBeVisible();
 });
