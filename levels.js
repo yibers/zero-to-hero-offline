@@ -5,6 +5,7 @@ const LEVELS = [
     init: ["data Zero a = DontUseMeZero a", "data Hero a = DontUseMeHero a"],
     target: "Zero a -> Hero a",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
       { name: "f", sig: "Zero a -> Hero a", uses: 1 }
@@ -16,6 +17,7 @@ const LEVELS = [
     init: ["data Zero a = DontUseMeZero a", "data Hero a = DontUseMeHero a"],
     target: "Zero a -> Hero a",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
       { name: "runZero", sig: "Zero a -> a", uses: 1 },
@@ -28,6 +30,7 @@ const LEVELS = [
     init: ["data Zero a = DontUseMeZero a", "data Hero a = DontUseMeHero a"],
     target: "Zero a -> Hero a",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
       { name: "runZero", sig: "Zero a -> a", uses: 1 },
@@ -41,6 +44,7 @@ const LEVELS = [
     init: ["data Zero a = DontUseMeZero a", "data Hero a = DontUseMeHero a"],
     target: "Zero a -> Hero (a, a)",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
       { name: "f1", sig: "Zero a -> Hero a", uses: 1 },
@@ -54,6 +58,7 @@ const LEVELS = [
     init: ["data Zero a b = DontUseMeZero a b", "data Hero a b = DontUseMeHero a b"],
     target: "Zero a b -> Hero b b",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
       { name: "f2", sig: "Zero a a -> Hero a a", uses: 1 },
@@ -67,6 +72,7 @@ const LEVELS = [
     init: ["data Zero a b = DontUseMeZero a b", "data Hero a = DontUseMeHero a"],
     target: "Zero a b -> Hero (a, b)",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
       { name: "snd", sig: "(a, b) -> b", uses: 1 },
@@ -81,6 +87,7 @@ const LEVELS = [
     init: ["data Zero a b c = DontUseMeZero a b c", "data Hero a b = DontUseMeHero a b"],
     target: "Zero a b c -> Hero c a",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
       { name: "f1", sig: "Zero a b c -> Zero c b a", uses: 1 },
@@ -95,6 +102,7 @@ const LEVELS = [
     init: ["data Zero a b c = DontUseMeZero a b c", "data Hero a = DontUseMeHero a"],
     target: "Zero a b c -> Hero c",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 3 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
       { name: "f1", sig: "Zero a b c -> Hero (a -> b)", uses: 1 },
@@ -111,6 +119,7 @@ const LEVELS = [
     init: ["data Zero a b c = DontUseMeZero a b c", "data Hero a b c = DontUseMeHero a b c"],
     target: "(a -> d) -> (b -> d) -> (c -> d) -> Zero a b c -> Hero a d c",
     lhs: "zeroToHero ad bd cd z =",
+    parameterUses: { ad: 1, bd: 1, cd: 1, z: 1 },
     testing: "b = zeroToHero (undefined :: SKOLEMa -> SKOLEMd) (undefined :: SKOLEMb -> SKOLEMd) (undefined :: SKOLEMc -> SKOLEMd) (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
       { name: "fmap", sig: "(c -> d) -> Zero a b c -> Zero a b d", uses: 1 },
@@ -125,6 +134,7 @@ const LEVELS = [
     init: ["data Zero a b c d = DontUseMeZero a b c d", "data Hero a b c d = DontUseMeHero a b c d"],
     target: "Zero a b c d -> Hero d d d d",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc SKOLEMd)",
     funcs: [
       { name: "f1", sig: "Zero a b c d -> Zero a a b b", uses: 2 },
@@ -139,6 +149,7 @@ const LEVELS = [
     init: ["data Zero a b c d = DontUseMeZero a b c d", "data Hero a = DontUseMeHero a"],
     target: "Zero (a -> b -> c -> d) a b c -> Hero d",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero (SKOLEMa -> SKOLEMb -> SKOLEMc -> SKOLEMd) SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
       { name: "f1", sig: "Zero (a -> b) a c d -> Zero () b c d", uses: 3 },
@@ -154,6 +165,7 @@ const LEVELS = [
     init: ["data Zero a = DontUseMeZero a", "data Hero a = DontUseMeHero a"],
     target: "Zero a -> Hero a",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
       { name: "wrap", sig: "Zero a -> Hero (Hero a)", uses: 1 },
@@ -166,6 +178,7 @@ const LEVELS = [
     init: ["data Zero a = DontUseMeZero a", "data Hero a = DontUseMeHero a"],
     target: "Zero a -> Hero (a, a)",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
       { name: "f", sig: "Zero a -> Hero a", uses: 1 },
@@ -179,6 +192,7 @@ const LEVELS = [
     init: ["data Zero a b = DontUseMeZero a b", "data Hero a = DontUseMeHero a"],
     target: "Zero a b -> Hero (b, a)",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
       { name: "f", sig: "Zero a b -> Hero (a, b)", uses: 1 },
@@ -192,6 +206,7 @@ const LEVELS = [
     init: ["data Zero a = DontUseMeZero a", "data Hero a = DontUseMeHero a"],
     target: "Zero a -> Hero (a, (a, a))",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 1 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa)",
     funcs: [
       { name: "f", sig: "Zero a -> Hero a", uses: 1 },
@@ -206,6 +221,7 @@ const LEVELS = [
     init: ["data Zero a b = DontUseMeZero a b", "data Hero a = DontUseMeHero a"],
     target: "Zero a b -> Hero (b, a)",
     lhs: "zeroToHero z =",
+    parameterUses: { z: 2 },
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
       { name: "f", sig: "Zero a b -> Hero a", uses: 1 },

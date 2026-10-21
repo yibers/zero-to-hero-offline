@@ -47,15 +47,16 @@ test('legacy level 8 progress moves to level 9 and preserves the extra parameter
   expect(await page.evaluate(() => typeCheck(LEVELS[8], getCodeFromEditor()).ok)).toBe(true);
   await expect(page.locator('#inferred-type')).toContainText('Hero');
   await page.getByText('Icons', { exact: true }).click();
-  await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(4);
+  await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(2);
   expect(await page.locator('#editor-prefix').innerText()).toBe('');
+  expect(await page.locator('#editor-prefix [data-func-name]').evaluateAll(nodes => nodes.map(node => node.dataset.funcName))).toEqual(['ad', 'cd']);
   await expect(page.locator('.right-panel [data-func-name="z"]')).toHaveCount(0);
   await expect(page.locator('.row-instructions')).toHaveCount(0);
   await page.getByText('Gecko Graph', { exact: true }).click();
   await expect(page.locator('textarea.row-editor')).toHaveCount(5);
   expect(await page.evaluate(() => typeCheck(LEVELS[8], getCodeFromEditor()).ok)).toBe(true);
   await page.reload();
-  await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(4);
+  await expect(page.locator('#editor-prefix .parameter-icon')).toHaveCount(2);
   await expect(page.locator('textarea.row-editor')).toHaveCount(5);
   expect(await page.evaluate(() => typeCheck(LEVELS[8], getCodeFromEditor()).ok)).toBe(true);
 

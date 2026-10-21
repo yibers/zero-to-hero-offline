@@ -141,7 +141,7 @@ test('version 1 completions are rechecked for restored operators while row and t
  await page.goto(URL);
  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
  expect(saved.completed).toEqual([0]);
- expect(saved.completionVersion).toBe(4);
+ expect(saved.completionVersion).toBe(5);
  expect(saved.bypassCount).toBe(3);
  expect(saved.rowPrograms[3]).toEqual([{ id: 'r1', expr: 'f1 z' }, { id: 'r2', expr: 'f3 r1' }]);
  expect(saved.textDrafts[7]).toBe(manualSeven);
@@ -179,7 +179,7 @@ test('old completion records are rechecked without discarding drafts or preferen
  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
  expect(saved.completed).toEqual([0,1]);
  expect(saved.optimal).toBeUndefined();
- expect(saved.completionVersion).toBe(4);
+ expect(saved.completionVersion).toBe(5);
  expect(saved.editorContents[3]).toBe('zeroToHero z = f2 z');
  expect(saved.iconMode).toBe(true); expect(saved.geckoOn).toBe(false);
  await expect(page.locator('#status-output')).toContainText('Unknown identifier: f2');

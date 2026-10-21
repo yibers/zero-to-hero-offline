@@ -121,7 +121,7 @@ test('previous one-step composition completions are rechecked without losing sav
   await page.reload();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
   expect(saved.completed).toEqual([0]);
-  expect(saved.completionVersion).toBe(4);
+  expect(saved.completionVersion).toBe(5);
   for (const field of ['rowPrograms', 'textDrafts', 'editorContents', 'bypassCount', 'iconMode', 'geckoOn']) {
     expect(saved[field]).toEqual(previous[field]);
   }

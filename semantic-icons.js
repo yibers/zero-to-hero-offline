@@ -144,7 +144,11 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         reserve = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 4 + (node.closest('.argument-slot') ? 8 : 0);
       }
       else if (node.closest('.row-result, .row-result-preview, .goal-picture')) { holder = node.closest('.row-flow'); reserve = 36; }
-      else if (node.closest('.parameter-icon')) { holder = node.closest('.parameter-prefix'); reserve = 2; }
+      else if (node.closest('.parameter-icon')) {
+        holder = node.closest('.parameter-prefix');
+        const badge = node.closest('.parameter-icon').querySelector('.function-stock');
+        reserve = 2 + (badge ? badge.getBoundingClientRect().width + 4 : 0);
+      }
       else if (node.closest('.func-card')) holder = node.closest('.function-card-content') || node.closest('.func-card');
       else if (node.closest('.argument-choice')) { holder = node.closest('.argument-choices'); reserve = 26; }
       else if (node.closest('.delete-preview-expression')) holder = node.closest('.delete-preview-expression');

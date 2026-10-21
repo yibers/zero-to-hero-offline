@@ -127,12 +127,12 @@ test('depleted functions disappear from argument and operator pickers and cannot
 
 test('old completions that used extra copies are reopened while drafts and settings survive', async ({ page }) => {
   await open(page);
-  const code = 'let unused = f z in f z';
+  const code = 'let unused = z in f z';
   await page.evaluate(code => {
     window.removeEventListener('beforeunload', saveProgress);
     localStorage.setItem('zth_progress', JSON.stringify({
       currentLevel: 0, completed: [0], bypassCount: 1, showIntro: false, iconMode: false, geckoOn: false,
-      connectionVersion: 1, rowVersion: 1, completionVersion: 3, levelOrderVersion: 1, textDrafts: { 0: code }
+      connectionVersion: 1, rowVersion: 1, completionVersion: 4, levelOrderVersion: 1, textDrafts: { 0: code }
     }));
   }, code);
   await page.reload();
@@ -184,5 +184,114 @@ test.describe('phone function inventory', () => {
     await expect(card(page, 'runZero')).toHaveCount(1);
     await expect(card(page, 'mkHero')).toHaveCount(0);
     await expect(card(page, '(.)')).toHaveCount(0);
+  });
+});
+
+test('every level has finite starting arguments and every reference solution fits their supply', async ({ page }) => {
+  await open(page);
+  const levels = await page.evaluate(() => LEVELS.map((level, index) => {
+    currentLevel = index; setEditorContent(level.solution); render();
+    return { supplied: level.parameterUses, stock: parameterUsage(level, level.solution),
+      visible: [...document.querySelectorAll('#editor-prefix [data-func-name]')].map(n => n.dataset.funcName),
+      solved: checkSolution(level, level.solution).ok };
+  }));
+  for (const [index, level] of levels.entries()) {
+    expect(level.solved).toBe(true);
+    expect(level.supplied.z).toBe(index === 7 ? 3 : index === 15 ? 2 : 1);
+    expect(level.stock.every(p => p.limit >= 1 && p.used <= p.limit)).toBe(true);
+    expect(level.visible).toEqual(index === 8 ? ['ad', 'cd'] : []);
+  }
+});
+
+test('a starting argument disappears when placed and returns on clearing, undo or whole-function removal', async ({ page }) => {
+  await open(page, 0, 'f');
+  const parameter = page.locator('#editor-prefix [data-func-name="z"]');
+  await parameter.dragTo(slot(page, 0, 0));
+  await expect(parameter).toHaveCount(0);
+  await expect(page.locator('.editor-prefix-row')).toBeHidden();
+  await choose(page, 0, 0, null);
+  await expect(parameter).toBeVisible();
+  await page.locator('.program-row').first().press('Control+z');
+  await expect(parameter).toHaveCount(0);
+  await page.reload();
+  await expect(parameter).toHaveCount(0);
+  await pointerDrag(page, page.locator('.function-head'), page.locator('nav'));
+  await expect(parameter).toBeVisible();
+  await expect(card(page, 'f')).toBeVisible();
+  await page.locator('.program-row').first().press('Control+z');
+  await expect(parameter).toHaveCount(0);
+});
+
+test('exhausted arguments are unavailable to other inputs and extra copies cannot be injected', async ({ page }) => {
+  await open(page, 1, 'let r1 = runZero z in mkHero');
+  await slot(page, 1, 0).click();
+  await expect(page.getByRole('button', { name: 'Use input z', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Use input r1', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await slot(page, 1, 0).evaluate(node => {
+    const dataTransfer = new DataTransfer(); dataTransfer.setData('text/plain', 'z');
+    const r = node.getBoundingClientRect();
+    node.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer,
+      clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }));
+  });
+  await expect(page.locator('textarea.row-editor').last()).toHaveValue('mkHero');
+  await expect(page.locator('#row-notice')).toContainText('No copies left: z');
+  await choose(page, 1, 0, 'r1');
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
+});
+
+test('text drafts and mode changes share argument inventory while extra arguments prevent completion', async ({ page }) => {
+  await open(page, 0, '', false);
+  const source = page.getByRole('textbox', { name: 'Haskell expression', exact: true });
+  const parameter = page.locator('#parameter-palette [data-func-name="z"]');
+  await expect(parameter).toBeVisible();
+  await source.fill('let unused = z in f z');
+  await expect(parameter).toHaveCount(0);
+  await expect(page.locator('#status-output')).toContainText('Too many copies: z');
+  expect(await page.evaluate(() => checkSolution(LEVELS[0], 'let unused = z in f z').excess)).toEqual(['z']);
+  await source.fill('let held = z\n next =');
+  await expect(parameter).toHaveCount(0);
+  await page.reload();
+  await expect(parameter).toHaveCount(0);
+  await source.fill('f');
+  await expect(parameter).toBeVisible();
+  await source.fill('f z');
+  await expect(page.locator('#status-bar')).toHaveClass(/success/);
+  await page.evaluate(() => toggleIconMode());
+  await expect(page.locator('#editor-prefix [data-func-name="z"]')).toHaveCount(0);
+  await choose(page, 0, 0, null);
+  await expect(page.locator('#editor-prefix [data-func-name="z"]')).toBeVisible();
+  await page.evaluate(() => toggleIconMode());
+  await expect(parameter).toBeVisible();
+});
+
+test.describe('phone starting argument inventory', () => {
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  test('multiple copies deplete gradually; moving, cancelling and clearing keep the count correct', async ({ page }) => {
+    await open(page, 7, 'let r1 = f2; r2 = f1 in f3');
+    const cdp = await page.context().newCDPSession(page);
+    const parameter = page.locator('#editor-prefix [data-func-name="z"]');
+    const count = parameter.locator('.function-stock');
+    await expect(count).toHaveText('×3');
+    await pointerDrag(page, parameter, slot(page, 0, 0), cdp);
+    await expect(count).toHaveText('×2');
+    await pointerDrag(page, slot(page, 0, 0), slot(page, 1, 0), cdp);
+    await expect(count).toHaveText('×2');
+    const input = slot(page, 1, 0); await input.scrollIntoViewIfNeeded();
+    const r = await input.boundingBox();
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: r.x + r.width / 2, y: r.y + r.height / 2, id: 1 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 8, y: 10, id: 1 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+    await expect(count).toHaveText('×2');
+    await pointerDrag(page, parameter, slot(page, 0, 0), cdp);
+    await expect(count).toHaveText('×1');
+    await pointerDrag(page, parameter, slot(page, 2, 0), cdp);
+    await expect(parameter).toHaveCount(0);
+    await pointerDrag(page, slot(page, 0, 0), page.locator('nav'), cdp);
+    await expect(count).toHaveText('×1');
+    await page.locator('.program-row').first().press('Control+z');
+    await expect(parameter).toHaveCount(0);
+    await page.reload();
+    await expect(parameter).toHaveCount(0);
   });
 });

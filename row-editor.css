@@ -10,7 +10,8 @@
 .source-param { color: #047857; }
 #program-rows { overflow: auto; flex: 1; min-height: 120px; padding: 8px; overscroll-behavior: contain; }
 .parameter-prefix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; }
-.parameter-icon { max-width: 100%; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-width: 56px; min-height: 56px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #065f46; cursor: grab; }
+.parameter-icon { max-width: 100%; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 4px; min-width: 56px; min-height: 56px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #065f46; cursor: grab; }
+.editor-prefix-row[hidden] { display: none; }
 .parameter-icon:hover { background: #d1fae5; border-color: #6ee7b7; }
 .parameter-icon:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
 .program-row { border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 10px; overflow-x: auto; }

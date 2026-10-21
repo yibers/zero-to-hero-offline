@@ -415,7 +415,7 @@ function mountRowEditor() {
     return text.slice(0, pos) + prefix + name + suffix + text.slice(pos);
   }
   function stockAllows(next) {
-    const error = functionUsageIncreaseError(level, RowProgram.source(getRows()), RowProgram.source(next));
+    const error = cardUsageIncreaseError(level, RowProgram.source(getRows()), RowProgram.source(next));
     if (error) notice(error);
     return !error;
   }
@@ -497,7 +497,9 @@ function mountRowEditor() {
     const close = () => { dialog.close(); dialog.remove(); };
     const stock = functionUsage(level, RowProgram.source(getRows()));
     const available = stock.filter(f => f.remaining || f.name.replace(/^\(|\)$/g, '') === call.args[position]).map(f => f.name);
-    const choices = [...params, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error).map(row => row.id), ...available];
+    const availableParams = parameterUsage(level, RowProgram.source(getRows()))
+      .filter(p => p.remaining || p.name === call.args[position]).map(p => p.name);
+    const choices = [...availableParams, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error).map(row => row.id), ...available];
     for (const name of [...choices, null]) {
       if (!name && !call.args[position]) continue;
       const button = document.createElement('button'); button.type = 'button'; button.className = 'argument-choice';

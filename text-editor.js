@@ -116,7 +116,7 @@ function mountTextEditor() {
   function insert(name, position) {
     const left = editor.value.slice(0, position), right = editor.value.slice(position);
     const insertion = (left && !/[\s(]$/.test(left) ? ' ' : '') + name + (right && !/^[\s)]/.test(right) ? ' ' : '');
-    const error = functionUsageIncreaseError(level, editor.value, left + insertion + right);
+    const error = cardUsageIncreaseError(level, editor.value, left + insertion + right);
     document.getElementById('row-notice').textContent = error || '';
     if (!error) replace(insertion, position, position);
   }

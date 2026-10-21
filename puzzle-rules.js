@@ -1,20 +1,26 @@
-// Count placed function cards, including function-valued arguments. Reusing a
+// Count placed cards, including function-valued arguments. Reusing a
 // binding's result does not consume another card. Count unfinished drafts too,
 // so a temporarily invalid expression cannot refill the palette.
-function functionUsage(level, code) {
+function placedCardUsage(cards, code) {
   const expressions = code.replace(/\b[a-z][A-Za-z0-9_']*\s*=(?!=)/g, '');
   const counts = new Map();
   for (const token of expressions.match(/[a-zA-Z_][a-zA-Z0-9_']*|[!@#$%^&*\-+=<>?/|~:.\\]+/g) || []) {
     counts.set(token, (counts.get(token) || 0) + 1);
   }
-  return level.funcs.map(f => {
+  return cards.map(f => {
     const used = counts.get(f.name.replace(/^\(|\)$/g, '')) || 0, limit = f.uses ?? 1;
     return { name: f.name, limit, used, remaining: Math.max(0, limit - used) };
   });
 }
-function functionUsageIncreaseError(level, before, after) {
-  const previous = functionUsage(level, before);
-  const excess = functionUsage(level, after).filter((entry, i) => entry.used > entry.limit && entry.used > previous[i].used);
+function functionUsage(level, code) { return placedCardUsage(level.funcs, code); }
+function parameterUsage(level, code) {
+  const names = level.lhs.split('=')[0].trim().split(/\s+/).slice(1);
+  return placedCardUsage(names.map(name => ({ name, uses: level.parameterUses?.[name] ?? 1 })), code);
+}
+function cardUsage(level, code) { return [...functionUsage(level, code), ...parameterUsage(level, code)]; }
+function cardUsageIncreaseError(level, before, after) {
+  const previous = cardUsage(level, before);
+  const excess = cardUsage(level, after).filter((entry, i) => entry.used > entry.limit && entry.used > previous[i].used);
   return excess.length ? `No copies left: ${excess.map(f => f.name).join(', ')}. Remove a copy from the program before adding another.` : null;
 }
 
@@ -28,9 +34,9 @@ function checkSolution(level, code) {
     const errors = RowProgram.validate(rows, level);
     const index = errors.findIndex(Boolean);
     if (index >= 0) return { ok: false, msg: `Row ${index + 1}: ${errors[index]}` };
-    const excess = functionUsage(level, code).filter(f => f.used > f.limit);
+    const excess = cardUsage(level, code).filter(f => f.used > f.limit);
     if (excess.length) return { ok: false, excess: excess.map(f => f.name),
-      msg: `Too many copies: ${excess.map(f => `${f.name} (${f.used} used, exactly ${f.limit} allowed)`).join(', ')}. Remove the extra copies.` };
+      msg: `Too many copies: ${excess.map(f => `${f.name} (${f.used} used, ${f.limit} supplied)`).join(', ')}. Remove the extra copies.` };
     const typed = typeCheck(level, code);
     if (!typed.ok) return typed;
     const bindings = new Map((program?.bindings || []).map(row => [row.id, RowProgram.parse(row.expr)]));
