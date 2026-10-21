@@ -52,17 +52,16 @@ nav button:hover:not(:disabled) { background: #334155; }
 nav button:disabled { opacity: 0.35; cursor: default; }
 nav .level-badge { background: #9ca3af; color: #374151; padding: 2px 12px; border-radius: 9999px; font-weight: bold; font-size: 14px; }
 
-/* Main layout — original: 2fr 10px 1fr */
+/* A wrapping function palette above the full-width puzzle. */
 main { display: flex; flex-direction: column; height: calc(100vh - 36px); }
-.grid-h { display: grid; grid-template-columns: 2fr 10px 1fr; height: 100%; padding: 8px; gap: 0; overflow: hidden; }
-.left-panel { grid-column: 1; }
-.gutter-col { grid-column: 2; grid-row: 1/-1; background: transparent; display: flex; align-items: center; justify-content: center; cursor: col-resize; }
-.right-panel { grid-column: 3; }
-.gutter-col::after { content: ''; width: 4px; height: 64px; background: #9ca3af; border-radius: 2px; }
+.grid-h { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100%; padding: 8px; gap: 8px; overflow: hidden; }
+.left-panel { grid-row: 2; min-width: 0; min-height: 0; }
+.right-panel { grid-row: 1; min-width: 0; max-height: 35dvh; overscroll-behavior: contain; }
+.right-panel:not(:has(.func-card)) { display: none; }
 /* Original: auto 10px auto 10px 1fr 10px 1fr
    Ours: ToImpl(hdr+body) | gutter | YourSol(hdr+body) | gutter | CodeEd(hdr+body) | gutter | Status(bar+output)
    ToImpl and YourSol = auto; CodeEd and Status share remaining via 1fr each */
-.left-panel { display: grid; grid-template-rows: auto auto 10px auto auto 10px auto 1fr 10px 1fr; overflow: hidden; }
+.left-panel { display: grid; grid-template-rows: auto auto 10px auto auto 10px auto 1fr 10px 1fr; overflow: auto; }
 .gutter-row { grid-column: 1/-1; display: flex; align-items: center; justify-content: center; cursor: row-resize; }
 .gutter-row::after { content: ''; height: 4px; width: 64px; background: #9ca3af; border-radius: 2px; }
 
@@ -143,13 +142,15 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .status-bar.error { background: #ef4444; color: white; }
 .status-output { background: #374151; color: white; padding: 8px; font-family: 'Fira Code', monospace; font-size: 12px; overflow: auto; min-height: 40px; white-space: pre-wrap; }
 
-/* Right panel — original: bg-gray-100 */
+/* Available functions wrap across the top. */
 .right-panel { background: #f3f4f6; color: black; padding: 12px; overflow: auto; }
 .right-panel h2 { font-size: 16px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .right-panel h2 svg { width: 18px; height: 18px; }
-.icon-palette .func-card { width: 100%; min-width: 0; }
+#function-palette, #parameter-palette { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+#parameter-palette h2 { flex-basis: 100%; }
+.right-panel .func-card { flex: 0 1 auto; min-width: 0; max-width: 100%; min-height: 48px; margin-bottom: 0; }
+.right-panel .palette-gecko { max-width: 100%; overflow-x: auto; }
 .icon-palette .type-name, .icon-palette .semantic-icon { max-width: 100%; min-width: 0; }
-.icon-palette .palette-gecko { max-width: 100%; overflow-x: auto; }
 .func-card { background: white; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; cursor: grab; }
 .func-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
 .touch-dragging { outline: 2px solid #60a5fa; outline-offset: -2px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -225,7 +226,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 <div id="app"></div>
 
 <script src="levels.js?v=e8f44a2ac8af"></script>
-<script src="semantic-icons.js?v=a5ff50010215"></script>
+<script src="semantic-icons.js?v=00812005d416"></script>
 <script src="row-program.js?v=816f5987f6e1"></script>
 <script src="puzzle-rules.js?v=1a0a058171db"></script>
 <script src="row-editor.js?v=e743092c4dd2"></script>
@@ -1061,6 +1062,10 @@ function render() {
 
     <main>
       <div class="grid-h">
+        <div class="right-panel${iconMode ? ' icon-palette' : ''}" role="region" aria-label="Available functions">
+          <div id="function-palette"></div>
+          ${!iconMode ? '<div id="parameter-palette"></div>' : ''}
+        </div>
         <div class="left-panel${iconMode ? ' icon-layout' : ''}">
           ${!iconMode ? `
           <div class="section-header"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M137.54,186.36a8,8,0,0,1,0,11.31l-9.94,10a56,56,0,0,1-79.22-79.27l24.12-24.12a56,56,0,0,1,76.81-2.28,8,8,0,1,1-10.64,12,40,40,0,0,0-54.85,1.63L59.7,139.72a40,40,0,0,0,56.58,56.58l9.94-9.94A8,8,0,0,1,137.54,186.36Zm70.08-138a56.08,56.08,0,0,0-79.22,0l-9.94,9.95a8,8,0,0,0,11.32,11.31l9.94-9.94a40,40,0,0,1,56.58,56.58L172.18,140.4a40,40,0,0,1-54.85,1.63,8,8,0,1,0-10.64,12,56,56,0,0,0,76.81-2.28l24.12-24.12A56.08,56.08,0,0,0,207.62,48.38Z"/></svg> To Implement</div>
@@ -1098,13 +1103,6 @@ function render() {
             <div class="status-bar checking" id="status-bar">Status: Init</div>
             <div class="status-output code" id="status-output">You did not make any changes.</div>
           </div>
-        </div>
-
-        <div class="gutter-col"></div>
-
-        <div class="right-panel${iconMode ? ' icon-palette' : ''}" role="region" aria-label="Available functions">
-          <div id="function-palette"></div>
-          ${!iconMode ? '<div id="parameter-palette"></div>' : ''}
         </div>
       </div>
     </main>

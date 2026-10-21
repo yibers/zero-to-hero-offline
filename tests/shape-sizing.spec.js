@@ -69,14 +69,14 @@ for (const phone of [false, true]) {
   });
 }
 
-test('diagrams reflow when a pane narrows and expand again when it widens', async ({ page }) => {
+test('wide palette diagrams reflow on phones and expand again on desktop', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(URL);
   await page.evaluate(() => {
-    showIntro = false; iconMode = true; geckoOn = false; currentLevel = 14;
+    showIntro = false; iconMode = true; geckoOn = false; currentLevel = 10;
     setEditorContent(''); render();
   });
-  const diagram = page.locator('.icon-palette .func-card svg[data-diagram-type]').last();
+  const diagram = page.locator('.icon-palette [data-func-name="f1"] svg[data-diagram-type]');
   const wide = await diagram.boundingBox();
   await page.setViewportSize({ width: 320, height: 900 });
   await expect.poll(async () => (await diagram.boundingBox()).width).toBeLessThan(wide.width);

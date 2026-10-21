@@ -149,6 +149,15 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         const badge = node.closest('.parameter-icon').querySelector('.function-stock');
         reserve = 2 + (badge ? badge.getBoundingClientRect().width + 4 : 0);
       }
+      else if (node.closest('.right-panel .func-card')) {
+        const card = node.closest('.func-card'), style = getComputedStyle(card);
+        holder = card.parentElement;
+        const badge = card.querySelector('.function-stock');
+        // Cards keep their natural width. Use the palette's width as the limit
+        // so a wrapped diagram can expand again when more space is available.
+        reserve = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight)
+          + (badge ? badge.getBoundingClientRect().width + parseFloat(style.columnGap) : 0);
+      }
       else if (node.closest('.func-card')) holder = node.closest('.function-card-content') || node.closest('.func-card');
       else if (node.closest('.argument-choice')) { holder = node.closest('.argument-choices'); reserve = 26; }
       else if (node.closest('.delete-preview-expression')) holder = node.closest('.delete-preview-expression');
