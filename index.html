@@ -118,7 +118,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .editor-slot-param { color: #065f46; }
 .editor-slot-func { color: #1e40af; }
 
-/* Gecko Graph toggle */
+/* Icon mode toggle */
 .gecko-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #d1d5db; cursor: pointer; user-select: none; }
 .gecko-toggle-track { width: 36px; height: 20px; border-radius: 10px; position: relative; transition: background 0.2s; }
 .gecko-toggle-track.on { background: #22c55e; }
@@ -881,8 +881,8 @@ let editorContents = {};
 let rowPrograms = {};
 let textDrafts = {};
 let activeRow = 0;
-let geckoOn = true;
-let iconMode = false;
+let geckoOn = false;
+let iconMode = true;
 let bypassCount = 0;
 
 // Load progress from localStorage
@@ -916,12 +916,11 @@ try {
     }
     currentLevel = Math.max(0, Math.min(parsed.currentLevel || 0, LEVELS.length - 1));
     bypassCount = parsed.bypassCount || 0;
-    geckoOn = parsed.geckoOn !== false;
-    iconMode = parsed.iconMode === true;
+    iconMode = parsed.iconMode !== false;
     showIntro = parsed.showIntro !== false;
     // Preserve the meaning of solutions saved by the old implicit-$ editor.
     // New edits and every later reload use ordinary application in both modes.
-    if (parsed.connectionVersion !== 1 && iconMode) {
+    if (parsed.connectionVersion !== 1 && parsed.iconMode === true) {
       for (const key of Object.keys(editorContents)) {
         const index = Number(key), level = LEVELS[index];
         if (level && typeof editorContents[key] === 'string') {
@@ -1042,12 +1041,6 @@ function render() {
       </div>
       <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${level.name}</div>
       <div style="display:flex;align-items:center;gap:12px">
-        <div class="gecko-toggle" onclick="toggleGecko()">
-          Gecko Graph
-          <div class="gecko-toggle-track ${geckoOn ? 'on' : 'off'}">
-            <div class="gecko-toggle-knob"></div>
-          </div>
-        </div>
         <div class="gecko-toggle" onclick="toggleIconMode()">
           Icons
           <div class="gecko-toggle-track ${iconMode ? 'on' : 'off'}">
