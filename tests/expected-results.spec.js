@@ -25,6 +25,8 @@ test('every palette function starts with a generic output and every solved level
         setEditorContent(f.name); render();
         const output = document.querySelector('.row-feedback .semantic-diagram');
         if (!output || output.querySelector('.type-atom')) failures.push([level.level, f.name]);
+        const inputs = document.querySelector('.function-head .icon-inputs');
+        if (!inputs || inputs.parentElement.children.length !== 1) failures.push([level.level, f.name, 'repeated output in head']);
       }
       setEditorContent(level.solution); render();
       if (document.querySelectorAll('.row-result').length !== getRows().length
@@ -88,6 +90,8 @@ test('composition previews its returned function without repeating its two funct
   await expect(output.locator('.icon-inputs')).toHaveCount(1);
   await expect(output.locator('.icon-inputs .type-placeholder')).toHaveCount(1);
   await expect(output.locator('.icon-output .type-placeholder')).toHaveCount(1);
+  // The two function inputs still need their own complete transformations.
+  await expect(page.locator('.function-head .icon-output')).toHaveCount(2);
   await choose(page, 0, 0, 'mkHero'); await choose(page, 0, 1, 'runZero');
   await expect(output.locator('.type-placeholder')).toHaveCount(2);
   await expect(output.locator('.type-atom')).toHaveCount(0);

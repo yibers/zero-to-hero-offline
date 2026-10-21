@@ -28,12 +28,12 @@ function getRowError() {
   const index = errors.findIndex(Boolean);
   return index < 0 ? null : `Row ${index + 1}: ${errors[index]}`;
 }
-function rowSymbol(name, width, diagram = null) {
+function rowSymbol(name, width, diagram = null, inputsOnly = false) {
   if (iconMode && diagram) {
     const label = name + ': ' + rowTypeSignatures([diagram.type])[0];
     const picture = diagram.arity === undefined
       ? renderSemanticType(diagram.type, label, diagram.variables)
-      : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables);
+      : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables, inputsOnly);
     const reference = /^r\d+$/.test(name) ? ' row-ref rendered-ref' : '';
     return `<span class="icon-sym semantic-icon${reference}" title="${escHtml(label)}">${picture}</span>`;
   }
@@ -187,7 +187,7 @@ function mountRowEditor() {
     if (!structured) { holder.replaceChildren(); return; }
     const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
     const head = ts[call.infix ? 1 : 0];
-    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name, null, call.diagram)}</button><div class="input-slots">` + call.inputs.map((_, slot) => {
+    holder.innerHTML = `<button type="button" class="function-head" data-row="${index}" data-start="${head.start}" data-end="${head.end}" data-name="${escHtml(head.name)}" aria-label="Function ${escHtml(call.name)} in row ${index + 1}" title="${escHtml(ICON_CAPTIONS[level.level]?.[call.name] || call.name)}">${rowSymbol(call.name, null, call.diagram, true)}</button><div class="input-slots">` + call.inputs.map((_, slot) => {
       const name = call.args[slot], filled = name && name !== '_';
       const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
       return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${filled ? escHtml(name) : 'Drop an argument here'}">
