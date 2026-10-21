@@ -224,8 +224,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=b5b9acce71e4"></script>
-<script src="semantic-icons.js?v=61912d85afe0"></script>
+<script src="levels.js?v=8156d5936d40"></script>
+<script src="semantic-icons.js?v=cca3a07d0c7b"></script>
 <script src="row-program.js?v=816f5987f6e1"></script>
 <script src="puzzle-rules.js?v=1a0a058171db"></script>
 <script src="row-editor.js?v=445c766dcabd"></script>
@@ -963,7 +963,7 @@ function saveProgress() {
 }
 
 function levelProgressLabel(level = LEVELS[currentLevel]) {
-  return level.level === 0 ? 'Introduction' : `Level ${level.level} / ${LEVELS[LEVEL_ORDER.at(-1)].level}`;
+  return `Level ${level.level} / ${LEVELS.length}`;
 }
 
 function render() {

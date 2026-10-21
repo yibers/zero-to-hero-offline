@@ -121,7 +121,7 @@ test('manual solutions cannot bypass composition or lifted composition in the re
  for (const result of outcomes) {
   expect(result.typed, `Level ${result.level}: manual solution still has the target type`).toBe(true);
   expect(result.composed, `Level ${result.level}: composed solution passes`).toBe(true);
-  const missing = result.level === 8 ? ['(<$>)', '(.)'] : ['(.)'];
+  const missing = result.level === 9 ? ['(<$>)', '(.)'] : ['(.)'];
   for (const attempt of [result.manual, result.unused]) {
    expect(attempt.ok, `Level ${result.level}: required operators cannot be skipped`).toBe(false);
    expect(attempt.missing).toEqual(missing);

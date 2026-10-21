@@ -183,77 +183,77 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     }
   }
   const data = {
-    0: { wrap: ['Wrap a value', 'Put a value inside Zero, keeping the same value and its type.'] },
-    1: { f: ['Change Zero to Hero', 'Change Zero to Hero, keeping the same value.'] },
-    2: {
-      runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
-      mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
-    },
+    1: { wrap: ['Wrap a value', 'Put a value inside Zero, keeping the same value and its type.'] },
+    2: { f: ['Change Zero to Hero', 'Change Zero to Hero, keeping the same value.'] },
     3: {
       runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
       mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
     },
     4: {
+      runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
+      mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
+    },
+    5: {
       f1: ['Zero → Hero', 'Change Zero to Hero, keeping its value.'],
       f2: ['Unwrap and duplicate', 'Take Zero’s value and duplicate it into a pair.'],
       f3: ['Duplicate inside Hero', 'Duplicate Hero’s value into a pair inside Hero.'],
     },
-    5: {
+    6: {
       f1: ['Swap; make Hero', 'Swap the two slots and change Zero to Hero.'],
       f2: ['Matching slots → Hero', 'Change Zero to Hero when both slots have the same type.'],
       f3: ['Swap slots', 'Swap the two slots inside Zero.'],
       f4: ['Repeat second slot', 'Replace the first slot with a copy of the second.'],
     },
-    6: {
+    7: {
       fst: ['Take left item', 'Take the first item of a pair.'],
       snd: ['Take right item', 'Take the second item of a pair.'],
       f1: ['Pair in second slot', 'Keep Zero’s first slot and put both original values into a pair in its second slot.'],
       f2: ['Reversed pair in Hero', 'Put Zero’s two values into Hero as a reversed pair.'],
       f3: ['Split into two Heroes', 'Put each Zero slot into its own Hero, returning a pair of Heroes.'],
     },
-    7: {
+    8: {
       f1: ['Swap first and last', 'Swap Zero’s first and last slots; keep the middle slot.'],
       f2: ['Repeat last slot', 'Keep the first slot and replace the middle slot with a copy of the last.'],
       f3: ['Last two → Hero', 'Keep Zero’s last two slots and put them in Hero.'],
     },
-    8: {
+    9: {
       f1: ['Hero holding a → b', 'Produce a Hero containing a function from a to b.'],
       f2: ['Hero holding b → c', 'Produce a Hero containing a function from b to c.'],
       f3: ['First slot → Hero', 'Take Zero’s first slot and put it in Hero.'],
     },
-    9: {
+    10: {
       fmap: ['Map the last slot', 'Apply the supplied function to Zero’s last slot; keep the first two slots.'],
       f1: ['Last slot to front', 'Rotate Zero’s last slot to the front.'],
       f2: ['Zero → Hero', 'Change Zero to Hero, keeping all three slots.'],
     },
-    10: {
+    11: {
       f1: ['Duplicate first two', 'Keep the first two slots and duplicate each: a, a, b, b.'],
       f2: ['Duplicate last two', 'Put copies of Zero’s last two slots in Hero: c, c, d, d.'],
       f3: ['Reverse four slots', 'Reverse the order of all four Zero slots.'],
     },
-    11: {
+    12: {
       f1: ['Apply first to second', 'Apply the function in slot 1 to slot 2. Replace slot 1 with (), and slot 2 with the result.'],
       f2: ['First slot to end', 'Rotate Zero’s first slot to the end.'],
       f3: ['Last slot → Hero', 'Take Zero’s last slot and put it in Hero.'],
     },
-    12: {
+    13: {
       wrap: ['Two Hero layers', 'Move Zero’s value inside two nested Hero layers.'],
       join: ['Flatten Hero layers', 'Flatten two nested Hero layers into one.'],
     },
-    13: {
+    14: {
       f: ['Zero → Hero', 'Change Zero to Hero, keeping its value.'],
       dup: ['Duplicate into Hero', 'Duplicate a value into a pair inside Hero.'],
     },
-    14: {
+    15: {
       f: ['Pair inside Hero', 'Put Zero’s two slots into Hero as an ordered pair.'],
       swap: ['Swap pair items', 'Swap the first and second items of a pair.'],
     },
-    15: {
+    16: {
       f: ['Zero → Hero', 'Change Zero to Hero, keeping its value.'],
       dup: ['Duplicate into Hero', 'Duplicate a value into a pair inside Hero.'],
       nest: ['Nested pair in Hero', 'Make a Hero containing a value and a nested pair, all of the same type.'],
     },
-    16: {
+    17: {
       f: ['First slot → Hero', 'Take Zero’s first slot and put it in Hero.'],
       g: ['Second slot → Hero', 'Take Zero’s second slot and put it in Hero.'],
       pair: ['Make a pair', 'Combine two arguments into an ordered pair.'],
@@ -290,7 +290,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     names.forEach((name, i) => {
       const type = args[i];
       const info = type.tag === 'fun' ? `Function from ${typeToString(type.from)} to ${typeToString(type.to)}.`
-        : name === 'z' ? (level.level === 11 ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.')
+        : name === 'z' ? (level.level === 12 ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.')
         : 'Your starting value, before it is wrapped.';
       labels[name] = details[name] = info;
       map[name] = renderType(fixedType(type), `${name}: ${info} Type: ${typeToString(type)}`);

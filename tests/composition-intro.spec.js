@@ -11,7 +11,7 @@ async function open(page) {
   await page.evaluate(() => document.fonts.ready);
 }
 
-test('the new third level repeats Assembly required and requires meaningful composition', async ({ page }) => {
+test('the fourth level repeats Assembly required and requires meaningful composition', async ({ page }) => {
   await open(page);
   const result = await page.evaluate(() => {
     const previous = LEVELS[1], intro = LEVELS[2];
@@ -28,7 +28,7 @@ test('the new third level repeats Assembly required and requires meaningful comp
       infix: checkSolution(intro, 'let pipeline = mkHero . runZero in pipeline z').ok };
   });
   expect(result.count).toBe(17);
-  expect(result.numbers).toEqual(Array.from({ length: 17 }, (_, i) => i));
+  expect(result.numbers).toEqual(Array.from({ length: 17 }, (_, i) => i + 1));
   expect(result.sameGoal).toBe(true); expect(result.sameHelpers).toBe(true);
   expect(result.functions).toEqual(['runZero', 'mkHero', '(.)']);
   expect(result.oldSolutionPassesOldLevel).toBe(true); expect(result.oldSolutionHasRightType).toBe(true);
@@ -132,7 +132,7 @@ test('previous one-step composition completions are rechecked without losing sav
 test('inserting a level preserves every old puzzle draft, completion, setting and position exactly once', async ({ page }) => {
   await open(page);
   const old = await page.evaluate(() => {
-    const oldLevels = LEVELS.filter((level, index) => index !== 2 && level.level > 0);
+    const oldLevels = LEVELS.filter((level, index) => index !== 2 && level.level > 1);
     const saved = {
       currentLevel: 7, completed: oldLevels.map((_, index) => index), bypassCount: 4,
       showIntro: false, iconMode: true, geckoOn: false,
@@ -150,7 +150,7 @@ test('inserting a level preserves every old puzzle draft, completion, setting an
   expect(saved.levelOrderVersion).toBe(1);
   expect(saved.currentLevel).toBe(8);
   await expect(page.locator('nav')).toContainText('The middle man');
-  await expect(page.locator('.level-badge')).toContainText('Level 9 / 16');
+  await expect(page.locator('.level-badge')).toContainText('Level 10 / 17');
   expect(saved.completed).toEqual([0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   for (const field of ['editorContents', 'rowPrograms', 'textDrafts']) {
     expect(saved[field][2]).toBeUndefined();
@@ -165,12 +165,12 @@ test('inserting a level preserves every old puzzle draft, completion, setting an
 
 test.describe('phone composition introduction', () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
-  test('advance from level 2, compose functions by touch, apply the result, and continue to the old level 3', async ({ page }) => {
+  test('advance from level 3, compose functions by touch, apply the result, and continue to level 5', async ({ page }) => {
     await open(page);
     await page.evaluate(() => { currentLevel = 1; setEditorContent(LEVELS[1].solution); render(); });
     await page.getByRole('button', { name: 'Next level', exact: true }).tap();
     await expect(page.locator('nav')).toContainText('Assembly by composition');
-    await expect(page.locator('.level-badge')).toContainText('Level 3 / 16');
+    await expect(page.locator('.level-badge')).toContainText('Level 4 / 17');
     const cdp = await page.context().newCDPSession(page);
     async function drag(source, target) {
       await target.scrollIntoViewIfNeeded(); await source.scrollIntoViewIfNeeded();
@@ -199,7 +199,7 @@ test.describe('phone composition introduction', () => {
     await expect(page.locator('#status-bar')).toHaveClass(/success/);
     await page.getByRole('button', { name: 'Next level', exact: true }).tap();
     await expect(page.locator('nav')).toContainText('Which path?');
-    await expect(page.locator('.level-badge')).toContainText('Level 4 / 16');
+    await expect(page.locator('.level-badge')).toContainText('Level 5 / 17');
   });
 
   test('compose three functions by reusing a composed result, then apply it in a third row', async ({ page }) => {
