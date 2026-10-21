@@ -64,14 +64,6 @@ function rowTypeSignatures(types) {
     return renamed[variable];
   }));
 }
-// Output previews describe the declared result pattern, independently of the
-// concrete types inferred for the supplied arguments or a reused row value.
-function genericRowType(type) {
-  if (type.tag === 'con' && type.name.startsWith('SKOLEM')) return { tag: 'var', name: type.name.slice(6) };
-  if (type.tag === 'fun') return { ...type, from: genericRowType(type.from), to: genericRowType(type.to) };
-  if (type.tag === 'app') return { ...type, con: genericRowType(type.con), arg: genericRowType(type.arg) };
-  return type;
-}
 function diagnoseCall(code, env, params, compositionLimit = null) {
   const model = RowProgram.call(code);
   if (!model) return null;
@@ -104,7 +96,9 @@ function diagnoseCall(code, env, params, compositionLimit = null) {
     let remaining = headType;
     for (const _ of model.args) remaining = remaining.to;
     return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))),
-      expected: { type: genericRowType(type), variables: [...findVars(genericRowType(headType))] },
+      // Show only the output, specializing it as each supplied input constrains
+      // the template. Unfilled inputs leave the remaining placeholders generic.
+      expected: { type: applySubst(subst, type), variables },
       diagram: { type: applySubst(subst, headType), variables, arity: inputs.length },
       arguments: actuals.map(actual => actual && ({ type: applySubst(subst, actual), variables })),
       result: { type: applySubst(subst, remaining), variables } };
@@ -131,7 +125,7 @@ function diagnoseRows() {
       if (!type) throw Error('Incomplete expression.');
       env[row.id] = type;
       return { type, signature: rowTypeSignatures([type])[0], diagram: call?.result || { type },
-        expected: call?.expected || { type: genericRowType(type) }, call };
+        expected: call?.expected || { type }, call };
     } catch (e) {
       return { error: errors[index] || normalizeTypeError(e.message), expected: call?.expected, call };
     }

@@ -40,7 +40,7 @@ test('drop an argument inside a function, without a connector, and render its ou
   await expect(page.locator('#connection-picker')).toHaveCount(0);
   await expect(slot(page, 0, 0)).toHaveAttribute('aria-label', 'Input 1 of f: z');
   await expect(page.locator('.row-result svg')).toHaveAttribute('aria-label', 'Expected result r1: Hero a');
-  await expect(page.locator('.row-result .type-placeholder')).toHaveCount(1);
+  await expect(page.locator('.row-result .type-atom')).toHaveCount(1);
 
   await expect(page.locator('#status-bar')).toHaveClass(/success/);
 });
@@ -142,12 +142,12 @@ test('replace and clear infix inputs without deleting their operator', async ({ 
 test('rendered results update dependent rows and are removed when inference fails', async ({ page }) => {
   await open(page, 3, 'f3 $ f1 z');
   await expect(page.locator('.row-result').nth(1).locator('svg')).toHaveAttribute('aria-label', 'Expected result r2: Hero (a, a)');
-  await expect(page.locator('.row-result').nth(1).locator('.type-placeholder')).toHaveCount(2);
+  await expect(page.locator('.row-result').nth(1).locator('.type-atom')).toHaveCount(2);
   await fillRow(page, 0, 'f3');
   await expect(page.locator('.program-row').nth(1).locator('.row-result')).toHaveCount(0);
   await expect(page.locator('.program-row').nth(1)).toHaveClass(/row-invalid/);
   await fillRow(page, 0, 'f1 z');
-  await expect(page.locator('.row-result').nth(1).locator('.type-placeholder')).toHaveCount(2);
+  await expect(page.locator('.row-result').nth(1).locator('.type-atom')).toHaveCount(2);
   await page.evaluate(() => toggleIconMode());
   await expect(page.locator('.row-result')).toHaveCount(0);
   await expect(page.locator('#code-editor')).toHaveValue(/let\n.*\nin\n/s);
