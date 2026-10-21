@@ -193,7 +193,7 @@ function mountRowEditor() {
     Object.assign(holder.dataset, { row: index, start: head.start, end: head.end, name: head.name });
     holder.setAttribute('role', 'group');
     holder.setAttribute('aria-label', `Function ${call.name} in row ${index + 1}`);
-    holder.title = `${ICON_CAPTIONS[level.level]?.[call.name] || call.name}. Drag the blue border to move or remove this function.`;
+    holder.title = `${call.name}. Drag the blue border to move or remove this function.`;
     holder.innerHTML = '<div class="input-slots">' + call.inputs.map((_, slot) => {
       const name = call.args[slot], filled = name && name !== '_';
       const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
