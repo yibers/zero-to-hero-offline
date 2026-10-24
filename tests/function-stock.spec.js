@@ -8,7 +8,7 @@ async function open(page, level = 0, code = '', icons = true) {
   await page.goto(URL);
   await page.evaluate(({ level, code, icons }) => {
     localStorage.clear(); currentLevel = level; showIntro = false; iconMode = icons; geckoOn = false;
-    completedLevels.clear(); bypassCount = 0; editorContents = {}; rowPrograms = {}; textDrafts = {}; activeRow = 0;
+    completedLevels.clear(); editorContents = {}; rowPrograms = {}; textDrafts = {}; activeRow = 0;
     clearRowHistory(); setEditorContent(code); render();
   }, { level, code, icons });
   await page.evaluate(() => document.fonts.ready);
@@ -138,8 +138,8 @@ test('old completions that used extra copies are reopened while drafts and setti
   await page.reload();
   await expect(page.getByRole('textbox', { name: 'Haskell expression', exact: true })).toHaveValue(code);
   await expect(page.locator('#next-level')).toBeHidden();
-  expect(await page.evaluate(() => ({ completed: [...completedLevels], bypassCount, iconMode, geckoOn })))
-    .toEqual({ completed: [], bypassCount: 1, iconMode: false, geckoOn: false });
+  expect(await page.evaluate(() => ({ completed: [...completedLevels], iconMode, geckoOn })))
+    .toEqual({ completed: [], iconMode: false, geckoOn: false });
   await expect(page.locator('#status-output')).toContainText('Too many copies');
 });
 

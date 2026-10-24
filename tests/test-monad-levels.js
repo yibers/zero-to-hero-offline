@@ -18,17 +18,17 @@ const path = require('path');
   await p.waitForTimeout(200);
 
   const tests = [
-    { level: 12, solution: 'join $ wrap z' },
-    { level: 13, solution: 'f z >>= dup' },
-    { level: 14, solution: 'swap <$> f z' },
-    { level: 15, solution: 'f z >>= dup >>= nest' },
-    { level: 16, solution: 'pair <$> g z <*> f z' },
+    { level: 13, solution: 'join $ wrap z' },
+    { level: 14, solution: 'f z >>= dup' },
+    { level: 15, solution: 'swap <$> f z' },
+    { level: 16, solution: 'f z >>= dup >>= nest' },
+    { level: 17, solution: 'pair <$> g z <*> f z' },
   ];
 
   // Test each solution by calling typeCheck directly
   const results = await p.evaluate((tests) => {
     return tests.map(t => {
-      const level = LEVELS[t.level - 1];
+      const level = LEVELS.find(level => level.level === t.level);
       const result = typeCheck(level, t.solution);
       // Also test liveInfer
       const inferred = liveInfer(level, t.solution);
@@ -51,29 +51,15 @@ const path = require('path');
     if (!pass) allPassed = false;
   }
 
-  // Also test via UI for level 12 to verify full flow
-  // Grant bypass points via evaluate so we can skip to level 12
-  console.log('\n--- UI test: bypass to L12 and solve ---');
+  // Open the flattening puzzle directly in the test fixture.
+  console.log('\n--- UI test: flattening puzzle ---');
   await p.evaluate(() => {
-    bypassCount = 11;
-    saveProgress();
+    currentLevel = LEVELS.findIndex(level => level.name === 'Flat is justice');
+    iconMode = false; showIntro = false; render();
   });
-  await p.reload();
-  await p.waitForTimeout(300);
-  // Dismiss intro if shown
-  const introBtn = p.locator('button', { hasText: 'OK' });
-  if (await introBtn.isVisible({ timeout: 500 }).catch(() => false)) await introBtn.click();
-  await p.waitForTimeout(200);
-
   {
-    const bypassBtn = p.locator('button', { hasText: 'Bypass' });
-    for (let i = 0; i < 11; i++) {
-      await bypassBtn.click();
-      await p.waitForTimeout(100);
-    }
-
     const editor = p.locator('#code-editor');
-    await editor.fill('zeroToHero z = join $ wrap z');
+    await editor.fill(await p.evaluate(() => LEVELS[currentLevel].solution));
     await p.waitForTimeout(500);
     const inferred = await p.locator('#inferred-type').textContent();
     console.log('Inferred type:', inferred);

@@ -883,7 +883,6 @@ let textDrafts = {};
 let activeRow = 0;
 let geckoOn = false;
 let iconMode = true;
-let bypassCount = 0;
 
 // Load progress from localStorage
 try {
@@ -915,7 +914,6 @@ try {
       }
     }
     currentLevel = Math.max(0, Math.min(parsed.currentLevel ?? LEVEL_ORDER[0], LEVELS.length - 1));
-    bypassCount = parsed.bypassCount || 0;
     iconMode = parsed.iconMode !== false;
     showIntro = parsed.showIntro !== false;
     // Preserve the meaning of solutions saved by the old implicit-$ editor.
@@ -940,7 +938,7 @@ try {
         } catch (_) { return false; }
       }));
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 1) saveProgress();
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 1 || 'bypassCount' in parsed) saveProgress();
   }
 } catch(e) {}
 
@@ -952,7 +950,6 @@ function saveProgress() {
     textDrafts,
     rowVersion: 1,
     currentLevel,
-    bypassCount,
     geckoOn,
     iconMode,
     showIntro: false,
@@ -1025,7 +1022,7 @@ function render() {
           <li>Type checking runs entirely in-browser via a Hindley&ndash;Milner inference engine written in JavaScript &mdash; the original sends code to a GHC server</li>
           <li>5 additional monad levels (Functor, Applicative, Monad, MonadFish, MonadJoin)</li>
           <li>Fully self-contained &mdash; works offline, no server needed</li>
-          <li>Progress, editor contents, and bypass points persist in localStorage</li>
+          <li>Progress and editor contents persist in localStorage</li>
           <li>One operation per row, reusable results, and a generated Haskell let definition</li>
           <li>Automatic completion: reach the target and use exactly the supplied copies of each function</li>
         </ul>
@@ -1039,7 +1036,6 @@ function render() {
     <nav>
       <div style="display:flex;gap:4px">
         <button onclick="prevLevel()" ${currentLevel === LEVEL_ORDER[0] ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg> Prev</button>
-        <button id="bypass-button" onclick="bypass()" ${bypassCount === 0 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg> Bypass (${bypassCount})</button>
         <button id="next-level" onclick="nextLevel()" ${completedLevels.has(currentLevel) ? '' : 'hidden'}>${currentLevel === LEVEL_ORDER.at(-1) ? 'Finish' : 'Next level'}</button>
       </div>
       <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${level.name}</div>
@@ -1699,15 +1695,12 @@ window.dismissIntro = function() {
 function recordCompletion() {
   if (!completedLevels.has(currentLevel)) {
     completedLevels.add(currentLevel);
-    bypassCount++;
     saveProgress();
   }
   const next = document.getElementById('next-level');
   if (next) next.hidden = false;
   const badge = document.getElementById('level-badge');
   if (badge) badge.innerHTML = `<span title="Solved" style="color:#22c55e">&#10003; </span>${levelProgressLabel()}`;
-  const bypassButton = document.getElementById('bypass-button');
-  if (bypassButton) { bypassButton.disabled = bypassCount === 0; bypassButton.textContent = `Bypass (${bypassCount})`; }
 }
 
 window.nextLevel = function() {
@@ -1727,7 +1720,6 @@ window.resetGame = function() {
   textDrafts = {};
   textHistory.clear();
   clearRowHistory();
-  bypassCount = 0;
   saveProgress();
   render();
 };
@@ -1761,18 +1753,6 @@ window.prevLevel = function() {
     saveProgress();
     render();
   }
-};
-
-window.bypass = function() {
-  if (bypassCount <= 0) return;
-  bypassCount--;
-  if (currentLevel === LEVEL_ORDER.at(-1)) {
-    showComplete = true;
-  } else {
-    currentLevel = LEVEL_ORDER[LEVEL_ORDER.indexOf(currentLevel) + 1];
-  }
-  saveProgress();
-  render();
 };
 
 // Save progress on editor blur and page unload instead of every keystroke

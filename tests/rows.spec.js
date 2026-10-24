@@ -134,7 +134,7 @@ test('legacy saved progress preserves settings and rechecks the learning require
   expect(await page.evaluate(() => typeCheck(LEVELS[7], getCodeFromEditor()).ok)).toBe(true);
   await page.getByText('Icons', { exact: true }).click();
   await page.reload();
-  expect(await page.evaluate(() => ({ count: getRows().length, completed: [...completedLevels], bypassCount, geckoOn, iconMode }))).toEqual({ count: 5, completed: [], bypassCount: 2, geckoOn: false, iconMode: false });
+  expect(await page.evaluate(() => ({ count: getRows().length, completed: [...completedLevels], geckoOn, iconMode }))).toEqual({ count: 5, completed: [], geckoOn: false, iconMode: false });
 });
 
 test('unfinished legacy expressions are retained with an actionable error', async ({ page }) => {

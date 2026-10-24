@@ -50,7 +50,7 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('body')).toContainText('Code Editor');
     await expect(page.getByRole('region', { name: 'Available functions' })).toBeVisible();
     await expect(page.locator('body')).toContainText('Gecko Graph');
-    await expect(page.locator('body')).toContainText('Bypass');
+    await expect(page.locator('body')).not.toContainText('Bypass');
     await expect(page.locator('textarea#code-editor')).toBeVisible();
     // New rows start empty; the internal undefined placeholder is not displayed.
     await expect(page.locator('#code-editor')).toHaveValue('');
@@ -252,27 +252,6 @@ test.describe('Zero to Hero', () => {
 
     await page.waitForTimeout(300);
     await expect(page.locator('#status-bar')).toContainText('Not solved');
-  });
-
-  test('bypass button decrements count', async ({ page }) => {
-    // Solve level 1 to earn 1 bypass point
-    const editor = page.locator('#code-editor');
-    await editor.fill('f z');
-
-    await page.waitForTimeout(300);
-    await page.locator('button', { hasText: 'Next level' }).click();
-    await page.waitForTimeout(200);
-
-    // Should have 1 bypass point — use it
-    const bypassBtn = page.locator('button', { hasText: 'Bypass' });
-    await expect(bypassBtn).toContainText('1');
-    await bypassBtn.click();
-    await page.waitForTimeout(200);
-
-    // Bypass count should now be 0 and button disabled
-    const bypassBtn2 = page.locator('button', { hasText: 'Bypass' });
-    await expect(bypassBtn2).toContainText('0');
-    await expect(bypassBtn2).toBeDisabled();
   });
 
   test('cursor remains visible in editor after dragging a function in', async ({ page }) => {
@@ -696,15 +675,15 @@ test.describe('Zero to Hero', () => {
     await expect(page.locator('.gecko-toggle-track.on')).toHaveCount(2);
   });
 
-  test('re-solving completed level does not grant additional bypass points', async ({ page }) => {
-    // Solve level 1
+  test('re-solving a completed level does not duplicate its completion record', async ({ page }) => {
+    // Solve the current level
     const editor = page.locator('#code-editor');
     await editor.fill('f z');
 
     await page.waitForTimeout(300);
 
-    // Should have 1 bypass point
-    await expect(page.locator('button', { hasText: 'Bypass' })).toContainText('1');
+    // Completion is recorded once
+    expect(await page.evaluate(() => completedLevels.size)).toBe(1);
 
     // Go to L2 then back to L1
     await page.locator('button', { hasText: 'Next level' }).click();
@@ -717,7 +696,7 @@ test.describe('Zero to Hero', () => {
 
     await page.waitForTimeout(300);
 
-    // Should still have 1 bypass point, not 2
-    await expect(page.locator('button', { hasText: 'Bypass' })).toContainText('1');
+    // The same level still has one completion record
+    expect(await page.evaluate(() => completedLevels.size)).toBe(1);
   });
 });

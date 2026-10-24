@@ -11,7 +11,7 @@ const expectedFunctions = [
 async function open(page, icons = true) {
  await page.goto(URL);
  await page.evaluate(icons => {
-  localStorage.clear(); completedLevels.clear(); bypassCount = 0; currentLevel = 0;
+  localStorage.clear(); completedLevels.clear(); currentLevel = 0;
   showIntro = false; iconMode = icons; geckoOn = false;
   editorContents = {}; rowPrograms = {}; textDrafts = {}; render();
  }, icons);
@@ -31,7 +31,7 @@ test('all 17 palettes contain exactly the required functions and every reference
  }
  await expect(page.locator('nav')).not.toContainText(/Attempt|Optimal/);
  await expect(page.locator('#status-output')).not.toContainText(/operations|conciseness/i);
- expect(await page.evaluate(() => bypassCount)).toBe(17);
+ expect(await page.evaluate(() => completedLevels.size)).toBe(17);
  await page.evaluate(() => { currentLevel = LEVEL_ORDER.at(-1); render(); });
  await page.getByRole('button', { name: 'Finish', exact: true }).click();
  await expect(page.locator('#complete-dialog')).toBeVisible();
@@ -144,7 +144,7 @@ test('version 1 completions are rechecked for restored operators while row and t
  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
  expect(saved.completed).toEqual([0]);
  expect(saved.completionVersion).toBe(5);
- expect(saved.bypassCount).toBe(3);
+ expect(saved.bypassCount).toBeUndefined();
  expect(saved.rowPrograms[3]).toEqual([{ id: 'r1', expr: 'f1 z' }, { id: 'r2', expr: 'f3 r1' }]);
  expect(saved.textDrafts[7]).toBe(manualSeven);
  await expect(page.locator('#status-output')).toContainText('Still needed: (<$>), (.)');
@@ -152,7 +152,7 @@ test('version 1 completions are rechecked for restored operators while row and t
  await expect(page.locator('.ready-row')).toHaveCount(1);
 });
 
-test('automatic completion preserves editing, rewards once, survives reload, and advances only on Next', async ({ page }) => {
+test('automatic completion preserves editing, records completion once, survives reload, and advances only on Next', async ({ page }) => {
  await open(page, false);
  await page.locator('#code-editor').fill('f z');
  await expect(page.locator('#status-bar')).toHaveClass(/success/);
@@ -162,9 +162,9 @@ test('automatic completion preserves editing, rewards once, survives reload, and
  await page.locator('#code-editor').fill('z');
  await expect(page.locator('#status-bar')).toHaveClass(/error/);
  await page.locator('#code-editor').fill('f z');
- expect(await page.evaluate(() => bypassCount)).toBe(1);
+ expect(await page.evaluate(() => completedLevels.size)).toBe(1);
  await page.reload();
- expect(await page.evaluate(() => bypassCount)).toBe(1);
+ expect(await page.evaluate(() => completedLevels.size)).toBe(1);
  await page.locator('#next-level').click();
  expect(await page.evaluate(() => currentLevel)).toBe(1);
 });

@@ -22,25 +22,29 @@ test('the introduction wraps one value while preserving its type and enforcing i
   assert.equal(app.run('getRowError()'), null);
 });
 
-test('completion, refresh, next, previous, bypass and reset follow the introductory order', () => {
+test('completion, refresh, next, previous and reset follow the introductory order', () => {
   const app = game();
+  app.run('nextLevel();');
+  assert.equal(app.run('LEVELS[currentLevel].level'), 1);
   app.run('setEditorContent("wrap value"); runLiveCheck();');
   assert.equal(app.nodes['next-level'].hidden, false);
   assert.match(app.nodes['level-badge'].innerHTML, /Level 1 \/ 17/);
-  assert.equal(app.run('bypassCount'), 1);
+  assert.equal(app.run('completedLevels.size'), 1);
   app.run('runLiveCheck();');
-  assert.equal(app.run('bypassCount'), 1);
+  assert.equal(app.run('completedLevels.size'), 1);
   const restored = game(app.saved());
   assert.equal(restored.run('getCodeFromEditor()'), 'wrap value');
   assert.equal(restored.run('completedLevels.has(currentLevel)'), true);
   restored.run('nextLevel();');
   assert.equal(restored.run('LEVELS[currentLevel].name'), 'Trial');
   assert.equal(restored.run('levelProgressLabel()'), 'Level 2 / 17');
+  restored.run('nextLevel();');
+  assert.equal(restored.run('LEVELS[currentLevel].level'), 2);
   restored.run('prevLevel();');
   assert.equal(restored.run('LEVELS[currentLevel].level'), 1);
   restored.run('prevLevel();');
   assert.equal(restored.run('LEVELS[currentLevel].level'), 1);
-  restored.run('bypass();');
+  restored.run('nextLevel();');
   assert.equal(restored.run('LEVELS[currentLevel].level'), 2);
   restored.run('currentLevel = LEVEL_ORDER.at(-1); completedLevels.add(currentLevel); nextLevel();');
   assert.equal(restored.run('showComplete'), true);
@@ -77,10 +81,14 @@ test('existing saved puzzle indices, drafts, achievements and settings remain un
   assert.equal(restored.run('levelProgressLabel()'), 'Level 9 / 17');
   assert.equal(restored.run('completedLevels.has(LEVEL_ORDER[0])'), false);
   restored.run('saveProgress();');
-  assert.deepEqual(restored.saved(), saved);
+  const { bypassCount: legacyPoints, ...expected } = saved;
+  assert.deepEqual(restored.saved(), expected);
+  assert.equal(restored.run('typeof bypass'), 'undefined');
+  restored.run('showIntro = false; render();');
+  assert.doesNotMatch(restored.nodes.app.innerHTML, /Bypass|bypass-button/);
   const again = game(restored.saved());
   again.run('saveProgress();');
-  assert.deepEqual(again.saved(), saved);
+  assert.deepEqual(again.saved(), expected);
 });
 
 test('pre-composition saves still migrate once without treating the introduction as an old puzzle', () => {

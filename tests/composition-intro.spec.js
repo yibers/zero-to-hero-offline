@@ -6,7 +6,7 @@ async function open(page) {
   await page.goto(URL);
   await page.evaluate(() => {
     localStorage.clear(); currentLevel = 0; showIntro = false; iconMode = true; geckoOn = false;
-    completedLevels.clear(); bypassCount = 0; editorContents = {}; rowPrograms = {}; textDrafts = {}; render();
+    completedLevels.clear(); editorContents = {}; rowPrograms = {}; textDrafts = {}; render();
   });
   await page.evaluate(() => document.fonts.ready);
 }
@@ -122,7 +122,7 @@ test('previous one-step composition completions are rechecked without losing sav
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
   expect(saved.completed).toEqual([0]);
   expect(saved.completionVersion).toBe(5);
-  for (const field of ['rowPrograms', 'textDrafts', 'editorContents', 'bypassCount', 'iconMode', 'geckoOn']) {
+  for (const field of ['rowPrograms', 'textDrafts', 'editorContents', 'iconMode', 'geckoOn']) {
     expect(saved[field]).toEqual(previous[field]);
   }
   await expect(page.locator('#status-output')).toContainText('Apply the composed result in a separate row');
@@ -158,7 +158,7 @@ test('inserting a level preserves every old puzzle draft, completion, setting an
       expect(saved[field][index < 2 ? index : index + 1]).toEqual(old[field][index]);
     }
   }
-  expect(saved.bypassCount).toBe(4); expect(saved.iconMode).toBe(true); expect(saved.geckoOn).toBe(false);
+  expect(saved.bypassCount).toBeUndefined(); expect(saved.iconMode).toBe(true); expect(saved.geckoOn).toBe(false);
   await page.reload();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')))).toEqual(saved);
 });
