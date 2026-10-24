@@ -61,7 +61,7 @@ tests/          — Playwright + unit tests
 - **Learning requirements** — use exactly the supplied copies, all contributing to the final expression. Extra copies anywhere in the program fail validation, and unused bindings cannot satisfy missing uses. Text mode enforces the same counts while preserving invalid drafts for repair. Required higher-order functions cannot be skipped by manually producing the target. There is no length or operation-count score.
 - **Automatic completion** — matching the target and satisfying the learning requirements immediately marks the level solved and enables Next (Finish on the last level). The editor stays open. Solving a level earns one bypass point, only once. Old completion records are rechecked against these rules while keeping saved programs and preferences.
 - Touch drag-and-drop — drag a function/parameter card straight into the editor, in either mode. In icon mode, drag an editor token within or between rows, or out to remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
-- Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments.
+- Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments. Generic types use distinct dotted gray outlines, with the same outline repeated wherever a type variable occurs in a function. Concrete types use colored hollow shapes. As arguments specialize a call, each assigned type appears inside its original gray outline in the inputs and output. The gray outline can grow around an entire pair, wrapper, or function without shrinking its contents. Starting values and values reused in another call carry their actual type; they do not carry the previous call’s generic slot.
 - In icon mode, drop beside a function to insert normally, with no automatic connector. Drop onto the center of a function to choose from the level’s operators, preview the resulting code, or swap the order. This works with touch and mouse, including moving existing editor tokens.
 - Saved solutions from the earlier automatic-chaining editor retain their meaning through a one-time conversion to explicit `$` connectors.
 - Dragging a row's main function out in icon mode clears that row's arguments too; undo restores the whole call. Dragging an argument out clears only that input. In unstructured expressions, dragging a function out also removes an adjacent explicit connector.
@@ -108,7 +108,7 @@ Before publishing JavaScript or CSS changes, run `npm run version:assets`. This 
 ## Testing
 
 ```bash
-node --test tests/wrapping-intro.test.cjs
+node --test tests/*.test.cjs
 npx playwright test
 ```
 

@@ -16,7 +16,7 @@ for (const phone of [false, true]) {
           LEVELS.forEach((level, index) => {
             for (const code of ['', level.solution]) {
               currentLevel = index; setEditorContent(code); render();
-              for (const atom of document.querySelectorAll('.type-atom, .type-placeholder')) {
+              for (const atom of document.querySelectorAll('.type-atom')) {
                 const box = atom.getBoundingClientRect();
                 if (Math.abs(box.width - 15) > .01 || Math.abs(box.height - 15) > .01)
                   failures.push({ level: level.level, type: atom.dataset.type, width: box.width, height: box.height });
@@ -35,7 +35,7 @@ for (const phone of [false, true]) {
         return { failures, locations: [...locations].sort() };
       });
       expect(checks.failures).toEqual([]);
-      expect(checks.locations).toEqual(['.argument-slot', '.func-card', '.function-head', '.parameter-icon', '.row-result']);
+      expect(checks.locations).toEqual(['.argument-slot', '.function-head', '.parameter-icon', '.row-result']);
     });
 
     test('wrappers grow around nested values and wide rows wrap to keep their full output visible', async ({ page }) => {

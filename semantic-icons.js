@@ -1,5 +1,6 @@
 // Pictograms describe the puzzle's type transformations. No runtime behavior is
-// inferred beyond the supplied signatures. Generic variables use matching dashed tiles; rigid puzzle types keep solid shapes.
+// inferred beyond the supplied signatures. Dotted gray shapes identify generic
+// slots; colored outlines show fixed types, nested in their assigned slots.
 function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   const escape = text => String(text).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const shield = '<path d="M12 2 4 6v7c0 4.5 3.3 7.4 8 9 4.7-1.6 8-4.5 8-9V6Z"/>';
@@ -13,11 +14,12 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     return `<svg class="semantic-diagram" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${displayWidth}" height="${displayHeight}" style="width:${displayWidth}px;height:${displayHeight}px;max-width:none;flex-shrink:0" role="img" aria-label="${escape(label)}"><title>${escape(label)}</title>${body}</svg>`;
   };
   const move = (body, x, y) => `<g transform="translate(${x} ${y})">${body}</g>`;
+  const variableMap = names => new Map(names.map((name, i) => Array.isArray(name) ? name : [name, i]));
   const marks = {
-    a: '<circle cx="12" cy="12" r="10" fill="#fbbf24" stroke="#92400e" stroke-width="2"/>',
-    b: '<rect x="2" y="2" width="20" height="20" rx="2" fill="#38bdf8" stroke="#075985" stroke-width="2"/>',
-    c: '<path d="m12 2 10 10-10 10L2 12Z" fill="#c084fc" stroke="#6b21a8" stroke-width="2"/>',
-    d: '<path d="M12 2 22 22H2Z" fill="#6ee7b7" stroke="#065f46" stroke-width="2"/>',
+    a: '<circle cx="12" cy="12" r="10" fill="none" stroke="#d97706" stroke-width="2"/>',
+    b: '<rect x="2" y="2" width="20" height="20" rx="2" fill="none" stroke="#0284c7" stroke-width="2"/>',
+    c: '<path d="m12 2 10 10-10 10L2 12Z" fill="none" stroke="#9333ea" stroke-width="2"/>',
+    d: '<path d="M12 2 22 22H2Z" fill="none" stroke="#059669" stroke-width="2"/>',
   };
   function fixedType(type) {
     if (typeof type === 'string') type = parseType(type);
@@ -26,18 +28,32 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     if (type.tag === 'app') return { ...type, con: fixedType(type.con), arg: fixedType(type.arg) };
     return type;
   }
-  function placeholder(name, variables) {
-    if (!variables.has(name)) variables.set(name, variables.size);
+  function genericSlot(name, variables, type = null, maxWidth = Infinity) {
+    if (!variables.has(name)) variables.set(name, Math.max(-1, ...variables.values()) + 1);
     const index = variables.get(name), count = index + 1;
-    const dice = [[[12, 12]], [[8, 8], [16, 16]], [[7, 7], [12, 12], [17, 17]],
-      [[7, 7], [17, 7], [7, 17], [17, 17]], [[7, 7], [17, 7], [12, 12], [7, 17], [17, 17]],
-      [[7, 6], [17, 6], [7, 12], [17, 12], [7, 18], [17, 18]]];
-    const columns = Math.ceil(Math.sqrt(count));
-    const dots = dice[index] || Array.from({ length: count }, (_, i) =>
-      [5 + (i % columns) * 14 / (columns - 1), 5 + Math.floor(i / columns) * 14 / (columns - 1)]);
-    return `<g class="type-placeholder" data-variable="${escape(name)}" data-marker="${count}"><title>Type placeholder ${count}: any type; matching marks use the same type</title>` +
-      '<rect x="2" y="2" width="20" height="20" rx="4" fill="#f8fafc" stroke="#64748b" stroke-width="1.6" stroke-dasharray="3 2"/>' +
-      dots.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.7" fill="#475569"/>`).join('') + '</g>';
+    const factor = index === 0 ? 1.6 : index === 1 ? 1 : 2;
+    const padding = index === 0 ? 10 : 16;
+    const content = type ? layout(type, Math.max(24, (maxWidth - padding) / factor), variables)
+      : { width: 24, height: 24, body: '' };
+    const width = content.width * factor + padding, height = content.height * factor + padding;
+    let shape;
+    if (index === 0) shape = `<ellipse cx="${width / 2}" cy="${height / 2}" rx="${width / 2 - 2}" ry="${height / 2 - 2}"/>`;
+    else if (index === 1) shape = `<rect x="2" y="2" width="${width - 4}" height="${height - 4}" rx="3"/>`;
+    else if (index === 2) shape = `<path d="M${width / 2} 2 ${width - 2} ${height / 2} ${width / 2} ${height - 2} 2 ${height / 2}Z"/>`;
+    else if (index === 3) shape = `<path d="M${width / 2} 2 ${width - 2} ${height - 2} 2 ${height - 2}Z"/>`;
+    else {
+      const sides = index + 1;
+      const points = Array.from({ length: sides }, (_, i) => {
+        const angle = -Math.PI / 2 + i * 2 * Math.PI / sides;
+        return `${width / 2 + (width / 2 - 2) * Math.cos(angle)},${height / 2 + (height / 2 - 2) * Math.sin(angle)}`;
+      }).join(' ');
+      shape = `<polygon points="${points}"/>`;
+    }
+    const label = type ? `Type slot ${count}: assigned ${typeToString(type).replace(/SKOLEM/g, '')}`
+      : `Type placeholder ${count}: any type; matching gray shapes use the same type`;
+    return { width, height, body: `<g class="${type ? 'type-binding' : 'type-placeholder'}" data-variable="${escape(name)}" data-marker="${count}"><title>${escape(label)}</title>` +
+      `<g class="generic-outline" fill="none" stroke="#7c8797" stroke-width="1.8" stroke-dasharray="0.1 3.4" stroke-linecap="round" stroke-linejoin="round">${shape}</g>` +
+      move(content.body, (width - content.width) / 2, index === 3 ? height / 2 : (height - content.height) / 2) + '</g>' };
   }
   const arrow = y => outline(`<path d="M4 ${y}H20m-5-5 5 5-5 5"/>`, 1.8);
   function parts(type, limit = Infinity) {
@@ -75,12 +91,13 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     return { width, height, body: outline(shape(width, height)) + move(content.body, padding.x, padding.y) };
   }
   const rectangle = (w, h) => `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="4"/>`;
-  function flow(args, result, maxWidth = Infinity, variables = new Map(), inputsOnly = false) {
-    const inputs = row(args.map(type => layout(type, maxWidth, variables)), 6, maxWidth);
+  function flow(args, result, maxWidth = Infinity, variables = new Map(), inputsOnly = false, template = null) {
+    const pattern = template ? parts(template, args.length) : null;
+    const inputs = row(args.map((type, i) => layout(type, maxWidth, variables, pattern?.args[i])), 6, maxWidth);
     // Row heads share their output with the separate result card. Preserve
     // complete diagrams within inputs that are themselves functions.
     if (inputsOnly) return { ...inputs, body: `<g class="icon-inputs">${inputs.body}</g>` };
-    const output = layout(result, maxWidth, variables);
+    const output = layout(result, maxWidth, variables, pattern?.result);
     if (inputs.width + 28 + output.width > maxWidth) {
       const width = Math.max(inputs.width, output.width);
       const center = width / 2, arrowTop = inputs.height + 4;
@@ -95,23 +112,27 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         move(arrow(height / 2), inputs.width + 2, 0) +
         `<g class="icon-output">${move(output.body, inputs.width + 28, (height - output.height) / 2)}</g>` };
   }
-  function layout(type, maxWidth = Infinity, variables = new Map()) {
-    if (type.tag === 'var') return { width: 24, height: 24, body: placeholder(type.name, variables) };
+  function layout(type, maxWidth = Infinity, variables = new Map(), template = null) {
+    if (template?.tag === 'var') return genericSlot(template.name, variables, type.tag === 'var' ? null : type, maxWidth);
+    if (type.tag === 'var') return genericSlot(type.name, variables);
     if (type.tag === 'con' && type.name.startsWith('SKOLEM')) {
       const name = type.name.slice(6);
       const mark = marks[name] || outline('<circle cx="12" cy="12" r="10"/>');
       return { width: 24, height: 24, body: `<g class="type-atom" data-type="${escape(name)}">${mark}</g>` };
     }
     if (type.tag === 'fun') {
-      const { args, result } = parts(type);
-      return frame(flow(args, result, Math.max(24, maxWidth - 12), variables), { x: 6, y: 6 }, rectangle);
+      const pattern = template?.tag === 'fun' ? template : null;
+      const { args, result } = parts(type, pattern ? parts(pattern).args.length : Infinity);
+      return frame(flow(args, result, Math.max(24, maxWidth - 12), variables, false, pattern), { x: 6, y: 6 }, rectangle);
     }
     const { head, args } = type.tag === 'app' ? flattenApp(type) : { head: type, args: [] };
     if (head.name === '()') return { width: 24, height: 24,
       body: outline('<circle cx="12" cy="12" r="8"/><path d="M8 12h8"/>') };
     const inset = head.name === 'Hero' ? 28 : head.name === 'Zero' ? 20 : 12;
     const innerWidth = Math.max(24, maxWidth - inset);
-    const contents = row(args.map(type => layout(type, innerWidth, variables)), 6, innerWidth);
+    const pattern = template?.tag === 'app' ? flattenApp(template) : null;
+    const contents = row(args.map((type, i) => layout(type, innerWidth, variables,
+      pattern?.head.name === head.name ? pattern.args[i] : null)), 6, innerWidth);
     if (head.name.startsWith('(')) return frame(contents, { x: 6, y: 6 }, rectangle);
     if (head.name === 'Zero') return frame(contents, { x: 10, y: 10 }, (w, h) =>
       `<path d="M${w / 2} 1 1 9v${h - 27}Q1 ${h - 7} ${w / 2} ${h - 1}Q${w - 1} ${h - 7} ${w - 1} ${h - 18}V9Z"/>`);
@@ -119,15 +140,15 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       `<path d="M${w - 16} 2l4 7q6 4 5 11l5 2v4l-5 1q-2 ${h - 35} -14 ${h - 35}L8 ${h - 2}l3-8-9 3L8 ${h / 2 + 7} 1 ${h / 2 + 2} 9 ${h / 2 - 6} 4 10H${w - 24}q5-5 9-1Z"/>`);
     throw new Error('No pictogram for type constructor ' + head.name);
   }
-  function picture(label, diagram, className = '', type = null, arity = null, variables = new Map(), inputsOnly = false) {
-    const attributes = type ? ` data-diagram-type="${escape(typeToString(type))}" data-diagram-variables="${escape(JSON.stringify([...variables.keys()]))}"${arity === null ? '' : ` data-diagram-arity="${arity}"`}` : '';
+  function picture(label, diagram, className = '', type = null, arity = null, variables = new Map(), inputsOnly = false, template = null) {
+    const attributes = type ? ` data-diagram-type="${escape(typeToString(type))}" data-diagram-variables="${escape(JSON.stringify([...variables]))}"${arity === null ? '' : ` data-diagram-arity="${arity}"`}${template ? ` data-diagram-template="${escape(typeToString(template))}"` : ''}` : '';
     return svg(label, `<g${className ? ` class="${className}"` : ''}>${move(diagram.body, 2, 2)}</g>`, diagram.width + 4, diagram.height + 4)
       .replace('<svg ', `<svg${attributes}${inputsOnly ? ' data-diagram-inputs-only="true"' : ''} `);
   }
-  function transformation(signature, label, arity = Infinity, variableNames = [], inputsOnly = false) {
+  function transformation(signature, label, arity = Infinity, variableNames = [], inputsOnly = false, template = null) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
-    const { args, result } = parts(type, arity), variables = new Map(variableNames.map((name, i) => [name, i]));
-    return picture(label, flow(args, result, Infinity, variables, inputsOnly), '', type, arity, variables, inputsOnly);
+    const { args, result } = parts(type, arity), variables = variableMap(variableNames);
+    return picture(label, flow(args, result, Infinity, variables, inputsOnly, template), '', type, arity, variables, inputsOnly, template);
   }
   const parsedTypes = new Map();
   function fit(root = document) {
@@ -170,10 +191,13 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       const signature = node.dataset.diagramType;
       if (!parsedTypes.has(signature)) parsedTypes.set(signature, parseType(signature));
       const type = parsedTypes.get(signature), arity = node.getAttribute('data-diagram-arity');
+      const pattern = node.dataset.diagramTemplate;
+      if (pattern && !parsedTypes.has(pattern)) parsedTypes.set(pattern, parseType(pattern));
+      const template = pattern ? parsedTypes.get(pattern) : null;
       const { args, result } = arity === null ? {} : parts(type, Number(arity));
-      const variables = new Map(JSON.parse(node.dataset.diagramVariables).map((name, i) => [name, i]));
-      const diagram = arity === null ? layout(type, budget, variables)
-        : flow(args, result, budget, variables, node.dataset.diagramInputsOnly === 'true');
+      const variables = variableMap(JSON.parse(node.dataset.diagramVariables));
+      const diagram = arity === null ? layout(type, budget, variables, template)
+        : flow(args, result, budget, variables, node.dataset.diagramInputsOnly === 'true', template);
       const width = diagram.width + 4, height = diagram.height + 4;
       const className = node.querySelector('.result-shape') ? 'result-shape' : '';
       node.innerHTML = `<title>${escape(node.getAttribute('aria-label'))}</title><g class="${className}">${move(diagram.body, 2, 2)}</g>`;
@@ -296,10 +320,10 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       map[name] = renderType(fixedType(type), `${name}: ${info} Type: ${typeToString(type)}`);
     });
   }
-  function renderType(signature, label = signature, variableNames = []) {
+  function renderType(signature, label = signature, variableNames = [], template = null) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
-    const variables = new Map(variableNames.map((name, i) => [name, i]));
-    return picture(label, layout(type, Infinity, variables), 'result-shape', type, null, variables);
+    const variables = variableMap(variableNames);
+    return picture(label, layout(type, Infinity, variables, template), 'result-shape', type, null, variables, false, template);
   }
   return {icons, cardIcons, captions, descriptions, renderType, transformation, fixedType, fit};
 }

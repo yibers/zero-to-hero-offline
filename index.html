@@ -225,10 +225,10 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 <div id="app"></div>
 
 <script src="levels.js?v=8156d5936d40"></script>
-<script src="semantic-icons.js?v=cca3a07d0c7b"></script>
+<script src="semantic-icons.js?v=7937fff62610"></script>
 <script src="row-program.js?v=816f5987f6e1"></script>
 <script src="puzzle-rules.js?v=1a0a058171db"></script>
-<script src="row-editor.js?v=445c766dcabd"></script>
+<script src="row-editor.js?v=dc9d2d4077da"></script>
 <script src="text-editor.js?v=b1122f6d87b9"></script>
 <script>
 
@@ -977,7 +977,7 @@ function render() {
     <div class="dialog-overlay" id="intro-dialog">
       <div class="dialog">
         <p>Welcome to Zero to Hero. First, wrap a value in Zero. Then use the supplied functions to turn Zero values into Hero values.</p>
-        <p>A solid shape represents a value of a particular type. A dashed shape is a type placeholder. In <code>Zero a</code>, <code>a</code> is the type of the value inside; <code>Zero</code> is the type constructor that describes the wrapper. The pictures track types, not actual contents such as numbers.</p>
+        <p>A colored outline identifies a particular type. A dotted gray shape is a generic type slot; matching gray shapes mean the same type. Assigning a type places its colored outline inside the gray slot. In <code>Zero a</code>, <code>a</code> is the type of the value inside; <code>Zero</code> is the type constructor that describes the wrapper. The pictures track types, not actual contents such as numbers.</p>
         <p>Each level supplies an exact number of copies of each function. Use them all in the steps that produce your final result. Adding a function uses one copy; removing it returns that copy to the palette. Unused rows do not count. Starting arguments also have a limited supply; using a copy removes it, and clearing it returns it.</p>
         <br>
         <button onclick="dismissIntro()">OK</button>

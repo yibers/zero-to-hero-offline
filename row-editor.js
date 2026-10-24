@@ -32,8 +32,8 @@ function rowSymbol(name, width, diagram = null, inputsOnly = false) {
   if (iconMode && diagram) {
     const label = name + ': ' + rowTypeSignatures([diagram.type])[0];
     const picture = diagram.arity === undefined
-      ? renderSemanticType(diagram.type, label, diagram.variables)
-      : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables, inputsOnly);
+      ? renderSemanticType(diagram.type, label, diagram.variables, diagram.template)
+      : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables, inputsOnly, diagram.template);
     const reference = /^r\d+$/.test(name) ? ' row-ref rendered-ref' : '';
     return `<span class="icon-sym semantic-icon${reference}" title="${escHtml(label)}">${picture}</span>`;
   }
@@ -84,24 +84,28 @@ function diagnoseCall(code, env, params, compositionLimit = null) {
         subst = unify(inputs[i], actual, subst) || subst;
       } catch (_) { /* Keep editable slots even when an input is invalid. */ }
     });
-    // Retain the template's marker positions as variables become fixed or are
-    // unified with variables in supplied functions. Each call specializes alone.
-    const variables = [...new Set([...findVars(headType)].map(name => {
+    // Keep the original generic shapes around their assigned types. Templates
+    // are display metadata only; inference continues to use the resolved type.
+    const variableMap = new Map([...findVars(headType)].map((name, i) => [name, i]));
+    for (const [name, marker] of [...variableMap]) {
       const resolved = applySubst(subst, { tag: 'var', name });
-      return resolved.tag === 'var' ? resolved.name : name;
-    }))];
-    for (const actual of actuals) if (actual) {
-      for (const name of findVars(applySubst(subst, actual))) if (!variables.includes(name)) variables.push(name);
+      if (resolved.tag === 'var' && !variableMap.has(resolved.name)) variableMap.set(resolved.name, marker);
     }
+    for (const actual of actuals) if (actual) {
+      for (const name of findVars(applySubst(subst, actual))) {
+        if (!variableMap.has(name)) variableMap.set(name, Math.max(-1, ...variableMap.values()) + 1);
+      }
+    }
+    const variables = [...variableMap];
     let remaining = headType;
     for (const _ of model.args) remaining = remaining.to;
     return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))),
-      inputDiagrams: inputs.map(input => ({ type: applySubst(subst, input), variables })),
+      inputDiagrams: inputs.map(input => ({ type: applySubst(subst, input), variables, template: input })),
       // Show only the output, specializing it as each supplied input constrains
       // the template. Unfilled inputs leave the remaining placeholders generic.
-      expected: { type: applySubst(subst, type), variables },
-      diagram: { type: applySubst(subst, headType), variables, arity: inputs.length },
-      arguments: actuals.map(actual => actual && ({ type: applySubst(subst, actual), variables })),
+      expected: { type: applySubst(subst, type), variables, template: type },
+      diagram: { type: applySubst(subst, headType), variables, arity: inputs.length, template: headType },
+      arguments: actuals.map((actual, i) => actual && ({ type: applySubst(subst, actual), variables, template: inputs[i] })),
       result: { type: applySubst(subst, remaining), variables } };
   } catch (_) { return null; }
 }
@@ -215,7 +219,7 @@ function mountRowEditor() {
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
       const expected = diagnostic.expected;
       const picture = expected ? renderSemanticType(expected.type,
-        'Expected result ' + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables) : '';
+        'Expected result ' + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables, expected.template) : '';
       feedback.innerHTML = diagnostic.error
         ? (picture ? `<div class="row-result-preview" title="Expected result; complete this row before reusing it">${picture}</div>` : '')
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${picture}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
