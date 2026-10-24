@@ -4,7 +4,7 @@ const { game } = require('./helpers/game-harness.cjs');
 const markers = svg => [...svg.matchAll(/data-marker="(\d+)"/g)].map(match => match[1]);
 const atoms = svg => [...svg.matchAll(/data-type="([^"]+)"/g)].map(match => match[1]);
 
-test('generic types use matching dotted outlines, while fixed types use hollow colored shapes', () => {
+test('generic types are dotted, concrete types are hollow, and values are filled', () => {
   const app = game();
   const palette = app.run('FUNCTION_CARD_ICONS[17].pair');
   assert.deepEqual(markers(palette), ['1', '2', '1', '2']);
@@ -15,7 +15,12 @@ test('generic types use matching dotted outlines, while fixed types use hollow c
   const value = app.run('LEVEL_ICONS[1].value');
   assert.deepEqual(atoms(value), ['a']);
   assert.deepEqual(markers(value), []);
-  assert.match(value, /<circle[^>]*fill="none"[^>]*stroke="#d97706"/);
+  assert.match(value, /<circle[^>]*fill="#d97706"[^>]*stroke="#d97706"/);
+  const type = app.run("renderSemanticType(fixedSemanticType('a'))");
+  assert.match(type, /<circle[^>]*fill="none"[^>]*stroke="#d97706"/);
+  const fn = app.run("renderSemanticType(fixedSemanticType('a -> b'), 'Function value', [], null, true)");
+  assert.doesNotMatch(fn, /fill="#[^"]+"/);
+  assert.deepEqual(atoms(fn), ['a', 'b']);
 });
 
 test('placing and clearing a value preserves the slot shape and specializes matching output slots', () => {
@@ -25,7 +30,7 @@ test('placing and clearing a value preserves the slot shape and specializes matc
     return app.run(`(() => {
       const call = rowDiagnostics[0].call;
       return { input: rowSymbol('input', null, call.arguments[0] || call.inputDiagrams[0]),
-        output: rowSymbol('output', null, call.expected) };
+        output: rowSymbol('output', null, rowDiagnostics[0].expected) };
     })()`);
   };
   const before = draw('wrap');
@@ -36,6 +41,7 @@ test('placing and clearing a value preserves the slot shape and specializes matc
     assert.deepEqual(markers(svg), ['1']);
     assert.deepEqual(atoms(svg), ['a']);
     assert.match(svg, /class="type-binding"/);
+    assert.match(svg, /<circle[^>]*fill="#d97706"/);
     assert.match(svg, /data-diagram-template=/);
     assert.doesNotMatch(svg, /class="type-placeholder"/);
   }
@@ -46,6 +52,18 @@ test('placing and clearing a value preserves the slot shape and specializes matc
   restored.run('diagnoseRows();');
   assert.equal(restored.run("rowSymbol('input', null, rowDiagnostics[0].call.arguments[0])"), filled.input);
   assert.equal(draw('wrap').input, before.input);
+  assert.equal(draw('wrap').output, before.output);
+  // A partially applied call still previews the eventual output type. Its
+  // actual reusable result is a function, so no output value exists yet.
+  app.run('currentLevel = 15; setEditorContent("pair z"); diagnoseRows();');
+  assert.equal(app.run('rowDiagnostics[0].expected.isValue'), false);
+  const partial = app.run("rowSymbol('output', null, rowDiagnostics[0].expected)");
+  assert.ok(atoms(partial).length);
+  assert.doesNotMatch(partial, /fill="#[^"]+"/);
+  app.run('currentLevel = 0; setEditorContent("f z"); diagnoseRows();');
+  const reused = app.run("rowSymbol('r1')");
+  assert.match(reused, /<circle[^>]*fill="#d97706"/);
+  assert.deepEqual(markers(reused), []);
 });
 
 test('a generic slot can hold a whole compound type without losing its structure', () => {
@@ -86,6 +104,7 @@ test('responsive refitting preserves bindings and keeps compound diagrams within
     getComputedStyle = () => ({ paddingLeft: '0', paddingRight: '0' });
     const decode = value => value.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
     const markers = svg => [...svg.matchAll(/data-marker="(\\d+)"/g)].map(m => m[1]).join(',');
+    const fills = svg => (svg.match(/fill="#[^"]+"/g) || []).join(',');
     const failures = [];
     for (const [index, level] of LEVELS.entries()) {
       currentLevel = index; setEditorContent(level.solution); diagnoseRows();
@@ -96,7 +115,7 @@ test('responsive refitting preserves bindings and keeps compound diagrams within
         const holder = { clientWidth: 320 };
         const node = {
           dataset: { diagramType: attributes['data-diagram-type'], diagramTemplate: attributes['data-diagram-template'],
-            diagramVariables: attributes['data-diagram-variables'] }, style: {}, innerHTML: '',
+            diagramVariables: attributes['data-diagram-variables'], diagramValue: attributes['data-diagram-value'] }, style: {}, innerHTML: '',
           getAttribute: name => attributes[name] ?? null,
           setAttribute: (name, value) => attributes[name] = value,
           querySelector: () => ({}),
@@ -104,7 +123,7 @@ test('responsive refitting preserves bindings and keeps compound diagrams within
         };
         for (const width of [320, 800, 320]) {
           holder.clientWidth = width; fitSemanticDiagrams({ querySelectorAll: () => [node] });
-          if (markers(node.innerHTML) !== markers(svg) || Number(attributes.width) > width - 26 + 1
+          if (markers(node.innerHTML) !== markers(svg) || fills(node.innerHTML) !== fills(svg) || Number(attributes.width) > width - 26 + 1
             || /NaN|undefined/.test(node.innerHTML)) failures.push([level.level, width, attributes.width]);
         }
       }

@@ -1,6 +1,7 @@
 // Pictograms describe the puzzle's type transformations. No runtime behavior is
 // inferred beyond the supplied signatures. Dotted gray shapes identify generic
-// slots; colored outlines show fixed types, nested in their assigned slots.
+// slots; colored outlines show fixed types. Filled shapes represent values of
+// those types, without claiming to show their runtime contents.
 function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   const escape = text => String(text).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const shield = '<path d="M12 2 4 6v7c0 4.5 3.3 7.4 8 9 4.7-1.6 8-4.5 8-9V6Z"/>';
@@ -28,12 +29,12 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     if (type.tag === 'app') return { ...type, con: fixedType(type.con), arg: fixedType(type.arg) };
     return type;
   }
-  function genericSlot(name, variables, type = null, maxWidth = Infinity) {
+  function genericSlot(name, variables, type = null, maxWidth = Infinity, isValue = false) {
     if (!variables.has(name)) variables.set(name, Math.max(-1, ...variables.values()) + 1);
     const index = variables.get(name), count = index + 1;
     const factor = index === 0 ? 1.6 : index === 1 ? 1 : 2;
     const padding = index === 0 ? 10 : 16;
-    const content = type ? layout(type, Math.max(24, (maxWidth - padding) / factor), variables)
+    const content = type ? layout(type, Math.max(24, (maxWidth - padding) / factor), variables, null, isValue)
       : { width: 24, height: 24, body: '' };
     const width = content.width * factor + padding, height = content.height * factor + padding;
     let shape;
@@ -112,27 +113,30 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         move(arrow(height / 2), inputs.width + 2, 0) +
         `<g class="icon-output">${move(output.body, inputs.width + 28, (height - output.height) / 2)}</g>` };
   }
-  function layout(type, maxWidth = Infinity, variables = new Map(), template = null) {
-    if (template?.tag === 'var') return genericSlot(template.name, variables, type.tag === 'var' ? null : type, maxWidth);
+  function layout(type, maxWidth = Infinity, variables = new Map(), template = null, isValue = false) {
+    if (template?.tag === 'var') return genericSlot(template.name, variables, type.tag === 'var' ? null : type, maxWidth, isValue);
     if (type.tag === 'var') return genericSlot(type.name, variables);
     if (type.tag === 'con' && type.name.startsWith('SKOLEM')) {
       const name = type.name.slice(6);
-      const mark = marks[name] || outline('<circle cx="12" cy="12" r="10"/>');
+      let mark = marks[name] || outline('<circle cx="12" cy="12" r="10"/>');
+      if (isValue) mark = mark.replace('fill="none"', `fill="${mark.match(/stroke="([^"]+)"/)[1]}"`);
       return { width: 24, height: 24, body: `<g class="type-atom" data-type="${escape(name)}">${mark}</g>` };
     }
     if (type.tag === 'fun') {
+      // A function value is pictured by its signature: these inner shapes
+      // describe input/output types, not values that have already been supplied.
       const pattern = template?.tag === 'fun' ? template : null;
       const { args, result } = parts(type, pattern ? parts(pattern).args.length : Infinity);
       return frame(flow(args, result, Math.max(24, maxWidth - 12), variables, false, pattern), { x: 6, y: 6 }, rectangle);
     }
     const { head, args } = type.tag === 'app' ? flattenApp(type) : { head: type, args: [] };
     if (head.name === '()') return { width: 24, height: 24,
-      body: outline('<circle cx="12" cy="12" r="8"/><path d="M8 12h8"/>') };
+      body: outline(`<circle cx="12" cy="12" r="8"${isValue ? ' fill="currentColor"' : ''}/><path d="M8 12h8"${isValue ? ' stroke="white"' : ''}/>`) };
     const inset = head.name === 'Hero' ? 28 : head.name === 'Zero' ? 20 : 12;
     const innerWidth = Math.max(24, maxWidth - inset);
     const pattern = template?.tag === 'app' ? flattenApp(template) : null;
     const contents = row(args.map((type, i) => layout(type, innerWidth, variables,
-      pattern?.head.name === head.name ? pattern.args[i] : null)), 6, innerWidth);
+      pattern?.head.name === head.name ? pattern.args[i] : null, isValue)), 6, innerWidth);
     if (head.name.startsWith('(')) return frame(contents, { x: 6, y: 6 }, rectangle);
     if (head.name === 'Zero') return frame(contents, { x: 10, y: 10 }, (w, h) =>
       `<path d="M${w / 2} 1 1 9v${h - 27}Q1 ${h - 7} ${w / 2} ${h - 1}Q${w - 1} ${h - 7} ${w - 1} ${h - 18}V9Z"/>`);
@@ -140,10 +144,10 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       `<path d="M${w - 16} 2l4 7q6 4 5 11l5 2v4l-5 1q-2 ${h - 35} -14 ${h - 35}L8 ${h - 2}l3-8-9 3L8 ${h / 2 + 7} 1 ${h / 2 + 2} 9 ${h / 2 - 6} 4 10H${w - 24}q5-5 9-1Z"/>`);
     throw new Error('No pictogram for type constructor ' + head.name);
   }
-  function picture(label, diagram, className = '', type = null, arity = null, variables = new Map(), inputsOnly = false, template = null) {
+  function picture(label, diagram, className = '', type = null, arity = null, variables = new Map(), inputsOnly = false, template = null, isValue = false) {
     const attributes = type ? ` data-diagram-type="${escape(typeToString(type))}" data-diagram-variables="${escape(JSON.stringify([...variables]))}"${arity === null ? '' : ` data-diagram-arity="${arity}"`}${template ? ` data-diagram-template="${escape(typeToString(template))}"` : ''}` : '';
     return svg(label, `<g${className ? ` class="${className}"` : ''}>${move(diagram.body, 2, 2)}</g>`, diagram.width + 4, diagram.height + 4)
-      .replace('<svg ', `<svg${attributes}${inputsOnly ? ' data-diagram-inputs-only="true"' : ''} `);
+      .replace('<svg ', `<svg${attributes}${isValue ? ' data-diagram-value="true"' : ''}${inputsOnly ? ' data-diagram-inputs-only="true"' : ''} `);
   }
   function transformation(signature, label, arity = Infinity, variableNames = [], inputsOnly = false, template = null) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
@@ -196,7 +200,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       const template = pattern ? parsedTypes.get(pattern) : null;
       const { args, result } = arity === null ? {} : parts(type, Number(arity));
       const variables = variableMap(JSON.parse(node.dataset.diagramVariables));
-      const diagram = arity === null ? layout(type, budget, variables, template)
+      const diagram = arity === null ? layout(type, budget, variables, template, node.dataset.diagramValue === 'true')
         : flow(args, result, budget, variables, node.dataset.diagramInputsOnly === 'true', template);
       const width = diagram.width + 4, height = diagram.height + 4;
       const className = node.querySelector('.result-shape') ? 'result-shape' : '';
@@ -317,13 +321,13 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         : name === 'z' ? (level.level === 12 ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.')
         : 'Your starting value, before it is wrapped.';
       labels[name] = details[name] = info;
-      map[name] = renderType(fixedType(type), `${name}: ${info} Type: ${typeToString(type)}`);
+      map[name] = renderType(fixedType(type), `${name}: ${info} Type: ${typeToString(type)}`, [], null, true);
     });
   }
-  function renderType(signature, label = signature, variableNames = [], template = null) {
+  function renderType(signature, label = signature, variableNames = [], template = null, isValue = false) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
     const variables = variableMap(variableNames);
-    return picture(label, layout(type, Infinity, variables, template), 'result-shape', type, null, variables, false, template);
+    return picture(label, layout(type, Infinity, variables, template, isValue), 'result-shape', type, null, variables, false, template, isValue);
   }
   return {icons, cardIcons, captions, descriptions, renderType, transformation, fixedType, fit};
 }

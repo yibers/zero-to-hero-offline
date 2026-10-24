@@ -32,7 +32,7 @@ function rowSymbol(name, width, diagram = null, inputsOnly = false) {
   if (iconMode && diagram) {
     const label = name + ': ' + rowTypeSignatures([diagram.type])[0];
     const picture = diagram.arity === undefined
-      ? renderSemanticType(diagram.type, label, diagram.variables, diagram.template)
+      ? renderSemanticType(diagram.type, label, diagram.variables, diagram.template, diagram.isValue)
       : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables, inputsOnly, diagram.template);
     const reference = /^r\d+$/.test(name) ? ' row-ref rendered-ref' : '';
     return `<span class="icon-sym semantic-icon${reference}" title="${escHtml(label)}">${picture}</span>`;
@@ -42,7 +42,7 @@ function rowSymbol(name, width, diagram = null, inputsOnly = false) {
     const diagnostic = rowDiagnostics[reference];
     if (iconMode) {
       const label = name + ': ' + (diagnostic?.signature || 'result unavailable');
-      const picture = diagnostic?.signature ? renderSemanticType(diagnostic.diagram.type, label, diagnostic.diagram.variables)
+      const picture = diagnostic?.signature ? renderSemanticType(diagnostic.diagram.type, label, diagnostic.diagram.variables, null, true)
         : `<svg viewBox="0 0 40 40" role="img" aria-label="${escHtml(label)}"><rect x="6" y="6" width="28" height="28" rx="5" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 3"/></svg>`;
       return `<span class="icon-sym row-ref rendered-ref" title="${escHtml(label)}"${width ? ` style="width:${width}ch"` : ''}>${picture}</span>`;
     }
@@ -105,7 +105,7 @@ function diagnoseCall(code, env, params, compositionLimit = null) {
       // the template. Unfilled inputs leave the remaining placeholders generic.
       expected: { type: applySubst(subst, type), variables, template: type },
       diagram: { type: applySubst(subst, headType), variables, arity: inputs.length, template: headType },
-      arguments: actuals.map((actual, i) => actual && ({ type: applySubst(subst, actual), variables, template: inputs[i] })),
+      arguments: actuals.map((actual, i) => actual && ({ type: applySubst(subst, actual), variables, template: inputs[i], isValue: true })),
       result: { type: applySubst(subst, remaining), variables } };
   } catch (_) { return null; }
 }
@@ -130,7 +130,7 @@ function diagnoseRows() {
       if (!type) throw Error('Incomplete expression.');
       env[row.id] = type;
       return { type, signature: rowTypeSignatures([type])[0], diagram: call?.result || { type },
-        expected: call?.expected || { type }, call };
+        expected: { ...(call?.expected || { type }), isValue: !call || call.args.length === call.inputs.length }, call };
     } catch (e) {
       return { error: errors[index] || normalizeTypeError(e.message), expected: call?.expected, call };
     }
@@ -219,7 +219,7 @@ function mountRowEditor() {
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
       const expected = diagnostic.expected;
       const picture = expected ? renderSemanticType(expected.type,
-        'Expected result ' + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables, expected.template) : '';
+        (expected.isValue ? 'Result ' : 'Expected result ') + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables, expected.template, expected.isValue) : '';
       feedback.innerHTML = diagnostic.error
         ? (picture ? `<div class="row-result-preview" title="Expected result; complete this row before reusing it">${picture}</div>` : '')
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${picture}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
