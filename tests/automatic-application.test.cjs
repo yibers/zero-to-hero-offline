@@ -82,7 +82,7 @@ test('function-only rules reject value steps, bare aliases, and functions that r
   })()`), /takes a value/);
 });
 
-test('function-valued starting parameters stay usable while the ordinary input is automatic', () => {
+test('the level 9 converter comes from the palette while the only input is automatic', () => {
   const app = game();
   app.run(`currentLevel = 7; setEditorContent('fmap bd'); diagnoseRows();`);
   assert.equal(app.run('functionProgramContext(LEVELS[7]).input'), 'z');

@@ -83,6 +83,7 @@ for (const icons of [true, false]) {
     for (const field of ['editorContents', 'rowPrograms', 'textDrafts']) {
       const expected = Object.fromEntries(Object.entries(saved[field]).filter(([index]) => Number(index) !== 1)
         .map(([index, value]) => [renamedIndex(Number(index)), value]));
+      if (field === 'editorContents') expected[7] = expected[7].replace('zeroToHero ad bd cd z =', 'zeroToHero z =');
       assert.deepEqual(app.saved()[field], expected);
     }
     assert.equal(app.saved().levelOrderVersion, 2);

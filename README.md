@@ -28,6 +28,8 @@ This reimplements the game with no server dependencies:
 
 ```
 index.html      — Main app and type checker
+update-check.js — Automatic release checks and progress-preserving reloads
+version.json    — Generated release marker
 levels.js       — 16 puzzle definitions
 semantic-icons.js — SVG type patterns and per-level action descriptions
 row-program.js  — Expression parsing, row validation and migration
@@ -58,7 +60,7 @@ tests/          — Playwright + unit tests
 - **Function input slots** — in icon mode, each input initially shows its expected type inside the function’s rectangle. Drop directly onto that diagram or tap it to choose an argument. The argument replaces the expected-type diagram in place; clearing it restores the expected type. Drag the blue border to move or remove the whole function. Slots accept function-valued parameters, palette functions and earlier function results. Drop onto a filled slot to replace it, or drag its contents out to clear it. Each construction row has one function input. Complete that input before reusing the result in a later row. Text mode shows the entire program as editable Haskell source.
 - In icon mode, completed construction rows offer one spare row above the automatic final application. Incomplete rows wait for their one function argument. The final row has a fixed starting value; it previews the actual result when the transformation accepts that value, and marks success only when the result and exact function supplies satisfy the puzzle. Placing the single transformation in levels 1 and 2 runs it immediately. The next drop target scrolls into view without focusing a text field or opening the keyboard. Empty rows are removed automatically. Undo/redo covers row changes and dragging.
 - **Text mode** shows one continuous editor with properly indented `let` bindings and the final `in` expression, without row cards. Enter and Tab support indentation; edits, binding names and unfinished drafts survive refreshes and mode switches. Saved single-expression solutions automatically convert to rows, preserving their meaning. Unfinished expressions remain available to repair.
-- **Exact function supplies** — each function has an explicit `uses` count per level, based on its reference solution. Placing a function as a call or an argument consumes one copy; a badge shows remaining copies when more than one is supplied. Exhausted functions disappear from the palette and input pickers. Moving a card costs no extra copy; replacing or removing it returns its copy. Undo, refresh, and mode switches preserve the inventory by deriving it from the program. Starting parameters also have explicit per-level supplies: one copy of the starting value in every level. The ordinary input is reserved for the automatic final row in icon mode; function-valued parameters remain selectable. Their cards disappear when depleted and return when cleared; counts and availability also apply to input pickers and text mode. Unused parameter choices (such as `ad` and `cd` in level 9) may remain. References to earlier results remain reusable.
+- **Exact function supplies** — each function has an explicit `uses` count per level, based on its reference solution. Placing a function as a call or an argument consumes one copy; a badge shows remaining copies when more than one is supplied. Exhausted functions disappear from the palette and input pickers. Moving a card costs no extra copy; replacing or removing it returns its copy. Undo, refresh, and mode switches preserve the inventory by deriving it from the program. Starting parameters also have explicit per-level supplies: one copy of the starting value in every level. The ordinary input is reserved for the automatic final row in icon mode; function-valued parameters remain selectable. Their cards disappear when depleted and return when cleared; counts and availability also apply to input pickers and text mode. References to earlier results remain reusable.
 - **Learning requirements** — use exactly the supplied copies, all contributing to the final expression. Extra copies anywhere in the program fail validation, and unused bindings cannot satisfy missing uses. Text mode enforces the same counts while preserving invalid drafts for repair. Required higher-order functions cannot be skipped by manually producing the target. There is no length or operation-count score.
 - **Automatic completion** — matching the target and satisfying the learning requirements immediately marks the level solved and enables Next (Finish on the last level). The editor stays open. Old completion records are rechecked against these rules while keeping saved programs and preferences.
 - Touch drag-and-drop — drag a function/parameter card straight into the editor, in either mode. In icon mode, drag an editor token within or between rows, or out to remove it. No hold is needed. Swipe the background or gaps between cards to scroll.
@@ -72,7 +74,7 @@ tests/          — Playwright + unit tests
 
 ## Required functions by level
 
-Every supplied copy is required; each function has an exact usage count. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Starting parameters, including the function parameters in level 9, remain puzzle inputs.
+Every supplied copy is required; each function has an exact usage count. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Every level has one starting value, reserved for its final application. All supplied transformations belong to the function palette.
 
 | Level | Functions |
 | --- | --- |
@@ -84,7 +86,7 @@ Every supplied copy is required; each function has an exact usage count. The pal
 | 6 | `snd`, `f1`, `f3`, `(.)` |
 | 7 | `f1`, `f2`, `f3`, `(.)` |
 | 8 | `f1`, `f2`, `f3`, `(<*>)`, `(.)` |
-| 9 | `fmap`, `f1`, `f2`, `(.)` |
+| 9 | `bd`, `fmap`, `f1`, `f2`, `(.)` |
 | 10 | `f1`, `f2`, `f3`, `(.)` |
 | 11 | `f1`, `f2`, `f3`, `(.)` |
 | 12 | `wrap`, `join`, `(.)` |
@@ -100,6 +102,8 @@ The former level 3, Assembly required, has been removed. Assembly by composition
 Every reference solution now builds functions in its intermediate rows and applies the single starting value in its final row. Every intermediate reference result is used once; the editor still allows reusing generated results. Every level enforces function-only intermediate applications and the final-input rule, in addition to exact supplies. Icon mode creates the final application automatically; text mode exposes the equivalent explicit Haskell expression.
 
 Level 8 (TIE fighter) supplies two compositions and four copies of `(<*>)`: two specialize to Hero application and two combine functions that share an input. It does not supply or require `(<$>)`. The standard signature `Applicative f => f (a -> b) -> f a -> f b` is used wherever `(<*>)` is supplied; the checker supports the Hero and function (`((->) r)`) instances and rejects unsupported contexts. Generic dotted context containers resolve into Hero or function diagrams as arguments are added.
+
+Level 9 (The middle man) starts with only `z :: Zero a B c` and targets `Hero a D c`. The concrete square-to-triangle conversion `bd :: B -> D` is supplied once in the function palette, alongside one `fmap`, three `f1`, one `f2`, and four `(.)`. Build the complete transformation before the automatic final row applies `z` once. The unused `ad` and `cd` inputs are removed. Existing valid solutions retain their work and completion; outdated drafts remain editable.
 
 The final five lessons retain their targets and teaching functions:
 
@@ -119,7 +123,9 @@ The final five lessons retain their targets and teaching functions:
 
 Open `index.html` in a browser. That's it.
 
-Before publishing JavaScript or CSS changes, run `npm run version:assets`. This updates the file versions in `index.html` so browsers load the matching assets instead of an older cached editor.
+Use the normal [play link](https://yibers.github.io/zero-to-hero-offline/); no version query or hard refresh is needed for subsequent updates. Online pages check a fresh release marker on opening, returning to the tab, browser history restoration, and reconnection. A newer release saves progress before reloading, then removes temporary version parameters from the address. Offline and failed checks leave the current game usable; local `file:` use makes no update requests.
+
+Before publishing HTML, JavaScript or CSS changes, run `npm run version:assets` and commit both `index.html` and `version.json` with the changed files. This stamps the page and matching asset URLs with content hashes and generates the release marker used by automatic updates. Repeated generation without source changes produces the same version.
 
 ## Testing
 

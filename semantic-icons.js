@@ -118,8 +118,8 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     if (isValue) template = null;
     if (template?.tag === 'var') return genericSlot(template.name, variables, type.tag === 'var' ? null : type, maxWidth, isValue);
     if (type.tag === 'var') return genericSlot(type.name, variables);
-    if (type.tag === 'con' && type.name.startsWith('SKOLEM')) {
-      const name = type.name.slice(6);
+    if (type.tag === 'con' && (type.name.startsWith('SKOLEM') || /^(B|D)$/.test(type.name))) {
+      const name = type.name.startsWith('SKOLEM') ? type.name.slice(6) : type.name.toLowerCase();
       let mark = marks[name] || outline('<circle cx="12" cy="12" r="10"/>');
       if (isValue) mark = mark.replace('fill="none"', `fill="${mark.match(/stroke="([^"]+)"/)[1]}"`);
       return { width: 24, height: 24, body: `<g class="type-atom" data-type="${escape(name)}">${mark}</g>` };
@@ -258,6 +258,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       f3: ['First slot → Hero', 'Take Zero’s first slot and put it in Hero.'],
     },
     9: {
+      bd: ['Square to triangle', 'Convert the concrete square type B to the concrete triangle type D.'],
       fmap: ['Map the last slot', 'Apply the supplied function to Zero’s last slot; keep the first two slots.'],
       f1: ['Last slot to front', 'Rotate Zero’s last slot to the front.'],
       f2: ['Zero → Hero', 'Change Zero to Hero, keeping all three slots.'],
