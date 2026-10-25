@@ -7,8 +7,16 @@ function clearRowHistory() { rowHistory.clear(); }
 function getRows() {
   if (!rowPrograms[currentLevel]) rowPrograms[currentLevel] = RowProgram.migrate(textDrafts[currentLevel] ?? getEditorContent());
   if (!preparedRowPrograms.has(rowPrograms[currentLevel])) {
+    const before = RowProgram.source(rowPrograms[currentLevel]);
     rowPrograms[currentLevel] = automaticRows(LEVELS[currentLevel], rowPrograms[currentLevel]);
     preparedRowPrograms.add(rowPrograms[currentLevel]);
+    const after = RowProgram.source(rowPrograms[currentLevel]);
+    if (before !== after && textDrafts[currentLevel] !== undefined) {
+      delete textDrafts[currentLevel];
+      textHistory.delete(currentLevel);
+      editorContents[currentLevel] = LEVELS[currentLevel].lhs.trim() + ' ' + after;
+      saveProgress();
+    }
   }
   return rowPrograms[currentLevel];
 }
@@ -199,7 +207,8 @@ function mountRowEditor() {
     holder.hidden = !structured;
     const automatic = getRows()[index].automatic || getRows()[index].automaticInput;
     holder.classList.toggle('function-head', structured && !getRows()[index].automatic);
-    row.querySelector('.editor-container').hidden = structured;
+    row.querySelector('.editor-container').hidden = structured || !!automatic;
+    row.querySelector('textarea').readOnly = !!automatic;
     row.querySelector('.row-call').classList.toggle('structured-call', structured);
     if (!structured) { holder.replaceChildren(); return; }
     const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
@@ -235,7 +244,8 @@ function mountRowEditor() {
       feedback.innerHTML = diagnostic.error
         ? (picture ? `<div class="row-result-preview" title="Expected result; complete this row before reusing it">${picture}</div>` : '')
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${picture}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
-      row.querySelector('.row-error').textContent = rows[i].expr.trim() && !rows[i].automatic ? diagnostic.error || '' : '';
+      const awaitingFunction = diagnostic.call && !diagnostic.call.args.length;
+      row.querySelector('.row-error').textContent = rows[i].expr.trim() && !rows[i].automatic && !awaitingFunction ? diagnostic.error || '' : '';
       if (rows[i].automatic || rows[i].automaticInput) {
         const result = feedback.querySelector('.row-result');
         if (result) { result.draggable = false; delete result.dataset.funcName; result.setAttribute('aria-label', 'Automatic result: ' + diagnostic.signature); result.title = 'Result after applying the starting value'; }

@@ -90,3 +90,14 @@ test('function-valued starting parameters stay usable while the ordinary input i
   assert.equal(app.run('rowDiagnostics[0].call.arguments[0].type.tag'), 'fun');
   assert.equal(app.run('getRows().at(-1).expr'), 'r1 z');
 });
+
+
+test('text mode exposes the generated final application after constructing icons', () => {
+  const app = game();
+  app.run(`currentLevel = 1; iconMode = false;
+    textDrafts[1] = 'let r1 = (.) mkHero in r1 runZero';
+    iconMode = true; getRows(); runLiveCheck(); iconMode = false;`);
+  assert.equal(app.run('getTextSource()'), app.run('LEVELS[1].solution'));
+  assert.equal(app.run('checkSolution(LEVELS[1], getTextSource()).ok'), true);
+  assert.equal(app.run('textDrafts[1]'), undefined);
+});
