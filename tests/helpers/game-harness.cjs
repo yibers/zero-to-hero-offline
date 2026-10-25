@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, '../..');
 
 function game(saved) {
   const storage = new Map(saved ? [['zth_progress', JSON.stringify(saved)]] : []);
-  const nodes = Object.fromEntries(['app', 'status-bar', 'status-output', 'next-level', 'level-badge']
+  const nodes = Object.fromEntries(['app', 'status-bar', 'status-output', 'next-level', 'skip-level', 'level-badge']
     .map(id => [id, { innerHTML: '', textContent: '', hidden: true }]));
   const context = {
     console, setTimeout, clearTimeout, addEventListener() {},

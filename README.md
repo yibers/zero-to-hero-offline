@@ -45,6 +45,7 @@ tests/          — Playwright + unit tests
 - Live type inference as you type
 - Semantic icon mode by default, with a text-mode toggle
 - Prev / Next navigation, with automatic completion
+- **Skip level** advances without solving or clearing the current puzzle. Drafts survive returning and refreshing. At the end, **Unsolved levels** returns to the first skipped puzzle; the completion celebration requires every level to be solved.
 - Opens directly into the puzzle; a final dialog celebrates completing the game
 - **Clear level** restarts only the current puzzle, restoring all supplied cards and removing its solved mark while preserving other levels and display preferences
 - Solved (✓) indicator per level

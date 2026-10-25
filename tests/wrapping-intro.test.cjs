@@ -46,7 +46,7 @@ test('completion, refresh, next, previous and reset follow the introductory orde
   assert.equal(restored.run('LEVELS[currentLevel].level'), 1);
   restored.run('nextLevel();');
   assert.equal(restored.run('LEVELS[currentLevel].level'), 2);
-  restored.run('currentLevel = LEVEL_ORDER.at(-1); completedLevels.add(currentLevel); nextLevel();');
+  restored.run('currentLevel = LEVEL_ORDER.at(-1); completedLevels = new Set(LEVEL_ORDER); nextLevel();');
   assert.equal(restored.run('showComplete'), true);
   assert.equal(restored.run('LEVELS[currentLevel].level'), 16);
   restored.run('resetGame();');

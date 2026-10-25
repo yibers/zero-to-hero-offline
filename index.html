@@ -1027,6 +1027,11 @@ function levelProgressLabel(level = LEVELS[currentLevel]) {
   return `Level ${level.level} / ${LEVELS.length}`;
 }
 
+function nextLevelLabel() {
+  if (currentLevel !== LEVEL_ORDER.at(-1)) return 'Next level';
+  return LEVEL_ORDER.every(index => completedLevels.has(index)) ? 'Finish' : 'Unsolved levels';
+}
+
 function render() {
   document.getElementById('connection-picker')?.remove();
   if (touchDragCleanup) touchDragCleanup();
@@ -1089,7 +1094,8 @@ function render() {
     <nav>
       <div style="display:flex;gap:4px">
         <button onclick="prevLevel()" ${currentLevel === LEVEL_ORDER[0] ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg> Prev</button>
-        <button id="next-level" onclick="nextLevel()" ${completedLevels.has(currentLevel) ? '' : 'hidden'}>${currentLevel === LEVEL_ORDER.at(-1) ? 'Finish' : 'Next level'}</button>
+        <button id="next-level" onclick="nextLevel()" ${completedLevels.has(currentLevel) ? '' : 'hidden'}>${nextLevelLabel()}</button>
+        <button id="skip-level" onclick="skipLevel()" title="Go to the next level without solving this one" ${completedLevels.has(currentLevel) ? 'hidden' : ''} ${currentLevel === LEVEL_ORDER.at(-1) ? 'disabled' : ''}>Skip level</button>
         <button id="clear-level" onclick="clearLevel()" title="Start this level again">Clear level</button>
       </div>
       <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${level.name}</div>
@@ -1747,15 +1753,30 @@ function recordCompletion() {
     saveProgress();
   }
   const next = document.getElementById('next-level');
-  if (next) next.hidden = false;
+  if (next) { next.hidden = false; next.textContent = nextLevelLabel(); }
+  const skip = document.getElementById('skip-level');
+  if (skip) skip.hidden = true;
   const badge = document.getElementById('level-badge');
   if (badge) badge.innerHTML = `<span title="Solved" style="color:#22c55e">&#10003; </span>${levelProgressLabel()}`;
 }
 
 window.nextLevel = function() {
   if (!completedLevels.has(currentLevel)) return;
-  if (currentLevel === LEVEL_ORDER.at(-1)) showComplete = true;
-  else currentLevel = LEVEL_ORDER[LEVEL_ORDER.indexOf(currentLevel) + 1];
+  if (currentLevel === LEVEL_ORDER.at(-1)) {
+    const unsolved = LEVEL_ORDER.find(index => !completedLevels.has(index));
+    if (unsolved === undefined) showComplete = true;
+    else currentLevel = unsolved;
+  } else currentLevel = LEVEL_ORDER[LEVEL_ORDER.indexOf(currentLevel) + 1];
+  saveProgress();
+  render();
+};
+
+window.skipLevel = function() {
+  const position = LEVEL_ORDER.indexOf(currentLevel);
+  if (completedLevels.has(currentLevel) || position >= LEVEL_ORDER.length - 1) return;
+  clearTimeout(liveCheckTimer);
+  currentLevel = LEVEL_ORDER[position + 1];
+  activeRow = 0;
   saveProgress();
   render();
 };
