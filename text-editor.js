@@ -7,7 +7,7 @@ function getTextSource() {
 function getTextError() {
   try {
     const source = getTextSource(), program = RowProgram.parseLet(source);
-    const rows = program ? RowProgram.migrate(source) : [{ id: 'r1', expr: source }];
+    const rows = program ? [...program.bindings, { id: finalRowName(program.bindings), expr: program.final }] : [{ id: 'r1', expr: source }];
     const errors = RowProgram.validate(rows, LEVELS[currentLevel]);
     const index = errors.findIndex(Boolean);
     if (index < 0) return null;

@@ -37,7 +37,7 @@ const LEVELS = [
       { name: "mkHero", sig: "a -> Hero a", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
-    solution: "let\n  r1 = (.) mkHero runZero\nin\n  r1 z"
+    solution: "let\n  r1 = (.) mkHero\n  r2 = r1 runZero\nin\n  r2 z"
   },
   {
     level: 5, name: "Which path?",
@@ -51,7 +51,7 @@ const LEVELS = [
       { name: "f3", sig: "Hero a -> Hero (a, a)", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
-    solution: "let\n  r1 = (.) f3 f1\nin\n  r1 z"
+    solution: "let\n  r1 = (.) f3\n  r2 = r1 f1\nin\n  r2 z"
   },
   {
     level: 6, name: "A repeating pattern",
@@ -65,7 +65,7 @@ const LEVELS = [
       { name: "f4", sig: "Zero a b -> Zero b b", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
-    solution: "let\n  r1 = (.) f2 f4\nin\n  r1 z"
+    solution: "let\n  r1 = (.) f2\n  r2 = r1 f4\nin\n  r2 z"
   },
   {
     level: 7, name: "A perfect pair",
@@ -80,7 +80,7 @@ const LEVELS = [
       { name: "f3", sig: "Zero a b -> (Hero a, Hero b)", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
     ],
-    solution: "let\n  r1 = (.) f3 f1\n  r2 = (.) snd r1\nin\n  r2 z"
+    solution: "let\n  r1 = (.) f3\n  r2 = r1 f1\n  r3 = (.) snd\n  r4 = r3 r2\nin\n  r4 z"
   },
   {
     level: 8, name: "Monty Hall",
@@ -95,7 +95,7 @@ const LEVELS = [
       { name: "f3", sig: "Zero a b c -> Hero b c", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
     ],
-    solution: "let\n  r1 = (.) f1 f2\n  r2 = (.) f3 r1\nin\n  r2 z"
+    solution: "let\n  r1 = (.) f1\n  r2 = r1 f2\n  r3 = (.) f3\n  r4 = r3 r2\nin\n  r4 z"
   },
   {
     level: 9, name: "TIE fighter",
@@ -111,7 +111,7 @@ const LEVELS = [
       { name: "(<*>)", sig: "Hero (a -> c) -> Hero a -> Hero c", uses: 2 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
-    solution: "let\n  r1 = (.) (<*>) f2\n  r2 = f1 z\n  r3 = f3 z\n  r4 = (<*>) r2 r3\nin\n  r1 z r4"
+    solution: "let\n  r1 = (.) (<*>)\n  r2 = r1 f2\n  r3 = f1 z\n  r4 = f3 z\n  r5 = (<*>) r3\n  r6 = r5 r4\n  r7 = r2 z\nin\n  r7 r6"
   },
   {
     level: 10, name: "The middle man",
@@ -126,7 +126,7 @@ const LEVELS = [
       { name: "f2", sig: "Zero a b c -> Hero a b c", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 4 }
     ],
-    solution: "let\n  r1 = fmap bd\n  r2 = (.) r1 f1\n  r3 = (.) f1 r2\n  r4 = (.) f1 r3\n  r5 = (.) f2 r4\nin\n  r5 z"
+    solution: "let\n  r1 = fmap bd\n  r2 = (.) r1\n  r3 = r2 f1\n  r4 = (.) f1\n  r5 = r4 r3\n  r6 = (.) f1\n  r7 = r6 r5\n  r8 = (.) f2\n  r9 = r8 r7\nin\n  r9 z"
   },
   {
     level: 11, name: "Split the difference",
@@ -141,7 +141,7 @@ const LEVELS = [
       { name: "f3", sig: "Zero a b c d -> Zero d c b a", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 3 }
     ],
-    solution: "let\n  r1 = (.) f1 f3\n  r2 = (.) f1 r1\n  r3 = (.) f2 r2\nin\n  r3 z"
+    solution: "let\n  r1 = (.) f1\n  r2 = r1 f3\n  r3 = (.) f1\n  r4 = r3 r2\n  r5 = (.) f2\n  r6 = r5 r4\nin\n  r6 z"
   },
   {
     level: 12, name: "The roller coaster",
@@ -156,7 +156,7 @@ const LEVELS = [
       { name: "f3", sig: "Zero a b c d -> Hero d", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 7 }
     ],
-    solution: "let\n  r1 = (.) f2 f1\n  r2 = (.) f1 r1\n  r3 = (.) f2 r2\n  r4 = (.) f1 r3\n  r5 = (.) f2 r4\n  r6 = (.) f2 r5\n  r7 = (.) f3 r6\nin\n  r7 z"
+    solution: "let\n  r1 = (.) f2\n  r2 = r1 f1\n  r3 = (.) f1\n  r4 = r3 r2\n  r5 = (.) f2\n  r6 = r5 r4\n  r7 = (.) f1\n  r8 = r7 r6\n  r9 = (.) f2\n  r10 = r9 r8\n  r11 = (.) f2\n  r12 = r11 r10\n  r13 = (.) f3\n  r14 = r13 r12\nin\n  r14 z"
   },
   // ─── Monad levels ───
   {
@@ -184,7 +184,7 @@ const LEVELS = [
       { name: "dup", sig: "a -> Hero (a, a)", uses: 1 },
       { name: "(>>=)", sig: "Hero a -> (a -> Hero b) -> Hero b", uses: 1 }
     ],
-    solution: "let\n  r1 = f z\nin\n  r1 >>= dup"
+    solution: "let\n  r1 = f z\n  r2 = (>>=) r1\nin\n  r2 dup"
   },
   {
     level: 15, name: "Lift off",
@@ -198,7 +198,7 @@ const LEVELS = [
       { name: "swap", sig: "(a, b) -> (b, a)", uses: 1 },
       { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b", uses: 1 }
     ],
-    solution: "let\n  r1 = f z\nin\n  swap <$> r1"
+    solution: "let\n  r1 = f z\n  r2 = (<$>) swap\nin\n  r2 r1"
   },
   {
     level: 16, name: "Double bind",
@@ -213,7 +213,7 @@ const LEVELS = [
       { name: "nest", sig: "(a, a) -> Hero (a, (a, a))", uses: 1 },
       { name: "(>>=)", sig: "Hero a -> (a -> Hero b) -> Hero b", uses: 2 }
     ],
-    solution: "let\n  r1 = f z\n  r2 = r1 >>= dup\nin\n  r2 >>= nest"
+    solution: "let\n  r1 = f z\n  r2 = (>>=) r1\n  r3 = r2 dup\n  r4 = (>>=) r3\nin\n  r4 nest"
   },
   {
     level: 17, name: "Applicative hero",
@@ -229,7 +229,7 @@ const LEVELS = [
       { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b", uses: 1 },
       { name: "(<*>)", sig: "Hero (a -> b) -> Hero a -> Hero b", uses: 1 }
     ],
-    solution: "let\n  r1 = g z\n  r2 = pair <$> r1\n  r3 = f z\nin\n  r2 <*> r3"
+    solution: "let\n  r1 = g z\n  r2 = (<$>) pair\n  r3 = r2 r1\n  r4 = f z\n  r5 = (<*>) r3\nin\n  r5 r4"
   },
   {
     level: 1, name: "Wrap a value",

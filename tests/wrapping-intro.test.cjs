@@ -81,7 +81,7 @@ test('existing saved puzzle indices, drafts, achievements and settings remain un
   assert.equal(restored.run('levelProgressLabel()'), 'Level 9 / 17');
   assert.equal(restored.run('completedLevels.has(LEVEL_ORDER[0])'), false);
   restored.run('saveProgress();');
-  const { bypassCount: legacyPoints, showIntro: legacyIntro, ...expected } = saved;
+  const { bypassCount: legacyPoints, showIntro: legacyIntro, ...expected } = { ...saved, curryingVersion: 1 };
   assert.deepEqual(restored.saved(), expected);
   assert.equal(restored.run('typeof bypass'), 'undefined');
   restored.run('render();');

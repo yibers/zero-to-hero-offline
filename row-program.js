@@ -46,8 +46,8 @@ const RowProgram = (() => {
   }
   function count(tree) {
     if (atomic(tree)) return 0;
-    if (tree.kind === 'app') return 1 + count(tree.fn) + tree.args.reduce((n, t) => n + count(t), 0);
-    return 1 + count(tree.left) + count(tree.right);
+    if (tree.kind === 'app') return tree.args.length + count(tree.fn) + tree.args.reduce((n, t) => n + count(t), 0);
+    return (tree.op === '$' ? 1 : 2) + count(tree.left) + count(tree.right);
   }
   function names(tree) {
     if (atomic(tree)) return [tree.name];
@@ -65,22 +65,9 @@ const RowProgram = (() => {
         : { name: tree.fn.name, args: tree.args.map(arg => arg.name), infix: false };
     } catch (_) { return null; }
   }
-  // Composition builds a function in one step; applying that function is a
-  // later step. Track aliases/partial applications without changing its type.
-  function compositionInputs(rows) {
-    const remaining = new Map([['.', 2]]);
-    return rows.map(row => {
-      const model = call(row.expr);
-      const limit = model ? remaining.get(model.name) ?? null : null;
-      if (limit !== null && model.args.length < limit && !model.args.includes('_')) {
-        remaining.set(row.id, limit - model.args.length);
-      }
-      return limit;
-    });
-  }
   function setArgument(code, index, name) {
     const model = call(code);
-    if (!model || !Number.isInteger(index) || index < 0) throw Error('Choose a function first.');
+    if (!model || index !== 0) throw Error('Each row accepts one argument. Apply the returned function in a new row.');
     if (name) {
       const value = parse(name);
       if (!atomic(value)) throw Error('Use an earlier result instead of a nested call.');
@@ -110,42 +97,62 @@ const RowProgram = (() => {
     if (rows.length === 1) return rows[0].expr.trim();
     return 'let\n' + rows.slice(0, -1).map(r => `  ${r.id} = ${r.expr.trim()}`).join('\n') + '\nin\n  ' + rows.at(-1).expr.trim();
   }
+  // Expand applications without renaming existing results. Reserve every name,
+  // including unresolved references, so generated rows cannot capture a name.
+  function curryRows(rows) {
+    const used = new Set(rows.flatMap(row => [row.id, ...(row.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || [])]));
+    let next = 1;
+    function fresh() {
+      while (used.has(`r${next}`)) next++;
+      const id = `r${next++}`; used.add(id); return id;
+    }
+    function normalize(tree) {
+      if (atomic(tree)) return tree;
+      if (tree.kind === 'app') return app(normalize(tree.fn), tree.args.map(normalize));
+      const left = normalize(tree.left), right = normalize(tree.right);
+      return tree.op === '$' ? app(left, [right]) : app(atom(tree.op), [left, right]);
+    }
+    return rows.flatMap(row => {
+      try {
+        const original = parse(row.expr), tree = normalize(original);
+        if (count(tree) <= 1) return [original.kind === 'op' ? { ...row, expr: print(tree) } : row];
+        const expanded = [];
+        function lower(tree, finalId = null) {
+          if (atomic(tree)) return tree;
+          let fn = lower(tree.fn);
+          tree.args.forEach((argument, i) => {
+            const value = lower(argument), id = i === tree.args.length - 1 && finalId ? finalId : fresh();
+            expanded.push({ id, expr: print(app(fn, [value])) });
+            fn = atom(id);
+          });
+          return fn;
+        }
+        lower(tree, row.id);
+        return expanded;
+      } catch (_) { return [row]; } // Preserve incomplete drafts verbatim.
+    });
+  }
   function migrate(code) {
     if (!code.trim() || code.trim() === 'undefined') return [{ id: 'r1', expr: '' }];
     try {
-      const letProgram = parseLet(code);
-      if (letProgram) {
-        const used = new Set(letProgram.bindings.map(r => r.id));
+      const program = parseLet(code);
+      if (program) {
+        const used = new Set(code.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || []);
         let n = 1; while (used.has(`r${n}`)) n++;
-        return [...letProgram.bindings, { id: `r${n}`, expr: letProgram.final }];
+        return curryRows([...program.bindings, { id: `r${n}`, expr: program.final }]);
       }
-      const rows = [];
-      function normalize(tree) {
-        if (atomic(tree)) return tree;
-        if (tree.kind === 'app') return app(normalize(tree.fn), tree.args.map(normalize));
-        const left = normalize(tree.left), right = normalize(tree.right);
-        return tree.op === '$' ? app(left, [right]) : { ...tree, left, right };
-      }
-      function lower(tree, root = false) {
-        if (atomic(tree)) return tree;
-        const simple = tree.kind === 'app'
-          ? { ...tree, fn: lower(tree.fn), args: tree.args.map(t => lower(t)) }
-          : { ...tree, left: lower(tree.left), right: lower(tree.right) };
-        const row = { id: `r${rows.length + 1}`, expr: print(simple) };
-        rows.push(row);
-        return atom(row.id);
-      }
-      const tree = normalize(parse(code));
-      if (atomic(tree)) return [{ id: 'r1', expr: print(tree) }];
-      lower(tree, true);
-      return rows;
-    } catch (_) {
-      // Keep unfinished/invalid old work verbatim so the player can repair it.
-      return [{ id: 'r1', expr: code }];
-    }
+      return curryRows([{ id: 'r1', expr: code }]);
+    } catch (_) { return [{ id: 'r1', expr: code }]; }
+  }
+  function currySource(code) {
+    try {
+      const program = parseLet(code);
+      const expressions = program ? [...program.bindings.map(row => row.expr), program.final] : [code];
+      if (!expressions.some(expr => { const tree = parse(expr); return count(tree) > 1 || tree.kind === 'op'; })) return code;
+      return source(migrate(code));
+    } catch (_) { return code; }
   }
   function validate(rows, level) {
-    const compositionLimits = compositionInputs(rows);
     const available = new Set([
       ...level.funcs.map(f => f.name.replace(/^\(|\)$/g, '')),
       ...level.lhs.split('=')[0].trim().split(/\s+/).slice(1)
@@ -158,11 +165,7 @@ const RowProgram = (() => {
         if (!row.expr.trim() || row.expr.trim() === 'undefined') throw Error('Add an expression to this row.');
         if (/\bundefined\b/.test(row.expr)) throw Error('Using undefined is not allowed.');
         const tree = parse(row.expr);
-        if (count(tree) > 1) throw Error('One operation per row. Move the nested call to an earlier row and use its result.');
-        const limit = compositionLimits[index];
-        if (limit !== null && call(row.expr).args.length > limit) {
-          throw Error('Composition takes two functions. Apply the composed result in a separate row.');
-        }
+        if (count(tree) > 1) throw Error('One argument per row. Apply the returned function in a new row.');
         if (names(tree).includes('_')) throw Error('Fill the empty input slot before using this result.');
         for (const name of names(tree)) {
           if (!available.has(name)) throw Error(/^r\d+$/.test(name)
@@ -179,5 +182,5 @@ const RowProgram = (() => {
     const rows = program ? [...program.bindings, { expr: program.final }] : migrate(code);
     return rows.reduce((n, row) => n + count(parse(row.expr)), 0);
   }
-  return { parse, print, count, names, call, compositionInputs, setArgument, parseLet, source, migrate, validate, score };
+  return { parse, print, count, names, call, setArgument, parseLet, source, migrate, curryRows, currySource, validate, score };
 })();

@@ -64,14 +64,14 @@ function rowTypeSignatures(types) {
     return renamed[variable];
   }));
 }
-function diagnoseCall(code, env, params, compositionLimit = null) {
+function diagnoseCall(code, env, params) {
   const model = RowProgram.call(code);
   if (!model) return null;
   try {
     const headType = inferExpr(RowProgram.print({ kind: 'name', name: model.name }), env, params);
     let type = headType;
     const inputs = [], actuals = [];
-    while (type?.tag === 'fun' && (compositionLimit === null || inputs.length < compositionLimit)) {
+    if (type?.tag === 'fun') {
       inputs.push(type.from); type = type.to;
     }
     if (!inputs.length || model.args.length > inputs.length) return null;
@@ -113,7 +113,6 @@ function diagnoseCall(code, env, params, compositionLimit = null) {
 function diagnoseRows() {
   const level = LEVELS[currentLevel], rows = getRows();
   const errors = RowProgram.validate(rows, level);
-  const compositionLimits = RowProgram.compositionInputs(rows);
   const env = {}, params = {};
   for (const f of level.funcs) env[f.name.replace(/^\(|\)$/g, '')] = parseType(f.sig);
   const target = parseType(level.target), subst = {};
@@ -124,7 +123,7 @@ function diagnoseRows() {
   }
   substCounter = 0;
   rowDiagnostics = rows.map((row, index) => {
-    const call = diagnoseCall(row.expr, env, params, compositionLimits[index]);
+    const call = diagnoseCall(row.expr, env, params);
     try {
       if (errors[index]) throw Error(errors[index]);
       const type = inferExpr(row.expr, env, params);
@@ -424,8 +423,7 @@ function mountRowEditor() {
     while (pos < text.length && /\s/.test(text[pos])) pos++;
     const prefix = pos && !/\s/.test(text[pos - 1]) ? ' ' : '';
     const suffix = pos < text.length && !/\s/.test(text[pos]) ? ' ' : '';
-    // Operators used as values need parentheses; between operands they are infix.
-    if (isOperatorName(name) && text.slice(0, pos).trim()) name = name.slice(1, -1);
+    // Operators stay parenthesized when passed as function values.
     return text.slice(0, pos) + prefix + name + suffix + text.slice(pos);
   }
   function stockAllows(next) {
@@ -462,7 +460,10 @@ function mountRowEditor() {
       next[rowIndex].expr = text.slice(0, connector.start) + `${left} ${connector.op ? connector.op + ' ' : ''}${right}` + text.slice(connector.end);
     } else next[rowIndex].expr = inserted(next[rowIndex].expr, pos, name);
     if (!stockAllows(next)) return;
-    rememberRows(); rowPrograms[currentLevel] = next; activeRow = rowIndex; commit(createsRow); activate(activeRow);
+    const targetId = next[rowIndex].id, curried = RowProgram.curryRows(next);
+    rememberRows(); rowPrograms[currentLevel] = curried;
+    activeRow = curried.findIndex(row => row.id === targetId);
+    commit(createsRow || curried.length !== next.length); activate(activeRow);
   }
   function slotAt(point) {
     const slot = document.elementFromPoint(point.clientX, point.clientY)?.closest('.argument-slot');
@@ -603,7 +604,7 @@ function mountRowEditor() {
     const dialog = document.createElement('dialog');
     dialog.id = 'connection-picker'; dialog.className = 'connection-picker';
     dialog.setAttribute('aria-labelledby', 'connection-title');
-    dialog.innerHTML = '<h2 id="connection-title">Choose an operator</h2><p>Connect these inputs in this row.</p><div class="connection-order"><span id="connection-order-label"></span><button type="button" id="connection-swap">Swap order</button></div><div class="connection-options"></div><button type="button" class="connection-cancel">Cancel</button>';
+    dialog.innerHTML = '<h2 id="connection-title">Choose an operator</h2><p>Apply each input in its own row.</p><div class="connection-order"><span id="connection-order-label"></span><button type="button" id="connection-swap">Swap order</button></div><div class="connection-options"></div><button type="button" class="connection-cancel">Cancel</button>';
     document.body.append(dialog);
     let swapped = false;
     const close = () => { dialog.close(); dialog.remove(); };

@@ -128,8 +128,9 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       // A function value is pictured by its signature: these inner shapes
       // describe input/output types, not values that have already been supplied.
       const pattern = template?.tag === 'fun' ? template : null;
-      const { args, result } = parts(type, pattern ? parts(pattern).args.length : Infinity);
-      return frame(flow(args, result, Math.max(24, maxWidth - 12), variables, false, pattern), { x: 6, y: 6 }, rectangle);
+      const { args, result } = parts(type, 1);
+      const boxed = frame(flow(args, result, Math.max(24, maxWidth - 12), variables, false, pattern), { x: 6, y: 6 }, rectangle);
+      return { ...boxed, body: `<g class="function-value">${boxed.body}</g>` };
     }
     const { head, args } = type.tag === 'app' ? flattenApp(type) : { head: type, args: [] };
     if (head.name === '()') return { width: 24, height: 24,
@@ -151,8 +152,9 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     return svg(label, `<g${className ? ` class="${className}"` : ''}>${move(diagram.body, 2, 2)}</g>`, diagram.width + 4, diagram.height + 4)
       .replace('<svg ', `<svg${attributes}${isValue ? ' data-diagram-value="true"' : ''}${inputsOnly ? ' data-diagram-inputs-only="true"' : ''} `);
   }
-  function transformation(signature, label, arity = Infinity, variableNames = [], inputsOnly = false, template = null) {
+  function transformation(signature, label, arity = 1, variableNames = [], inputsOnly = false, template = null) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
+    arity = 1;
     const { args, result } = parts(type, arity), variables = variableMap(variableNames);
     return picture(label, flow(args, result, Infinity, variables, inputsOnly, template), '', type, arity, variables, inputsOnly, template);
   }
@@ -311,8 +313,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       labels[bare] = labels[func.name] = info[0];
       details[bare] = details[func.name] = info[1];
       const label = `${bare}: ${info[1]} Type: ${func.sig}`;
-      const arity = bare === '.' ? 2 : Infinity;
-      cards[bare] = cards[func.name] = transformation(func.sig, label, arity);
+      cards[bare] = cards[func.name] = transformation(func.sig, label);
       map[bare] = map[func.name] = cards[bare];
     }
     const names = level.lhs.split('=')[0].trim().split(/\s+/).slice(1);
