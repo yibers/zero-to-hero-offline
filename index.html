@@ -873,7 +873,6 @@ function inferExpr(code, env, paramTypes) {
 // ─── UI Rendering ───
 
 let currentLevel = LEVEL_ORDER[0];
-let showIntro = true;
 let showComplete = false;
 let showAbout = false;
 let completedLevels = new Set();
@@ -915,7 +914,6 @@ try {
     }
     currentLevel = Math.max(0, Math.min(parsed.currentLevel ?? LEVEL_ORDER[0], LEVELS.length - 1));
     iconMode = parsed.iconMode !== false;
-    showIntro = parsed.showIntro !== false;
     // Preserve the meaning of solutions saved by the old implicit-$ editor.
     // New edits and every later reload use ordinary application in both modes.
     if (parsed.connectionVersion !== 1 && parsed.iconMode === true) {
@@ -952,7 +950,6 @@ function saveProgress() {
     currentLevel,
     geckoOn,
     iconMode,
-    showIntro: false,
     connectionVersion: 1,
     completionVersion: 5,
     levelOrderVersion: 1
@@ -970,17 +967,6 @@ function render() {
   const app = document.getElementById('app');
 
   app.innerHTML = `
-    ${showIntro ? `
-    <div class="dialog-overlay" id="intro-dialog">
-      <div class="dialog">
-        <p>Welcome to Zero to Hero. First, wrap a value in Zero. Then use the supplied functions to turn Zero values into Hero values.</p>
-        <p>A colored solid outline identifies a particular type. A filled colored shape represents a value of that type. A dotted gray shape is a generic type slot; matching gray shapes mean the same type. Empty inputs and expected outputs show type outlines; placed values and completed results show filled shapes without a dotted generic outline. In <code>Zero a</code>, <code>a</code> is the type of the value inside; <code>Zero</code> is the type constructor that describes the wrapper. The pictures track types, not actual contents such as numbers.</p>
-        <p>Each level supplies an exact number of copies of each function. Use them all in the steps that produce your final result. Adding a function uses one copy; removing it returns that copy to the palette. Unused rows do not count. Starting arguments also have a limited supply; using a copy removes it, and clearing it returns it.</p>
-        <br>
-        <button onclick="dismissIntro()">OK</button>
-      </div>
-    </div>` : ''}
-
     ${showComplete ? `
     <div class="dialog-overlay" id="complete-dialog">
       <div class="dialog">
@@ -1037,6 +1023,7 @@ function render() {
       <div style="display:flex;gap:4px">
         <button onclick="prevLevel()" ${currentLevel === LEVEL_ORDER[0] ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg> Prev</button>
         <button id="next-level" onclick="nextLevel()" ${completedLevels.has(currentLevel) ? '' : 'hidden'}>${currentLevel === LEVEL_ORDER.at(-1) ? 'Finish' : 'Next level'}</button>
+        <button id="clear-level" onclick="clearLevel()" title="Start this level again">Clear level</button>
       </div>
       <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${level.name}</div>
       <div style="display:flex;align-items:center;gap:12px">
@@ -1686,12 +1673,6 @@ function escHtml(s) {
 
 // ─── Actions ───
 
-window.dismissIntro = function() {
-  showIntro = false;
-  saveProgress();
-  render();
-};
-
 function recordCompletion() {
   if (!completedLevels.has(currentLevel)) {
     completedLevels.add(currentLevel);
@@ -1707,6 +1688,20 @@ window.nextLevel = function() {
   if (!completedLevels.has(currentLevel)) return;
   if (currentLevel === LEVEL_ORDER.at(-1)) showComplete = true;
   else currentLevel = LEVEL_ORDER[LEVEL_ORDER.indexOf(currentLevel) + 1];
+  saveProgress();
+  render();
+};
+
+window.clearLevel = function() {
+  clearTimeout(liveCheckTimer);
+  showComplete = false;
+  completedLevels.delete(currentLevel);
+  delete editorContents[currentLevel];
+  delete rowPrograms[currentLevel];
+  delete textDrafts[currentLevel];
+  textHistory.delete(currentLevel);
+  rowHistory.delete(currentLevel);
+  activeRow = 0;
   saveProgress();
   render();
 };

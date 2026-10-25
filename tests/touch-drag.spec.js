@@ -9,7 +9,6 @@ test.describe('Phone touch dragging', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto(PAGE_URL);
-    await page.getByRole('button', { name: 'OK', exact: true }).tap();
     await page.evaluate(() => document.fonts.ready);
   });
 

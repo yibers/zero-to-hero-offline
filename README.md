@@ -45,7 +45,8 @@ tests/          — Playwright + unit tests
 - Live type inference as you type
 - GeckoGraph toggle for visual type display
 - Prev / Next navigation, with automatic completion
-- Intro dialog and final game completion dialog
+- Opens directly into the puzzle; a final dialog celebrates completing the game
+- **Clear level** restarts only the current puzzle, restoring all supplied cards and removing its solved mark while preserving other levels and display preferences
 - Solved (✓) indicator per level
 
 ### Additional features
