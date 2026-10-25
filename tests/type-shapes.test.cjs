@@ -23,7 +23,7 @@ test('generic types are dotted, concrete types are hollow, and values are filled
   assert.deepEqual(atoms(fn), ['a', 'b']);
 });
 
-test('placed values and completed results replace generic slots; clearing restores them', () => {
+test('automatic starting values replace generic slots and completed results stay filled', () => {
   const app = game();
   const draw = source => {
     app.run(`setEditorContent(${JSON.stringify(source)}); diagnoseRows();`);
@@ -34,8 +34,9 @@ test('placed values and completed results replace generic slots; clearing restor
     })()`);
   };
   const before = draw('wrap');
-  assert.deepEqual(markers(before.input), ['1']);
-  assert.deepEqual(atoms(before.input), []);
+  assert.deepEqual(markers(before.input), []);
+  assert.deepEqual(atoms(before.input), ['a']);
+  assert.equal(app.run('getRows()[0].automaticInput'), true);
   const filled = draw('wrap value');
   for (const svg of [filled.input, filled.output]) {
     assert.deepEqual(markers(svg), []);

@@ -218,7 +218,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-arrow-header svg { height: 10px; }
 .gecko-arrow-body { display: flex; }
 </style>
-<link rel="stylesheet" href="row-editor.css?v=b2666ca127c9">
+<link rel="stylesheet" href="row-editor.css?v=cccf8bfdacda">
 </head>
 <body>
 
@@ -227,8 +227,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 <script src="levels.js?v=99023f2aac36"></script>
 <script src="semantic-icons.js?v=380e8118daf1"></script>
 <script src="row-program.js?v=1c52b7fbad45"></script>
-<script src="puzzle-rules.js?v=0d6d8aff56c0"></script>
-<script src="row-editor.js?v=d871f6e56e93"></script>
+<script src="puzzle-rules.js?v=3906980caf8f"></script>
+<script src="row-editor.js?v=326ee0d5ea07"></script>
 <script src="text-editor.js?v=62aece77fc32"></script>
 <script>
 
@@ -1166,7 +1166,7 @@ function updateFunctionPalette(level, code) {
   palette.innerHTML = stock.map((entry, i) => {
     if (!entry.remaining) return '';
     const f = level.funcs[i], label = `${f.name}: ${entry.remaining} of ${entry.limit} copies remaining`;
-    return `<div class="func-card" draggable="true" data-func-name="${f.name}" data-remaining="${entry.remaining}" title="${escHtml(label)}" aria-label="${escHtml(label)}">
+    return `<div class="func-card" role="button" tabindex="0" draggable="true" data-func-name="${f.name}" data-remaining="${entry.remaining}" title="${escHtml(label)}" aria-label="${escHtml(label)}">
       <div class="function-card-content">
         <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
         ${geckoOn ? `<div class="palette-gecko" style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
@@ -1182,7 +1182,7 @@ function updateParameterPalette(level, code) {
   const stock = parameterUsage(level, code), key = JSON.stringify(stock.map(p => p.remaining));
   if (palette.dataset.stock === key) return;
   palette.dataset.stock = key;
-  const available = stock.filter(p => p.remaining);
+  const available = stock.filter(p => p.remaining && (!iconMode || p.name !== functionProgramContext(level).input));
   palette.innerHTML = (!iconMode && available.length ? `<h2 style="margin-top:12px"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 256 256" fill="currentColor"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208ZM76,88a12,12,0,1,1,12,12A12,12,0,0,1,76,88Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,128Zm0,40a12,12,0,1,1,12,12A12,12,0,0,1,76,168Zm88-80H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Zm0,40H120a8,8,0,0,1,0-16h44a8,8,0,0,1,0,16Z"/></svg> Available Parameters</h2>` : '') + available.map(entry => {
     const name = escHtml(entry.name), label = `${entry.name}: ${entry.remaining} of ${entry.limit} copies remaining`;
     const badge = entry.limit > 1 ? `<span class="function-stock" aria-hidden="true">×${entry.remaining}</span>` : '';

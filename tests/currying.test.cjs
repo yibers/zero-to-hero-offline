@@ -19,11 +19,11 @@ test('returned functions are nested boxes in the palette and in specialized row 
   assert.match(palette, /class="icon-output">[\s\S]*class="function-value"/);
   const nested = app.run("renderSemanticType(fixedSemanticType('a -> b -> c'))");
   assert.equal((nested.match(/class="function-value"/g) || []).length, 2);
-  app.run('currentLevel = 14; setEditorContent("let first = pair z in first z"); diagnoseRows();');
+  app.run('currentLevel = 1; setEditorContent(LEVELS[1].solution); diagnoseRows();');
   assert.equal(app.run('rowDiagnostics[0].expected.type.tag'), 'fun');
   assert.match(app.run("rowSymbol('first', null, rowDiagnostics[0].expected)"), /class="function-value"/);
-  assert.equal(app.run('rowDiagnostics[1].expected.type.tag'), 'app');
-  assert.doesNotMatch(app.run("rowSymbol('final', null, rowDiagnostics[1].expected)"), /class="function-value"/);
+  assert.equal(app.run('rowDiagnostics[2].expected.type.tag'), 'app');
+  assert.doesNotMatch(app.run("rowSymbol('final', null, rowDiagnostics[2].expected)"), /class="function-value"/);
 });
 
 test('prefix, infix, aliased and nested multi-argument calls must be split in text mode', () => {

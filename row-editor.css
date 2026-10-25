@@ -130,3 +130,9 @@
 .delete-actions { display: flex; gap: 10px; }
 .delete-actions button { flex: 1; }
 .row-delete-dialog .delete-confirm { color: white; border-color: #b91c1c; background: #b91c1c; }
+
+/* The concrete input is fixed in the automatic execution row. */
+.automatic-input { display: flex; max-width: 100%; min-width: 48px; min-height: 48px; align-items: center; justify-content: center; padding: 2px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; cursor: default; }
+.automatic-pending { border-style: dashed; background: #f8fafc; }
+.automatic-final-row .row-result { cursor: default; }
+.automatic-final-row .row-call { flex: 0 1 auto; }

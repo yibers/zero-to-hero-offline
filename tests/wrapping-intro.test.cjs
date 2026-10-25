@@ -15,7 +15,7 @@ test('the introduction wraps one value while preserving its type and enforcing i
   assert.match(app.run('LEVEL_ICONS[1].value'), /data-diagram-type="SKOLEMa"/);
   assert.match(app.run('LEVEL_ICONS[1].value'), /data-type="a"/);
   app.run('setEditorContent("wrap"); diagnoseRows();');
-  assert.equal(app.run('rowDiagnostics[0].call.inputDiagrams[0].type.tag'), 'var');
+  assert.equal(app.run('rowDiagnostics[0].call.inputDiagrams[0].type.tag'), 'con');
   app.run('setEditorContent("wrap value"); diagnoseRows();');
   assert.equal(app.run('typeToString(rowDiagnostics[0].expected.type)'), 'Zero SKOLEMa');
   assert.equal(app.run('typeToString(rowDiagnostics[0].call.arguments[0].type)'), 'SKOLEMa');

@@ -43,7 +43,7 @@ test('TIE fighter enforces the new supplies, final input and useful copies', () 
   app.run('currentLevel = 6;');
   assert.deepEqual(app.read(`checkSolution(LEVELS[6], RowProgram.currySource(${JSON.stringify(oldSolution)})).excess`), ['z']);
   // Even a reusable operator must use every supplied copy in contributing rows.
-  const fewer = solution.replace('r5 = (.) (<*>)', 'r5 = r1');
+  const fewer = solution.replace('  r5 = (.) (<*>)\n', '').replace('r6 = r5 f2', 'r6 = r1 f2');
   assert.deepEqual(app.read(`checkSolution(LEVELS[6], ${JSON.stringify(fewer)}).missing`), ['(<*>)', '(.)']);
   const dead = fewer.replace('let\n', 'let\n  unused = (.) (<*>)\n');
   assert.deepEqual(app.read(`checkSolution(LEVELS[6], ${JSON.stringify(dead)}).missing`), ['(<*>)', '(.)']);

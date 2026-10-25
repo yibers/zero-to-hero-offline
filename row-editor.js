@@ -2,9 +2,14 @@
 const rowHistory = new Map();
 let rowDiagnostics = [];
 let rowEditorCleanup = null;
+const preparedRowPrograms = new WeakSet();
 function clearRowHistory() { rowHistory.clear(); }
 function getRows() {
   if (!rowPrograms[currentLevel]) rowPrograms[currentLevel] = RowProgram.migrate(textDrafts[currentLevel] ?? getEditorContent());
+  if (!preparedRowPrograms.has(rowPrograms[currentLevel])) {
+    rowPrograms[currentLevel] = automaticRows(LEVELS[currentLevel], rowPrograms[currentLevel]);
+    preparedRowPrograms.add(rowPrograms[currentLevel]);
+  }
   return rowPrograms[currentLevel];
 }
 function rowSnapshot() { return JSON.stringify(getRows()); }
@@ -126,6 +131,10 @@ function diagnoseRows() {
     const call = diagnoseCall(row.expr, env, params);
     try {
       if (errors[index]) throw Error(errors[index]);
+      if (!row.automatic && !row.automaticInput) {
+        const error = functionRowError(row.expr, env, params);
+        if (error) throw Error(error);
+      }
       const type = inferExpr(row.expr, env, params);
       if (!type) throw Error('Incomplete expression.');
       env[row.id] = type;
@@ -188,7 +197,8 @@ function mountRowEditor() {
     const holder = row.querySelector('.function-block');
     const structured = iconMode && !!call && !sourceRows.has(getRows()[index].id);
     holder.hidden = !structured;
-    holder.classList.toggle('function-head', structured);
+    const automatic = getRows()[index].automatic || getRows()[index].automaticInput;
+    holder.classList.toggle('function-head', structured && !getRows()[index].automatic);
     row.querySelector('.editor-container').hidden = structured;
     row.querySelector('.row-call').classList.toggle('structured-call', structured);
     if (!structured) { holder.replaceChildren(); return; }
@@ -197,12 +207,13 @@ function mountRowEditor() {
     Object.assign(holder.dataset, { row: index, start: head.start, end: head.end, name: head.name });
     holder.setAttribute('role', 'group');
     holder.setAttribute('aria-label', `Function ${call.name} in row ${index + 1}`);
-    holder.title = `${call.name}. Drag the blue border to move or remove this function.`;
+    holder.title = automatic ? `Automatically apply ${call.name} to the starting value` : `${call.name}. Drag the blue border to move or remove this function.`;
     holder.innerHTML = '<div class="input-slots">' + call.inputs.map((_, slot) => {
       const name = call.args[slot], filled = name && name !== '_';
       const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
       const picture = filled ? rowSymbol(name, null, call.arguments[slot])
         : rowSymbol(`Input ${slot + 1} of ${call.name}`, null, call.inputDiagrams[slot]);
+      if (automatic) return `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(name)} is applied automatically"><span class="input-picture">${picture}</span></span>`;
       return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${filled ? escHtml(name) : 'Drop an argument here'}">
         <span class="input-picture">${picture}</span></button>`;
     }).join('') + '</div>';
@@ -216,14 +227,19 @@ function mountRowEditor() {
       const feedback = row.querySelector('.row-feedback'), diagnostic = rowDiagnostics[i];
       paintInputs(row, diagnostic.call, i);
       drawOverlay(editor);
-      row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
+      row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim() && !rows[i].automatic);
+      row.classList.toggle('automatic-final-row', !!(rows[i].automatic || rows[i].automaticInput));
       const expected = diagnostic.expected;
       const picture = expected ? renderSemanticType(expected.type,
         (!diagnostic.error && (!diagnostic.call || diagnostic.call.args.length === diagnostic.call.inputs.length) ? 'Result ' : 'Expected result ') + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables, expected.template, expected.isValue) : '';
       feedback.innerHTML = diagnostic.error
         ? (picture ? `<div class="row-result-preview" title="Expected result; complete this row before reusing it">${picture}</div>` : '')
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${picture}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
-      row.querySelector('.row-error').textContent = rows[i].expr.trim() ? diagnostic.error || '' : '';
+      row.querySelector('.row-error').textContent = rows[i].expr.trim() && !rows[i].automatic ? diagnostic.error || '' : '';
+      if (rows[i].automatic || rows[i].automaticInput) {
+        const result = feedback.querySelector('.row-result');
+        if (result) { result.draggable = false; delete result.dataset.funcName; result.setAttribute('aria-label', 'Automatic result: ' + diagnostic.signature); result.title = 'Result after applying the starting value'; }
+      }
     });
     paintReadyRow();
     fitSemanticDiagrams();
@@ -234,61 +250,60 @@ function mountRowEditor() {
     runLiveCheck();
   }
   function paintReadyRow() {
-    const rows = getRows();
-    const last = rows.at(-1), diagnostic = rowDiagnostics.at(-1);
-    const state = JSON.stringify([rows.length, last.id, last.expr, diagnostic?.expected?.type, diagnostic?.signature, diagnostic?.error]);
-    const changed = state !== readyRowState;
-    readyRowState = state;
-    const solved = rowDiagnostics.every(row => !row.error)
-      && checkSolution(level, RowProgram.source(rows)).ok;
-    // Unfilled inputs leave the output polymorphic. Keep the goal here while
-    // that output can still become the target, without constraining the inputs
-    // from the answer or treating compatibility as a completed solution.
-    const canMatchGoal = diagnostic?.expected?.type
-      && !!unify(diagnostic.expected.type, fixedGoalType, {});
-    container.querySelectorAll('.program-row:not(.ready-row)').forEach((row, index) => {
-      row.classList.toggle('final-row', solved && index === rows.length - 1);
-    });
+    const rows = getRows(), autoIndex = rows.findIndex(row => row.automatic || row.automaticInput);
+    const construction = rows.filter(row => !row.automatic);
+    const last = construction.at(-1), index = rows.indexOf(last), diagnostic = rowDiagnostics[index];
+    const state = JSON.stringify(rows);
+    const changed = state !== readyRowState; readyRowState = state;
+    const solved = rowDiagnostics.every(row => !row.error) && checkSolution(level, RowProgram.source(rows)).ok;
+    container.querySelectorAll('.program-row').forEach(row => row.classList.remove('final-row'));
+    container.querySelector('.automatic-placeholder')?.remove();
     let ready = container.querySelector('.ready-row');
-    if (!last.expr.trim() || solved || canMatchGoal) { ready?.remove(); paintGoal(solved); return; }
-    const created = !ready;
-    // An incompatible output needs another step. Keep that empty step out of
-    // the source until it is used,
-    // so it cannot replace the result or affect validation, scoring or undo.
-    if (!ready) {
-      ready = document.createElement('section');
-      ready.className = 'program-row ready-row';
-      ready.tabIndex = -1;
-      ready.innerHTML = '<div class="row-heading"><span class="row-number"></span></div><div class="row-flow"><div class="row-call"><button type="button" class="empty-row-drop" aria-label="New function row">Drop a function here</button></div></div>';
-      container.append(ready);
+    // An unfinished function already has its one input slot. Once filled, make
+    // another construction row available before the automatic execution row.
+    const needsRow = !!last.expr.trim() && !diagnostic?.error && !last.automaticInput && !solved;
+    if (!needsRow) { ready?.remove(); ready = null; }
+    else {
+      if (!ready) {
+        ready = document.createElement('section');
+        ready.className = 'program-row ready-row'; ready.tabIndex = -1;
+        ready.innerHTML = '<div class="row-flow"><div class="row-call"><button type="button" class="empty-row-drop" aria-label="New function row">Drop a function here</button></div></div>';
+      }
+      const at = autoIndex < 0 ? rows.length : autoIndex;
+      ready.dataset.row = at; ready.setAttribute('aria-label', `New row ${at + 1}`);
+      container.insertBefore(ready, autoIndex < 0 ? null : editors()[autoIndex].closest('.program-row'));
     }
-    ready.dataset.row = rows.length;
-    ready.setAttribute('aria-label', `Row ${rows.length + 1}`);
-    ready.querySelector('.row-number').textContent = rows.length + 1;
-    paintGoal(false);
-    // Row outputs can grow after a drop. Reveal the next target after layout,
-    // without moving keyboard focus or interrupting an earlier-row edit.
-    if (changed || created) requestAnimationFrame(() => {
+    let finalRow = autoIndex < 0 ? null : editors()[autoIndex].closest('.program-row');
+    if (!finalRow) {
+      const input = functionProgramContext(level).input;
+      finalRow = document.createElement('section');
+      finalRow.className = 'program-row automatic-final-row automatic-placeholder';
+      finalRow.setAttribute('aria-label', 'Automatic final application');
+      finalRow.innerHTML = `<div class="row-flow"><div class="row-call structured-call"><div class="function-block automatic-pending"><span class="automatic-input" role="img" aria-label="Starting value ${escHtml(input)} will be applied automatically">${symbolDisplay(input)}</span></div></div></div>`;
+      container.append(finalRow);
+    }
+    finalRow.classList.add('final-row');
+    paintGoal(solved, finalRow, autoIndex);
+    if (changed && ready) requestAnimationFrame(() => {
       if (ready.isConnected && !controller.signal.aborted) ready.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     });
   }
-  function paintGoal(solved) {
+  function paintGoal(solved, finalRow, autoIndex) {
     container.querySelectorAll('.goal-output').forEach(node => node.remove());
-    const lastRow = container.querySelector('.program-row:last-child');
     if (solved) {
-      const result = lastRow.querySelector('.row-result');
+      const result = finalRow.querySelector('.row-result');
       result.classList.add('puzzle-goal', 'goal-reached');
       result.title = `Goal reached: ${goalSignature}`;
       result.insertAdjacentHTML('beforeend', '<span class="goal-badge" aria-label="Goal reached">✓</span>');
-    } else {
-      // The pending final row shows the fixed puzzle goal once. It is not yet
-      // a computed result that can be picked up or reused.
-      lastRow.querySelector('.row-feedback')?.replaceChildren();
-      const goal = document.createElement('div');
-      goal.className = 'goal-output';
-      goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedGoalType, 'Goal: ' + goalSignature, [], null, true)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
-      lastRow.querySelector('.row-flow').append(goal);
+      return;
     }
+    const diagnostic = rowDiagnostics[autoIndex];
+    // Until the transformation accepts the initial value, retain the fixed
+    // goal. Once it can run, also show its actual result, even when incorrect.
+    if (!diagnostic || diagnostic.error || diagnostic.type?.tag === 'fun') finalRow.querySelector('.row-feedback')?.replaceChildren();
+    const goal = document.createElement('div'); goal.className = 'goal-output';
+    goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedGoalType, 'Goal: ' + goalSignature, [], null, true)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
+    finalRow.querySelector('.row-flow').append(goal);
   }
   function nextRowId(rows) {
     // A removed row may still be referenced by unfinished steps. Never silently
@@ -323,9 +338,13 @@ function mountRowEditor() {
     paint();
   }
   function commit(rebuild = false, keepNewDropArea = false) {
+    const before = rowSnapshot();
+    rowPrograms[currentLevel] = automaticRows(level, getRows());
+    preparedRowPrograms.add(rowPrograms[currentLevel]);
+    rebuild ||= before !== rowSnapshot();
     const removed = !keepNewDropArea && removeEmptyRows();
     persistRows(); notice('');
-    rebuild || removed ? build() : paint();
+    rebuild || removed || editors().length !== getRows().length ? build() : paint();
   }
   function newRow(at) {
     rememberRows();
@@ -426,24 +445,33 @@ function mountRowEditor() {
     // Operators stay parenthesized when passed as function values.
     return text.slice(0, pos) + prefix + name + suffix + text.slice(pos);
   }
-  function stockAllows(next) {
+  function stockAllows(next, changedId) {
+    next = automaticRows(level, next);
+    const context = functionProgramContext(level);
+    for (const row of next) {
+      if (!row.expr.trim() || row.automatic || row.automaticInput) continue;
+      const error = functionRowError(row.expr, context.env, context.params, true);
+      if (error && row.id === changedId) { notice(error); return false; }
+      try { context.env[row.id] = inferExpr(row.expr, context.env, context.params); } catch (_) {}
+    }
     const error = cardUsageIncreaseError(level, RowProgram.source(getRows()), RowProgram.source(next));
     if (error) notice(error);
     return !error;
   }
   function mutateDrop(name, rowIndex, pos, source, connector) {
     const next = structuredClone(getRows());
-    const createsRow = rowIndex === next.length;
-    if (createsRow) next.push({ id: nextRowId(next), expr: '' });
+    const createsRow = rowIndex === next.length || next[rowIndex]?.automatic;
+    if (createsRow) next.splice(rowIndex, 0, { id: nextRowId(next), expr: '' });
     if (refNames().has(name) || /^r\d+$/.test(name)) {
       const from = next.findIndex(r => r.id === name);
       if (from < 0 || from >= rowIndex) { notice('Use a result only in a row below it.'); return; }
     }
     if (source) {
-      const original = next[source.index].expr;
+      const sourceIndex = source.index + (createsRow && source.index >= rowIndex ? 1 : 0);
+      const original = next[sourceIndex].expr;
       if (source.index === rowIndex && pos >= source.start && pos <= source.end && !connector) return;
       const removed = removal(original, source, !!connector);
-      next[source.index].expr = removed.text;
+      next[sourceIndex].expr = isRowHead(source) ? '' : removed.text;
       if (source.index === rowIndex) {
         if (connector && connector.start < removed.end && connector.end > removed.start) {
           notice('Move this argument into an input slot or another row.'); return;
@@ -459,7 +487,7 @@ function mountRowEditor() {
       const left = connector.swapped ? name : target, right = connector.swapped ? target : name;
       next[rowIndex].expr = text.slice(0, connector.start) + `${left} ${connector.op ? connector.op + ' ' : ''}${right}` + text.slice(connector.end);
     } else next[rowIndex].expr = inserted(next[rowIndex].expr, pos, name);
-    if (!stockAllows(next)) return;
+    if (!stockAllows(next, next[rowIndex].id)) return;
     const targetId = next[rowIndex].id, curried = RowProgram.curryRows(next);
     rememberRows(); rowPrograms[currentLevel] = curried;
     activeRow = curried.findIndex(row => row.id === targetId);
@@ -480,7 +508,7 @@ function mountRowEditor() {
   }
   function fillSlot(name, index, position, source) {
     const next = structuredClone(getRows()), call = RowProgram.call(next[index].expr);
-    if (!call || !rowDiagnostics[index]?.call?.inputs[position]) return;
+    if (!call || next[index].automatic || next[index].automaticInput || !rowDiagnostics[index]?.call?.inputs[position]) return;
     const value = name ? name.replace(/^\((.+)\)$/, '$1') : null;
     if (value && !funcs.has(value) && !params.has(value) && !refNames().has(value)) return;
     if (value && (refNames().has(value) || /^r\d+$/.test(value))) {
@@ -494,27 +522,27 @@ function mountRowEditor() {
         .map(sourceForSlot).find(input => input && input.start === source.start && input.end === source.end);
       if (source.index === index && slotSource?.slot === position) return;
       if (source.index === index && !slotSource) { notice('Keep the function in place. Drag an argument or an earlier result into its input.'); return; }
-      next[source.index].expr = removal(next[source.index].expr, slotSource || source, true).text;
+      next[source.index].expr = isRowHead(source) ? '' : removal(next[source.index].expr, slotSource || source, true).text;
     }
     next[index].expr = RowProgram.setArgument(next[index].expr, position, value ? RowProgram.print({ kind: 'name', name: value }) : null);
     if (JSON.stringify(next) === rowSnapshot()) return;
-    if (!stockAllows(next)) return;
+    if (!stockAllows(next, next[index].id)) return;
     rememberRows(); rowPrograms[currentLevel] = next; activeRow = index; commit(); activate(activeRow);
   }
   function chooseArgument(slot) {
     const index = Number(slot.dataset.row), position = Number(slot.dataset.slot), snapshot = rowSnapshot();
     const call = rowDiagnostics[index]?.call;
-    if (!call) return;
+    if (!call || getRows()[index].automatic || getRows()[index].automaticInput) return;
     activate(index);
     const dialog = document.createElement('dialog'); dialog.className = 'connection-picker argument-picker';
     dialog.setAttribute('aria-label', `Choose input ${position + 1} of ${call.name}`);
-    dialog.innerHTML = `<h2>Choose input ${position + 1}</h2><p>For ${rowSymbol(call.name)}. Functions can be inputs too.</p><div class="argument-choices"></div><button type="button" class="connection-cancel">Cancel</button>`;
+    dialog.innerHTML = `<h2>Choose input ${position + 1}</h2><p>For ${rowSymbol(call.name)}. Choose one function.</p><div class="argument-choices"></div><button type="button" class="connection-cancel">Cancel</button>`;
     const close = () => { dialog.close(); dialog.remove(); };
     const stock = functionUsage(level, RowProgram.source(getRows()));
     const available = stock.filter(f => f.remaining || f.name.replace(/^\(|\)$/g, '') === call.args[position]).map(f => f.name);
     const availableParams = parameterUsage(level, RowProgram.source(getRows()))
-      .filter(p => p.remaining || p.name === call.args[position]).map(p => p.name);
-    const choices = [...availableParams, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error).map(row => row.id), ...available];
+      .filter(p => (p.remaining || p.name === call.args[position]) && functionProgramContext(level).params[p.name]?.tag === 'fun').map(p => p.name);
+    const choices = [...availableParams, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error && rowDiagnostics[i].type?.tag === 'fun').map(row => row.id), ...available];
     for (const name of [...choices, null]) {
       if (!name && !call.args[position]) continue;
       const button = document.createElement('button'); button.type = 'button'; button.className = 'argument-choice';
@@ -530,7 +558,7 @@ function mountRowEditor() {
   function rowAt(point) {
     const hit = document.elementFromPoint(point.clientX, point.clientY);
     const row = hit?.closest('.program-row, .ready-row');
-    return row && container.contains(row) ? Number(row.dataset.row) : null;
+    return row && container.contains(row) && row.dataset.row !== undefined ? Number(row.dataset.row) : null;
   }
   function hitToken(index, point) {
     for (const node of visibleTokens(index)) {
@@ -584,9 +612,10 @@ function mountRowEditor() {
     const index = rowAt(point);
     ghost?.classList.toggle('removing', index === null && !!source);
     if (index === null) return;
-    if (index === getRows().length) {
+    if (document.elementFromPoint(point.clientX, point.clientY)?.closest('.ready-row')) {
       container.querySelector('.ready-row')?.classList.add('drag-over'); return;
     }
+    if (getRows()[index]?.automatic || getRows()[index]?.automaticInput) return;
     const slot = slotAt(point);
     if (slot) { slot.classList.add('slot-target'); return; }
     const target = targetFor(name, index, point, source);
@@ -646,7 +675,8 @@ function mountRowEditor() {
     return head?.start === source.start && head?.end === source.end;
   }
   function drop(name, point, source) {
-    if (document.elementFromPoint(point.clientX, point.clientY)?.closest('.goal-output')) return;
+    const hit = document.elementFromPoint(point.clientX, point.clientY);
+    if (hit?.closest('.goal-output, .automatic-input, .automatic-final-row')) return;
     const slot = slotAt(point);
     if (slot) { fillSlot(name, Number(slot.dataset.row), Number(slot.dataset.slot), source); return; }
     const index = rowAt(point);
@@ -659,7 +689,7 @@ function mountRowEditor() {
       }
       return;
     }
-    if (index === getRows().length) { mutateDrop(name, index, 0, source); return; }
+    if (hit?.closest('.ready-row') || index === getRows().length) { mutateDrop(name, index, 0, source); return; }
     const target = targetFor(name, index, point, source);
     if (target) picker(name, target, source);
     else mutateDrop(name, index, caret(index, point).pos, source);
@@ -768,7 +798,7 @@ function mountRowEditor() {
   listen(container, 'click', e => {
     if (e.target.closest('.goal-output')) return;
     if (e.target.closest('.ready-row')) {
-      if (!suppressClick) newRow(getRows().length);
+      if (!suppressClick) newRow(Number(e.target.closest('.ready-row').dataset.row));
       return;
     }
     const slot = e.target.closest('.argument-slot');
@@ -781,11 +811,23 @@ function mountRowEditor() {
   listen(document.getElementById('add-row'), 'click', () => newRow(getRows().length));
   listen(document.getElementById('undo-rows'), 'click', () => historyMove('undo'));
   listen(document.getElementById('redo-rows'), 'click', () => historyMove('redo'));
+  function placeCard(name) {
+    const rows = getRows(), row = rows[activeRow], call = RowProgram.call(row?.expr || '');
+    if (call && !call.args.length && !row.automatic && !row.automaticInput) {
+      fillSlot(name, activeRow, 0); return;
+    }
+    const autoIndex = rows.findIndex(row => row.automatic);
+    const at = row?.expr.trim() ? (autoIndex < 0 ? rows.length : autoIndex) : activeRow;
+    mutateDrop(name, at, 0);
+  }
   listen(document, 'click', e => {
     const card = e.target.closest('[data-func-name]');
-    if (!card || card.tagName !== 'BUTTON' || suppressClick) return;
-    const editor = editors()[activeRow];
-    mutateDrop(card.dataset.funcName, activeRow, document.activeElement === editor ? editor.selectionStart : editor.value.length);
+    if (!card || !card.matches('button, [role="button"]') || suppressClick) return;
+    placeCard(card.dataset.funcName);
+  });
+  listen(document, 'keydown', e => {
+    const card = e.target.closest('.func-card[role="button"]');
+    if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); placeCard(card.dataset.funcName); }
   });
   listen(document, 'dragstart', e => {
     const card = e.target.closest('[data-func-name]');
@@ -805,6 +847,7 @@ function mountRowEditor() {
     // Use the actual contact point to distinguish the function from its inputs.
     const target = e.target.closest('.function-block')
       ? document.elementFromPoint(e.clientX, e.clientY) || e.target : e.target;
+    if (target.closest('.automatic-input') || target.closest('.automatic-final-row') && !target.closest('.function-head')) return;
     const card = target.closest('[data-func-name]');
     const editor = target.closest('textarea.row-editor');
     const slot = target.closest('.argument-slot');
@@ -853,8 +896,8 @@ function mountRowEditor() {
     } else if (state.source) {
       const editor = editors()[state.source.index]; editor.focus({ preventScroll: true });
       const pos = caret(state.source.index, e).pos; editor.setSelectionRange(pos, pos);
-    } else if (state.card?.tagName === 'BUTTON') {
-      mutateDrop(state.name, activeRow, editors()[activeRow].value.length);
+    } else if (state.card?.matches('button, [role="button"]')) {
+      placeCard(state.name);
     }
     // Taps retain caret behavior; dragging never needs a hold.
     cleanupDrag();
