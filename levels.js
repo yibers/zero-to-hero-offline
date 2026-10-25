@@ -108,11 +108,10 @@ const LEVELS = [
       { name: "f1", sig: "Zero a b c -> Hero (a -> b)", uses: 1 },
       { name: "f2", sig: "Zero a b c -> Hero (b -> c)", uses: 1 },
       { name: "f3", sig: "Zero a b c -> Hero a", uses: 1 },
-      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b", uses: 1 },
       { name: "(<*>)", sig: "Hero (a -> c) -> Hero a -> Hero c", uses: 2 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
     ],
-    solution: "let\n  r1 = f2 z\n  r2 = (<$>) (.) r1\n  r3 = f1 z\n  r4 = (<*>) r2 r3\n  r5 = f3 z\nin\n  (<*>) r4 r5"
+    solution: "let\n  r1 = (.) (<*>) f2\n  r2 = f1 z\n  r3 = f3 z\n  r4 = (<*>) r2 r3\nin\n  r1 z r4"
   },
   {
     level: 10, name: "The middle man",

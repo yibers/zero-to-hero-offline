@@ -83,7 +83,7 @@ Every listed function is required; repeated use is allowed. The palette follows 
 | 6 | `f2`, `f4`, `(.)` |
 | 7 | `snd`, `f1`, `f3`, `(.)` |
 | 8 | `f1`, `f2`, `f3`, `(.)` |
-| 9 | `f1`, `f2`, `f3`, `(<$>)`, `(<*>)`, `(.)` |
+| 9 | `f1`, `f2`, `f3`, `(<*>)`, `(.)` |
 | 10 | `fmap`, `f1`, `f2`, `(.)` |
 | 11 | `f1`, `f2`, `f3`, `(.)` |
 | 12 | `f1`, `f2`, `f3`, `(.)` |
@@ -95,7 +95,7 @@ Every listed function is required; repeated use is allowed. The palette follows 
 
 Level 1 starts with a plain value and supplies `wrap :: a -> Zero a`. Its goal is that same value inside Zero. In `Zero a`, `Zero` is a type constructor and `a` is the type of the contained value; the game displays type shapes rather than concrete contents such as numbers. The original levels are now numbered 2–17; saved programs and completions remain attached to their original puzzles.
 
-Level 4 repeats level 3’s `runZero`/`mkHero` puzzle and adds required composition. Existing saved work and completion records move with their original levels; the new level starts unsolved. Composition is introduced in level 4 and remains required through level 12. In these levels, build reusable transformations with `(.)` instead of bypassing it with a chain of value-only rows. Level 9 also requires `(<$>)` to lift composition into `Hero`, then `(<*>)` to combine the wrapped functions and apply them to the wrapped value.
+Level 4 repeats level 3’s `runZero`/`mkHero` puzzle and adds required composition. Existing saved work and completion records move with their original levels; the new level starts unsolved. Composition is introduced in level 4 and remains required through level 12. In these levels, build reusable transformations with `(.)` instead of bypassing it with a chain of value-only rows. Level 9 combines composition with two uses of `(<*>)` to apply wrapped functions to wrapped values. It does not supply or require `(<$>)`.
 
 Levels 14 and 16 teach bind; level 17 focuses on combining independent `Hero` values with `(<$>)` and `(<*>)`. Its removed bind operator has no useful matching step with the existing helpers. `($)` stays removed because rows already provide application and intermediate results. The removed `f2` in level 5, `f1`/`f3` in level 6, and `fst`/`f2` in level 7 stay removed because they do not contribute to these lessons' solutions.
 

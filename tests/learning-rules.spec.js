@@ -4,7 +4,7 @@ const path = require('path');
 const URL = pathToFileURL(path.resolve(__dirname, '..', 'index.html')).href;
 const expectedFunctions = [
  ['f'], ['runZero', 'mkHero'], ['runZero', 'mkHero', '(.)'], ['f1', 'f3', '(.)'], ['f2', 'f4', '(.)'], ['snd', 'f1', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
- ['f1', 'f2', 'f3', '(<$>)', '(<*>)', '(.)'], ['fmap', 'f1', 'f2', '(.)'], ['f1', 'f2', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
+ ['f1', 'f2', 'f3', '(<*>)', '(.)'], ['fmap', 'f1', 'f2', '(.)'], ['f1', 'f2', 'f3', '(.)'], ['f1', 'f2', 'f3', '(.)'],
  ['wrap', 'join'], ['f', 'dup', '(>>=)'], ['f', 'swap', '(<$>)'], ['f', 'dup', 'nest', '(>>=)'],
  ['f', 'g', 'pair', '(<$>)', '(<*>)'], ['wrap']
 ];
@@ -97,7 +97,7 @@ test('operator aliases and prefix notation satisfy the same requirements as infi
  expect(results).toEqual([true, true, true]);
 });
 
-test('manual solutions cannot bypass composition or lifted composition in the revised lessons', async ({ page }) => {
+test('manual solutions cannot bypass composition in the revised lessons', async ({ page }) => {
  await open(page);
  const outcomes = await page.evaluate(() => {
   const manual = [
@@ -121,7 +121,7 @@ test('manual solutions cannot bypass composition or lifted composition in the re
  for (const result of outcomes) {
   expect(result.typed, `Level ${result.level}: manual solution still has the target type`).toBe(true);
   expect(result.composed, `Level ${result.level}: composed solution passes`).toBe(true);
-  const missing = result.level === 9 ? ['(<$>)', '(.)'] : ['(.)'];
+  const missing = ['(.)'];
   for (const attempt of [result.manual, result.unused]) {
    expect(attempt.ok, `Level ${result.level}: required operators cannot be skipped`).toBe(false);
    expect(attempt.missing).toEqual(missing);
@@ -147,7 +147,7 @@ test('version 1 completions are rechecked for restored operators while row and t
  expect(saved.bypassCount).toBeUndefined();
  expect(saved.rowPrograms[3]).toEqual([{ id: 'r1', expr: 'f1 z' }, { id: 'r2', expr: 'f3 r1' }]);
  expect(saved.textDrafts[7]).toBe(manualSeven);
- await expect(page.locator('#status-output')).toContainText('Still needed: (<$>), (.)');
+ await expect(page.locator('#status-output')).toContainText('Still needed: (.)');
  await expect(page.locator('#next-level')).toBeHidden();
  await expect(page.locator('.ready-row')).toHaveCount(1);
 });
