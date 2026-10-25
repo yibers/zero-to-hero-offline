@@ -74,3 +74,11 @@ test('generic context pictures become Hero and function pictures without losing 
   assert.match(app.run("typeToString(rowDiagnostics[7].type)"), /^Zero .* -> Hero /);
   assert.equal(app.run("typeToString(rowDiagnostics[8].type)"), 'Hero SKOLEMc');
 });
+
+test('text mode retains the Applicative constraint separator', () => {
+  const app = game();
+  app.run('iconMode = false;');
+  const signature = app.run("colorizeType('Applicative f => f (a -> b) -> f a -> f b')");
+  assert.match(signature, /Applicative/);
+  assert.match(signature, /&rArr;/);
+});

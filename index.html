@@ -253,6 +253,7 @@ function tokenize(sig) {
     if (sig[i] === ')') { tokens.push(')'); i++; continue; }
     if (sig[i] === ',') { tokens.push(','); i++; continue; }
     if (sig[i] === '-' && sig[i+1] === '>') { tokens.push('->'); i += 2; continue; }
+    if (sig[i] === '=' && sig[i+1] === '>') { tokens.push('=>'); i += 2; continue; }
     // Identifiers
     if (/[A-Za-z_]/.test(sig[i])) {
       let j = i;
@@ -1609,6 +1610,7 @@ function colorizeType(sig) {
   const tokens = tokenize(sig);
   return tokens.map(t => {
     if (t === '->') return '<span class="arrow">&rarr;</span>';
+    if (t === '=>') return '<span class="arrow">&rArr;</span>';
     if (t === '(' || t === ')') return `<span class="type-paren">${t}</span>`;
     if (t === ',') return '<span class="type-paren">,</span>';
     if (t[0] >= 'A' && t[0] <= 'Z' || t === '()') return `<span class="type-con">${symbolDisplay(t)}</span>`;
