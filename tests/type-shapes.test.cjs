@@ -53,13 +53,15 @@ test('placed values and completed results replace generic slots; clearing restor
   assert.equal(restored.run("rowSymbol('input', null, rowDiagnostics[0].call.arguments[0])"), filled.input);
   assert.equal(draw('wrap').input, before.input);
   assert.equal(draw('wrap').output, before.output);
-  // A partially applied call still previews the eventual output type. Its
-  // actual reusable result is a function, so no output value exists yet.
+  // A partial call previews the value it is expected to produce. Known
+  // parts are filled, while its unknown output type stays generic.
   app.run('currentLevel = 15; setEditorContent("pair z"); diagnoseRows();');
-  assert.equal(app.run('rowDiagnostics[0].expected.isValue'), false);
+  assert.equal(app.run('rowDiagnostics[0].expected.isValue'), true);
   const partial = app.run("rowSymbol('output', null, rowDiagnostics[0].expected)");
   assert.ok(atoms(partial).length);
-  assert.doesNotMatch(partial, /fill="#[^"]+"/);
+  assert.match(partial, /fill="#d97706"/);
+  assert.match(partial, /class="type-placeholder"/);
+  assert.doesNotMatch(partial, /class="type-binding"/);
   app.run('currentLevel = 0; setEditorContent("f z"); diagnoseRows();');
   const reused = app.run("rowSymbol('r1')");
   assert.match(reused, /<circle[^>]*fill="#d97706"/);

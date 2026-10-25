@@ -102,8 +102,9 @@ function diagnoseCall(code, env, params, compositionLimit = null) {
     return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))),
       inputDiagrams: inputs.map(input => ({ type: applySubst(subst, input), variables, template: input })),
       // Show only the output, specializing it as each supplied input constrains
-      // the template. Unfilled inputs leave the remaining placeholders generic.
-      expected: { type: applySubst(subst, type), variables, template: type },
+      // the template. Known output values are filled even in previews; unfilled
+      // inputs leave the remaining placeholders generic.
+      expected: { type: applySubst(subst, type), variables, template: type, isValue: true },
       diagram: { type: applySubst(subst, headType), variables, arity: inputs.length, template: headType },
       arguments: actuals.map((actual, i) => actual && ({ type: applySubst(subst, actual), variables, template: inputs[i], isValue: true })),
       result: { type: applySubst(subst, remaining), variables } };
@@ -130,7 +131,7 @@ function diagnoseRows() {
       if (!type) throw Error('Incomplete expression.');
       env[row.id] = type;
       return { type, signature: rowTypeSignatures([type])[0], diagram: call?.result || { type },
-        expected: { ...(call?.expected || { type }), isValue: !call || call.args.length === call.inputs.length }, call };
+        expected: call?.expected || { type, isValue: true }, call };
     } catch (e) {
       return { error: errors[index] || normalizeTypeError(e.message), expected: call?.expected, call };
     }
@@ -219,7 +220,7 @@ function mountRowEditor() {
       row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim());
       const expected = diagnostic.expected;
       const picture = expected ? renderSemanticType(expected.type,
-        (expected.isValue ? 'Result ' : 'Expected result ') + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables, expected.template, expected.isValue) : '';
+        (!diagnostic.error && (!diagnostic.call || diagnostic.call.args.length === diagnostic.call.inputs.length) ? 'Result ' : 'Expected result ') + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables, expected.template, expected.isValue) : '';
       feedback.innerHTML = diagnostic.error
         ? (picture ? `<div class="row-result-preview" title="Expected result; complete this row before reusing it">${picture}</div>` : '')
         : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${picture}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
@@ -286,7 +287,7 @@ function mountRowEditor() {
       lastRow.querySelector('.row-feedback')?.replaceChildren();
       const goal = document.createElement('div');
       goal.className = 'goal-output';
-      goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedGoalType, 'Goal: ' + goalSignature)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
+      goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedGoalType, 'Goal: ' + goalSignature, [], null, true)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
       lastRow.querySelector('.row-flow').append(goal);
     }
   }
