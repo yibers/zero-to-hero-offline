@@ -114,6 +114,8 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         `<g class="icon-output">${move(output.body, inputs.width + 28, (height - output.height) / 2)}</g>` };
   }
   function layout(type, maxWidth = Infinity, variables = new Map(), template = null, isValue = false) {
+    // A placed value carries its own structure, not the generic slot it filled.
+    if (isValue) template = null;
     if (template?.tag === 'var') return genericSlot(template.name, variables, type.tag === 'var' ? null : type, maxWidth, isValue);
     if (type.tag === 'var') return genericSlot(type.name, variables);
     if (type.tag === 'con' && type.name.startsWith('SKOLEM')) {

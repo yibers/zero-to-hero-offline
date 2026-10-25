@@ -23,7 +23,7 @@ test('generic types are dotted, concrete types are hollow, and values are filled
   assert.deepEqual(atoms(fn), ['a', 'b']);
 });
 
-test('placing and clearing a value preserves the slot shape and specializes matching output slots', () => {
+test('placed values and completed results replace generic slots; clearing restores them', () => {
   const app = game();
   const draw = source => {
     app.run(`setEditorContent(${JSON.stringify(source)}); diagnoseRows();`);
@@ -38,9 +38,9 @@ test('placing and clearing a value preserves the slot shape and specializes matc
   assert.deepEqual(atoms(before.input), []);
   const filled = draw('wrap value');
   for (const svg of [filled.input, filled.output]) {
-    assert.deepEqual(markers(svg), ['1']);
+    assert.deepEqual(markers(svg), []);
     assert.deepEqual(atoms(svg), ['a']);
-    assert.match(svg, /class="type-binding"/);
+    assert.doesNotMatch(svg, /class="type-binding"/);
     assert.match(svg, /<circle[^>]*fill="#d97706"/);
     assert.match(svg, /data-diagram-template=/);
     assert.doesNotMatch(svg, /class="type-placeholder"/);
@@ -74,15 +74,22 @@ test('a generic slot can hold a whole compound type without losing its structure
   assert.match(svg, /class="type-binding"/);
   assert.match(svg, /data-diagram-type="Hero \(SKOLEMa, SKOLEMb\)"/);
   assert.match(svg, /data-diagram-template="x"/);
+  const value = app.run(`renderSemanticType(fixedSemanticType('Hero (a, b)'), 'Compound value', ['x'], parseType('x'), true)`);
+  assert.deepEqual(markers(value), []);
+  assert.deepEqual(atoms(value), ['a', 'b']);
+  assert.doesNotMatch(value, /class="type-binding"/);
+  assert.match(value, /fill="#d97706"/);
+  assert.match(value, /fill="#0284c7"/);
 });
 
-test('generic variables inside a supplied function keep their matching shapes across nested bindings', () => {
+test('function values retain their generic signature without the receiving slot frame', () => {
   const app = game();
   app.run('currentLevel = 14; setEditorContent("(>>=) _ dup"); diagnoseRows();');
   const svg = app.run("rowSymbol('dup', null, rowDiagnostics[0].call.arguments[1])");
-  // a -> Hero b specializes to a -> Hero (a, a): b surrounds the pair,
-  // and all three a occurrences still have the same circular outline.
-  assert.deepEqual(markers(svg), ['1', '2', '1', '1']);
+  // dup keeps its a -> Hero (a, a) signature. The receiving b slot no longer
+  // surrounds the pair, while the three generic a occurrences still match.
+  assert.deepEqual(markers(svg), ['1', '1', '1']);
+  assert.doesNotMatch(svg, /class="type-binding"/);
   assert.deepEqual(atoms(svg), []);
 });
 
