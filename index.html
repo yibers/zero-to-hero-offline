@@ -224,8 +224,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=87e9aca34032"></script>
-<script src="semantic-icons.js?v=d82328c10008"></script>
+<script src="levels.js?v=99023f2aac36"></script>
+<script src="semantic-icons.js?v=380e8118daf1"></script>
 <script src="row-program.js?v=1c52b7fbad45"></script>
 <script src="puzzle-rules.js?v=0d6d8aff56c0"></script>
 <script src="row-editor.js?v=d871f6e56e93"></script>
@@ -909,7 +909,7 @@ try {
     const parsed = JSON.parse(saved);
     // Version 1 inserts the composition introduction after the old level 2.
     // Move every saved field together so later work still belongs to its puzzle.
-    if (parsed.levelOrderVersion !== 1) {
+    if ((parsed.levelOrderVersion || 0) < 1) {
       const shift = index => Number(index) >= 2 ? Number(index) + 1 : Number(index);
       for (const key of ['editorContents', 'rowPrograms', 'textDrafts']) {
         if (parsed[key] && typeof parsed[key] === 'object') {
@@ -917,6 +917,20 @@ try {
         }
       }
       if (Array.isArray(parsed.completed)) parsed.completed = parsed.completed.map(shift);
+      if (parsed.currentLevel != null) parsed.currentLevel = shift(parsed.currentLevel);
+    }
+    // Version 2 removes Assembly required (old index 1). Keep every other
+    // puzzle's drafts and progress together; a player on that level continues
+    // at Assembly by composition, without inheriting the removed completion.
+    if ((parsed.levelOrderVersion || 0) < 2) {
+      const shift = index => Number(index) > 1 ? Number(index) - 1 : Number(index);
+      for (const key of ['editorContents', 'rowPrograms', 'textDrafts']) {
+        if (parsed[key] && typeof parsed[key] === 'object') {
+          parsed[key] = Object.fromEntries(Object.entries(parsed[key])
+            .filter(([index]) => Number(index) !== 1).map(([index, value]) => [shift(index), value]));
+        }
+      }
+      if (Array.isArray(parsed.completed)) parsed.completed = parsed.completed.filter(index => Number(index) !== 1).map(shift);
       if (parsed.currentLevel != null) parsed.currentLevel = shift(parsed.currentLevel);
     }
     completedLevels = new Set(parsed.completed || []);
@@ -957,10 +971,22 @@ try {
       for (const key of Object.keys(rowPrograms)) rowPrograms[key] = RowProgram.curryRows(rowPrograms[key]);
     }
     if (parsed.applicativeVersion !== 1) {
-      const index = LEVELS.findIndex(level => level.level === 9);
+      const index = LEVELS.findIndex(level => level.name === 'TIE fighter');
       const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index])
         : RowProgram.source(RowProgram.migrate(getEditorContent(index))));
       if (!checkSolution(LEVELS[index], code).ok) completedLevels.delete(index);
+    }
+    // The final five puzzles now build functions before using z. Retain old
+    // work for editing, but recheck only these changed achievements once.
+    if (parsed.transformationsVersion !== 1) {
+      for (const index of [...completedLevels]) {
+        if (LEVELS[index]?.level < 12) continue;
+        try {
+          const code = iconMode && rowPrograms[index] ? RowProgram.source(rowPrograms[index])
+            : textDrafts[index] ?? RowProgram.source(RowProgram.migrate(getEditorContent(index)));
+          if (!checkSolution(LEVELS[index], code).ok) completedLevels.delete(index);
+        } catch (_) { completedLevels.delete(index); }
+      }
     }
     // Recheck old achievements against the current learning requirements;
     // keep all saved work and preferences so it can still be edited.
@@ -974,7 +1000,7 @@ try {
         } catch (_) { return false; }
       }));
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 1 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || 'bypassCount' in parsed) saveProgress();
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || 'bypassCount' in parsed) saveProgress();
   }
 } catch(e) {}
 
@@ -987,12 +1013,13 @@ function saveProgress() {
     rowVersion: 1,
     curryingVersion: 1,
     applicativeVersion: 1,
+    transformationsVersion: 1,
     currentLevel,
     geckoOn,
     iconMode,
     connectionVersion: 1,
     completionVersion: 5,
-    levelOrderVersion: 1
+    levelOrderVersion: 2
   }));
 }
 

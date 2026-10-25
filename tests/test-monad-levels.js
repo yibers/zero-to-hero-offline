@@ -17,30 +17,21 @@ const path = require('path');
   if (await ok.isVisible({ timeout: 500 }).catch(() => false)) await ok.click();
   await p.waitForTimeout(200);
 
-  const tests = [
-    { level: 13, solution: 'join $ wrap z' },
-    { level: 14, solution: 'f z >>= dup' },
-    { level: 15, solution: 'swap <$> f z' },
-    { level: 16, solution: 'f z >>= dup >>= nest' },
-    { level: 17, solution: 'pair <$> g z <*> f z' },
-  ];
-
-  // Test each solution by calling typeCheck directly
-  const results = await p.evaluate((tests) => {
-    return tests.map(t => {
-      const level = LEVELS.find(level => level.level === t.level);
-      const result = typeCheck(level, t.solution);
-      // Also test liveInfer
-      const inferred = liveInfer(level, t.solution);
+  // Select by the current lesson group and validate the complete puzzle rules,
+  // including unary steps, exact supplies and the final use of z.
+  const results = await p.evaluate(() => {
+    return LEVELS.filter(level => level.level >= 12).map(level => {
+      const result = checkSolution(level, level.solution);
+      const inferred = liveInfer(level, level.solution);
       return {
-        level: t.level,
+        level: level.level,
         name: level.name,
-        solution: t.solution,
+        solution: level.solution,
         typeCheck: result,
         inferred: inferred.valid ? inferred.typeSig : inferred.error
       };
     });
-  }, tests);
+  });
 
   let allPassed = true;
   for (const r of results) {

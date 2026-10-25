@@ -60,8 +60,8 @@ test('unification retains a class constraint when a context is renamed before sp
 
 test('generic context pictures become Hero and function pictures without losing curried boxes', () => {
   const app = game();
-  assert.match(app.run("FUNCTION_CARD_ICONS[9]['(<*>)']"), /class="applicative-context"/);
-  app.run('currentLevel = 7; setEditorContent(LEVELS[7].solution); diagnoseRows();');
+  assert.match(app.run("FUNCTION_CARD_ICONS[8]['(<*>)']"), /class="applicative-context"/);
+  app.run('currentLevel = 6; setEditorContent(LEVELS[6].solution); diagnoseRows();');
   assert.deepEqual(app.read('rowDiagnostics.filter(row => row.error)'), []);
   assert.equal(app.run('rowDiagnostics[0].expected.type.tag'), 'fun');
   assert.match(app.run("rowSymbol('generic', null, rowDiagnostics[0].expected)"), /class="applicative-context"/);

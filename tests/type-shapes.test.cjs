@@ -6,7 +6,7 @@ const atoms = svg => [...svg.matchAll(/data-type="([^"]+)"/g)].map(match => matc
 
 test('generic types are dotted, concrete types are hollow, and values are filled', () => {
   const app = game();
-  const palette = app.run('FUNCTION_CARD_ICONS[17].pair');
+  const palette = app.run('FUNCTION_CARD_ICONS[16].pair');
   assert.deepEqual(markers(palette), ['1', '2', '1', '2']);
   assert.match(palette, /class="generic-outline" fill="none"/);
   assert.match(palette, /<ellipse /);
@@ -55,7 +55,7 @@ test('placed values and completed results replace generic slots; clearing restor
   assert.equal(draw('wrap').output, before.output);
   // One supplied argument returns a boxed function. Its inner signature
   // keeps concrete type outlines and unknown generic placeholders.
-  app.run('currentLevel = 15; setEditorContent("pair z"); diagnoseRows();');
+  app.run('currentLevel = 14; setEditorContent("pair z"); diagnoseRows();');
   assert.equal(app.run('rowDiagnostics[0].expected.isValue'), true);
   const partial = app.run("rowSymbol('output', null, rowDiagnostics[0].expected)");
   assert.ok(atoms(partial).length);
@@ -87,7 +87,7 @@ test('a generic slot can hold a whole compound type without losing its structure
 
 test('function values retain their generic signature without the receiving slot frame', () => {
   const app = game();
-  app.run('currentLevel = 14; setEditorContent("(>>=) _ dup"); diagnoseRows();');
+  app.run('currentLevel = 13; setEditorContent("(>>=) _ dup"); diagnoseRows();');
   const svg = app.run("rowSymbol('dup', null, rowDiagnostics[0].call.arguments[1])");
   // dup keeps its a -> Hero (a, a) signature. The receiving b slot no longer
   // surrounds the pair, while the three generic a occurrences still match.
