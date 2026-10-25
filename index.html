@@ -224,10 +224,10 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=34683ab415bc"></script>
-<script src="semantic-icons.js?v=441d8d906fc6"></script>
+<script src="levels.js?v=87e9aca34032"></script>
+<script src="semantic-icons.js?v=d82328c10008"></script>
 <script src="row-program.js?v=1c52b7fbad45"></script>
-<script src="puzzle-rules.js?v=1a0a058171db"></script>
+<script src="puzzle-rules.js?v=0d6d8aff56c0"></script>
 <script src="row-editor.js?v=d871f6e56e93"></script>
 <script src="text-editor.js?v=62aece77fc32"></script>
 <script>
@@ -268,6 +268,14 @@ function tokenize(sig) {
 
 // Parser
 function parseType(sig) {
+  const classes = {};
+  if (sig.includes('=>')) {
+    const [context, body, extra] = sig.split('=>');
+    const constraint = context.trim().match(/^Applicative\s+([a-z][A-Za-z0-9_]*)$/);
+    if (!constraint || extra !== undefined) throw new Error('Unsupported type constraint: ' + context.trim());
+    classes[constraint[1]] = ['Applicative'];
+    sig = body;
+  }
   const tokens = tokenize(sig);
   let pos = 0;
   function peek() { return tokens[pos]; }
@@ -321,7 +329,7 @@ function parseType(sig) {
     if (t[0] >= 'A' && t[0] <= 'Z') {
       return { tag: 'con', name: t };
     }
-    return { tag: 'var', name: t };
+    return { tag: 'var', name: t, ...(classes[t] ? { classes: classes[t] } : {}) };
   }
 
   function makeTuple(elems) {
@@ -338,6 +346,7 @@ function parseType(sig) {
 
 // Unifier
 let substCounter = 0;
+const SUBST_CLASSES = Symbol('type-class constraints');
 
 function freshVar() {
   return { tag: 'var', name: `_t${substCounter++}` };
@@ -347,7 +356,7 @@ function freshen(type, mapping = {}) {
   if (!type) return null;
   switch (type.tag) {
     case 'var':
-      if (!mapping[type.name]) mapping[type.name] = freshVar();
+      if (!mapping[type.name]) mapping[type.name] = { ...freshVar(), ...(type.classes ? { classes: type.classes } : {}) };
       return mapping[type.name];
     case 'con':
       return type;
@@ -362,11 +371,19 @@ function applySubst(subst, type) {
   switch (type.tag) {
     case 'var':
       if (subst[type.name]) return applySubst(subst, subst[type.name]);
-      return type;
+      const classes = [...new Set([...(type.classes || []), ...(subst[SUBST_CLASSES]?.[type.name] || [])])];
+      return classes.length ? { ...type, classes } : type;
     case 'con':
       return type;
-    case 'app':
-      return { tag: 'app', con: applySubst(subst, type.con), arg: applySubst(subst, type.arg) };
+    case 'app': {
+      const con = applySubst(subst, type.con), arg = applySubst(subst, type.arg);
+      // The function Applicative binds f to ((->) r). Keep fully applied
+      // arrows in the same form as parsed arrows for inference and diagrams.
+      if (con.tag === 'app' && con.con.tag === 'con' && con.con.name === '->') {
+        return { tag: 'fun', from: con.arg, to: arg };
+      }
+      return { tag: 'app', con, arg };
+    }
     case 'fun':
       return { tag: 'fun', from: applySubst(subst, type.from), to: applySubst(subst, type.to) };
   }
@@ -382,40 +399,40 @@ function occursIn(name, type, subst) {
   }
 }
 
+// The game currently supplies two Applicative instances: unary Hero and
+// functions with a shared input. Other data declarations do not acquire an
+// instance merely by having a type parameter.
+function hasTypeClass(type, name) {
+  return name === 'Applicative' && ((type.tag === 'con' && type.name === 'Hero')
+    || (type.tag === 'app' && type.con.tag === 'con' && type.con.name === '->'));
+}
 function unify(a, b, subst) {
   a = applySubst(subst, a);
   b = applySubst(subst, b);
   if (a.tag === 'var') {
-    if (a.name === b.name) return subst;
+    const classes = [...new Set([...(a.classes || []), ...(b.tag === 'var' ? b.classes || [] : [])])];
+    if (b.tag === 'var') {
+      subst = { ...subst, [SUBST_CLASSES]: { ...subst[SUBST_CLASSES], [b.name]: classes } };
+      if (a.name === b.name) return subst;
+    } else if (classes.some(name => !hasTypeClass(b, name))) return null;
     if (occursIn(a.name, b, subst)) return null;
     return { ...subst, [a.name]: b };
   }
-  if (b.tag === 'var') {
-    if (occursIn(b.name, a, subst)) return null;
-    return { ...subst, [b.name]: a };
-  }
-  if (a.tag === 'con' && b.tag === 'con') {
-    return a.name === b.name ? subst : null;
-  }
-  if (a.tag === 'app' && b.tag === 'app') {
-    subst = unify(a.con, b.con, subst);
-    if (!subst) return null;
-    return unify(a.arg, b.arg, subst);
-  }
+  if (b.tag === 'var') return unify(b, a, subst);
+  if (a.tag === 'con' && b.tag === 'con') return a.name === b.name ? subst : null;
   if (a.tag === 'fun' && b.tag === 'fun') {
     subst = unify(a.from, b.from, subst);
-    if (!subst) return null;
-    return unify(a.to, b.to, subst);
+    return subst && unify(a.to, b.to, subst);
   }
-  // Convert fun to app form: a -> b  ===  (->) a b
-  if ((a.tag === 'fun') !== (b.tag === 'fun')) {
-    function funToApp(t) {
-      if (t.tag === 'fun') {
-        return { tag: 'app', con: { tag: 'app', con: { tag: 'con', name: '->' }, arg: t.from }, arg: t.to };
-      }
-      return t;
-    }
-    return unify(funToApp(a), funToApp(b), subst);
+  // Match a -> b with f b by binding f to the partially applied (->) a.
+  // Decompose here rather than recursing on a normalized full arrow again.
+  const asApp = type => type.tag === 'fun'
+    ? { tag: 'app', con: { tag: 'app', con: { tag: 'con', name: '->' }, arg: type.from }, arg: type.to }
+    : type;
+  a = asApp(a); b = asApp(b);
+  if (a.tag === 'app' && b.tag === 'app') {
+    subst = unify(a.con, b.con, subst);
+    return subst && unify(a.arg, b.arg, subst);
   }
   return null;
 }
@@ -717,7 +734,7 @@ function inferExpr(code, env, paramTypes) {
     return inferExpr(program.final, localEnv, paramTypes);
   }
   const tokens = tokenizeExpr(code);
-  let pos = 0;
+  let pos = 0, inferenceSubst = {};
 
   function peek() { return tokens[pos]; }
   function next() { return tokens[pos++]; }
@@ -842,7 +859,7 @@ function inferExpr(code, env, paramTypes) {
     const a = freshVar();
     const b = freshVar();
     const arrow = { tag: 'fun', from: a, to: b };
-    const subst = unify(funcType, arrow, {});
+    const subst = unify(funcType, arrow, inferenceSubst);
     if (!subst) {
       throw new Error(`Cannot apply: not a function type\n  ${typeToString(funcType)}`);
     }
@@ -851,6 +868,7 @@ function inferExpr(code, env, paramTypes) {
     if (!subst2) {
       throw new Error(`Type mismatch in application:\n  Expected argument: ${typeToString(paramType)}\n  Got: ${typeToString(argType)}`);
     }
+    inferenceSubst = subst2;
     return applySubst(subst2, b);
   }
 
@@ -866,7 +884,7 @@ function inferExpr(code, env, paramTypes) {
     const desc = typeof remaining === 'object' ? (remaining.name || remaining.type) : String(remaining);
     throw new Error(`Unexpected trailing token: ${desc}`);
   }
-  return result;
+  return result && applySubst(inferenceSubst, result);
 }
 
 
@@ -937,6 +955,12 @@ try {
       for (const key of Object.keys(textDrafts)) textDrafts[key] = RowProgram.currySource(textDrafts[key]);
       for (const key of Object.keys(rowPrograms)) rowPrograms[key] = RowProgram.curryRows(rowPrograms[key]);
     }
+    if (parsed.applicativeVersion !== 1) {
+      const index = LEVELS.findIndex(level => level.level === 9);
+      const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index])
+        : RowProgram.source(RowProgram.migrate(getEditorContent(index))));
+      if (!checkSolution(LEVELS[index], code).ok) completedLevels.delete(index);
+    }
     // Recheck old achievements against the current learning requirements;
     // keep all saved work and preferences so it can still be edited.
     if (parsed.completionVersion !== 5) {
@@ -949,7 +973,7 @@ try {
         } catch (_) { return false; }
       }));
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 1 || parsed.curryingVersion !== 1 || 'bypassCount' in parsed) saveProgress();
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 1 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || 'bypassCount' in parsed) saveProgress();
   }
 } catch(e) {}
 
@@ -961,6 +985,7 @@ function saveProgress() {
     textDrafts,
     rowVersion: 1,
     curryingVersion: 1,
+    applicativeVersion: 1,
     currentLevel,
     geckoOn,
     iconMode,

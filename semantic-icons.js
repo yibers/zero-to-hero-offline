@@ -135,11 +135,19 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     const { head, args } = type.tag === 'app' ? flattenApp(type) : { head: type, args: [] };
     if (head.name === '()') return { width: 24, height: 24,
       body: outline(`<circle cx="12" cy="12" r="8"${isValue ? ' fill="currentColor"' : ''}/><path d="M8 12h8"${isValue ? ' stroke="white"' : ''}/>`) };
-    const inset = head.name === 'Hero' ? 28 : head.name === 'Zero' ? 20 : 12;
+    const inset = head.name === 'Hero' ? 28 : head.name === 'Zero' ? 20 : head.tag === 'var' ? 16 : 12;
     const innerWidth = Math.max(24, maxWidth - inset);
     const pattern = template?.tag === 'app' ? flattenApp(template) : null;
     const contents = row(args.map((type, i) => layout(type, innerWidth, variables,
       pattern?.head.name === head.name ? pattern.args[i] : null, isValue)), 6, innerWidth);
+    if (head.tag === 'var') {
+      // Unknown Applicative context: a dotted container, distinct from a
+      // boxed function. Specialization replaces it with Hero or an arrow box.
+      const width = contents.width + 16, height = contents.height + 16;
+      return { width, height, body: `<g class="applicative-context" data-context="${escape(head.name)}">` +
+        `<g fill="none" stroke="#7c8797" stroke-width="1.8" stroke-dasharray="0.1 3.4" stroke-linecap="round"><rect x="2" y="2" width="${width - 4}" height="${height - 4}" rx="10"/></g>` +
+        move(contents.body, 8, 8) + '</g>' };
+    }
     if (head.name.startsWith('(')) return frame(contents, { x: 6, y: 6 }, rectangle);
     if (head.name === 'Zero') return frame(contents, { x: 10, y: 10 }, (w, h) =>
       `<path d="M${w / 2} 1 1 9v${h - 27}Q1 ${h - 7} ${w / 2} ${h - 1}Q${w - 1} ${h - 7} ${w - 1} ${h - 18}V9Z"/>`);
@@ -295,7 +303,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     '$': ['Apply', 'Apply the function on the left to the argument on the right.'],
     '.': ['Compose', 'Combine two functions: apply the right function first, then the left.'],
     '<$>': ['Map inside Hero', 'Apply a function to the value inside Hero.'],
-    '<*>': ['Apply inside Hero', 'Apply the Hero-wrapped function to the Hero-wrapped argument.'],
+    '<*>': ['Applicative apply', 'Apply inside Hero, or combine two functions that share the same input.'],
     '>>=': ['Bind', 'Feed Hero’s value into a function that returns Hero.'],
   };
   const zero = svg('Zero wrapper', outline(shield), 24);

@@ -71,7 +71,7 @@ tests/          — Playwright + unit tests
 
 ## Required functions by level
 
-Every listed function is required; repeated use is allowed. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Starting parameters, including the function parameters in level 10, remain puzzle inputs.
+Every supplied copy is required; each function has an exact usage count. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Starting parameters, including the function parameters in level 10, remain puzzle inputs.
 
 | Level | Functions |
 | --- | --- |
@@ -95,7 +95,9 @@ Every listed function is required; repeated use is allowed. The palette follows 
 
 Level 1 starts with a plain value and supplies `wrap :: a -> Zero a`. Its goal is that same value inside Zero. In `Zero a`, `Zero` is a type constructor and `a` is the type of the contained value; the game displays type shapes rather than concrete contents such as numbers. The original levels are now numbered 2–17; saved programs and completions remain attached to their original puzzles.
 
-Level 4 repeats level 3’s `runZero`/`mkHero` puzzle and adds required composition. Existing saved work and completion records move with their original levels; the new level starts unsolved. Composition is introduced in level 4 and remains required through level 12. In these levels, build reusable transformations with `(.)` instead of bypassing it with a chain of value-only rows. Level 9 combines composition with two uses of `(<*>)` to apply wrapped functions to wrapped values. It does not supply or require `(<$>)`.
+Level 4 repeats level 3’s `runZero`/`mkHero` puzzle and adds required composition. Existing saved work and completion records move with their original levels; the new level starts unsolved. Composition is introduced in level 4 and remains required through level 12. In these levels, build reusable transformations with `(.)` instead of bypassing it with a chain of value-only rows.
+
+Level 9 supplies two compositions and four copies of `(<*>)`: two specialize to Hero application and two combine functions that share an input. Build the whole transformation first, then pass `z` once in the final row. It does not supply or require `(<$>)`. The standard signature `Applicative f => f (a -> b) -> f a -> f b` is used wherever `(<*>)` is supplied; the checker supports the Hero and function (`((->) r)`) instances, rejects unsupported contexts, and keeps the constraint when passing or partially applying the operator. Generic dotted context containers resolve into Hero or function diagrams as arguments are added. Older level-9 drafts are retained, with completion rechecked against the new supplies.
 
 Levels 14 and 16 teach bind; level 17 focuses on combining independent `Hero` values with `(<$>)` and `(<*>)`. Its removed bind operator has no useful matching step with the existing helpers. `($)` stays removed because rows already provide application and intermediate results. The removed `f2` in level 5, `f1`/`f3` in level 6, and `fst`/`f2` in level 7 stay removed because they do not contribute to these lessons' solutions.
 

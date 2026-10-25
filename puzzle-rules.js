@@ -37,6 +37,13 @@ function checkSolution(level, code) {
     const excess = cardUsage(level, code).filter(f => f.used > f.limit);
     if (excess.length) return { ok: false, excess: excess.map(f => f.name),
       msg: `Too many copies: ${excess.map(f => `${f.name} (${f.used} used, ${f.limit} supplied)`).join(', ')}. Remove the extra copies.` };
+    if (level.finalInput) {
+      const last = RowProgram.call(rows.at(-1).expr);
+      const earlierUse = rows.slice(0, -1).some(row => RowProgram.names(RowProgram.parse(row.expr)).includes(level.finalInput));
+      if (earlierUse || last?.args.length !== 1 || last.args[0] !== level.finalInput) {
+        return { ok: false, msg: `Build the transformation first, then pass ${level.finalInput} once in the final row.` };
+      }
+    }
     const typed = typeCheck(level, code);
     if (!typed.ok) return typed;
     const bindings = new Map((program?.bindings || []).map(row => [row.id, RowProgram.parse(row.expr)]));

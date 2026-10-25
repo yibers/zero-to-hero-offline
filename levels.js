@@ -102,16 +102,17 @@ const LEVELS = [
     init: ["data Zero a b c = DontUseMeZero a b c", "data Hero a = DontUseMeHero a"],
     target: "Zero a b c -> Hero c",
     lhs: "zeroToHero z =",
-    parameterUses: { z: 3 },
+    parameterUses: { z: 1 },
+    finalInput: "z",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
       { name: "f1", sig: "Zero a b c -> Hero (a -> b)", uses: 1 },
       { name: "f2", sig: "Zero a b c -> Hero (b -> c)", uses: 1 },
       { name: "f3", sig: "Zero a b c -> Hero a", uses: 1 },
-      { name: "(<*>)", sig: "Hero (a -> c) -> Hero a -> Hero c", uses: 2 },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 }
+      { name: "(<*>)", sig: "Applicative f => f (a -> b) -> f a -> f b", uses: 4 },
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
     ],
-    solution: "let\n  r1 = (.) (<*>)\n  r2 = r1 f2\n  r3 = f1 z\n  r4 = f3 z\n  r5 = (<*>) r3\n  r6 = r5 r4\n  r7 = r2 z\nin\n  r7 r6"
+    solution: "let\n  r1 = (.) (<*>)\n  r2 = r1 f1\n  r3 = (<*>) r2\n  r4 = r3 f3\n  r5 = (.) (<*>)\n  r6 = r5 f2\n  r7 = (<*>) r6\n  r8 = r7 r4\nin\n  r8 z"
   },
   {
     level: 10, name: "The middle man",
@@ -227,7 +228,7 @@ const LEVELS = [
       { name: "g", sig: "Zero a b -> Hero b", uses: 1 },
       { name: "pair", sig: "a -> b -> (a, b)", uses: 1 },
       { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b", uses: 1 },
-      { name: "(<*>)", sig: "Hero (a -> b) -> Hero a -> Hero b", uses: 1 }
+      { name: "(<*>)", sig: "Applicative f => f (a -> b) -> f a -> f b", uses: 1 }
     ],
     solution: "let\n  r1 = g z\n  r2 = (<$>) pair\n  r3 = r2 r1\n  r4 = f z\n  r5 = (<*>) r3\nin\n  r5 r4"
   },
