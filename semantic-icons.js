@@ -62,7 +62,10 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     const padding = index === 0 ? 10 : 16;
     const content = type ? layout(type, Math.max(24, (maxWidth - padding) / factor), variables, null, isValue)
       : { width: 24, height: 24, body: '' };
-    const width = content.width * factor + padding, height = content.height * factor + padding;
+    // Empty placeholders match the 24-unit footprint of concrete types/values.
+    // Only an explicitly nested specialization needs a larger enclosing shape.
+    const width = type ? content.width * factor + padding : 24;
+    const height = type ? content.height * factor + padding : 24;
     let shape;
     if (index === 0) shape = `<ellipse cx="${width / 2}" cy="${height / 2}" rx="${width / 2 - 2}" ry="${height / 2 - 2}"/>`;
     else if (index === 1) shape = `<rect x="2" y="2" width="${width - 4}" height="${height - 4}" rx="3"/>`;
