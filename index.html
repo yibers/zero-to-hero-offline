@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="4e6dec2b82c1">
+<meta name="app-version" content="c91253625fdb">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -220,7 +220,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-arrow-header svg { height: 10px; }
 .gecko-arrow-body { display: flex; }
 </style>
-<link rel="stylesheet" href="row-editor.css?v=cccf8bfdacda">
+<link rel="stylesheet" href="row-editor.css?v=0d09fa0dafce">
 </head>
 <body>
 
@@ -228,10 +228,10 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <script src="levels.js?v=a93a0aae4df7"></script>
 <script src="semantic-icons.js?v=cbfe78240ffd"></script>
-<script src="row-program.js?v=1c52b7fbad45"></script>
-<script src="puzzle-rules.js?v=3906980caf8f"></script>
-<script src="row-editor.js?v=6942b3a92ccb"></script>
-<script src="text-editor.js?v=62aece77fc32"></script>
+<script src="row-program.js?v=ea198cbc5db6"></script>
+<script src="puzzle-rules.js?v=53f203f1fb11"></script>
+<script src="row-editor.js?v=4c05cecd3064"></script>
+<script src="text-editor.js?v=288402abe472"></script>
 <script>
 
 // ─── Haskell Type Parser & Unifier ───
@@ -1014,7 +1014,16 @@ try {
         } catch (_) { return false; }
       }));
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || 'bypassCount' in parsed) saveProgress();
+    if (parsed.fixedRowsVersion !== 1) {
+      for (const index of completedLevels) {
+        try {
+          const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index]) : editorContents[index]?.slice(LEVELS[index].lhs.trim().length).trim());
+          const program = code && RowProgram.parseLet(code);
+          if (program && generatedUsageError([...program.bindings, { id: finalRowName(program.bindings), expr: program.final }], true)) completedLevels.delete(index);
+        } catch (_) { /* Other migrations handle unfinished legacy drafts. */ }
+      }
+    }
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || 'bypassCount' in parsed) saveProgress();
   }
 } catch(e) {}
 
@@ -1029,6 +1038,7 @@ function saveProgress() {
     applicativeVersion: 1,
     transformationsVersion: 1,
     middleManVersion: 1,
+    fixedRowsVersion: 1,
     currentLevel,
     geckoOn,
     iconMode,
@@ -1096,7 +1106,7 @@ function render() {
           <li>5 additional monad levels (Functor, Applicative, Monad, MonadFish, MonadJoin)</li>
           <li>Fully self-contained &mdash; works offline, no server needed</li>
           <li>Progress and editor contents persist in localStorage</li>
-          <li>One operation per row, reusable results, and a generated Haskell let definition</li>
+          <li>Fixed row slots, one use per generated function, and a generated Haskell let definition</li>
           <li>Automatic completion: reach the target and use exactly the supplied copies of each function</li>
         </ul>
         <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
@@ -1159,7 +1169,7 @@ function render() {
               <div class="editor-prefix${iconMode ? ' parameter-prefix' : ''}" id="editor-prefix"${iconMode ? ' role="group" aria-label="Available parameters"' : ''}>${iconMode ? '' : escHtml(level.lhs.trim())}</div>
             </div>
             ${iconMode ? '<div id="program-rows"></div>' : '<div class="text-editor-shell"><pre class="text-source-highlight" id="editor-overlay" aria-hidden="true"></pre><textarea class="text-source-editor" id="code-editor" aria-label="Haskell expression" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off"></textarea></div>'}
-            <div class="row-toolbar">${iconMode ? '<button type="button" id="add-row">+ Add row</button>' : ''}<button type="button" id="undo-rows" aria-label="${iconMode ? 'Undo row edit' : 'Undo edit'}">Undo</button><button type="button" id="redo-rows" aria-label="${iconMode ? 'Redo row edit' : 'Redo edit'}">Redo</button></div>
+            <div class="row-toolbar"><button type="button" id="undo-rows" aria-label="${iconMode ? 'Undo row edit' : 'Undo edit'}">Undo</button><button type="button" id="redo-rows" aria-label="${iconMode ? 'Redo row edit' : 'Redo edit'}">Redo</button></div>
             <div id="row-notice" role="status"></div>
           </div>
 
@@ -1181,7 +1191,8 @@ function render() {
 function updateFunctionPalette(level, code) {
   const palette = document.getElementById('function-palette');
   if (!palette) return;
-  const stock = functionUsage(level, code), key = JSON.stringify(stock.map(f => f.remaining));
+  const stock = functionUsage(level, code), generated = iconMode ? availableGeneratedFunctions() : [];
+  const key = JSON.stringify([stock.map(f => f.remaining), generated.map(f => [f.name, f.signature, f.diagram])]);
   if (palette.dataset.stock === key) return;
   palette.dataset.stock = key;
   palette.innerHTML = stock.map((entry, i) => {
@@ -1193,6 +1204,9 @@ function updateFunctionPalette(level, code) {
         ${geckoOn ? `<div class="palette-gecko" style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
       </div>${entry.limit > 1 ? `<span class="function-stock" aria-hidden="true">×${entry.remaining}</span>` : ''}
     </div>`;
+  }).join('') + generated.map(entry => {
+    const label = `Generated function ${entry.name}: ${entry.signature}. One use available.`;
+    return `<div class="func-card generated-card" role="button" tabindex="0" draggable="true" data-func-name="${escHtml(entry.name)}" data-remaining="1" title="${escHtml(label)}" aria-label="${escHtml(label)}"><div class="function-card-content">${rowSymbol(entry.name, null, entry.diagram)}</div></div>`;
   }).join('');
   fitSemanticDiagrams(palette);
 }

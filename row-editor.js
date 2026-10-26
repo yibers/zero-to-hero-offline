@@ -11,7 +11,9 @@ function getRows() {
     rowPrograms[currentLevel] = automaticRows(LEVELS[currentLevel], rowPrograms[currentLevel]);
     preparedRowPrograms.add(rowPrograms[currentLevel]);
     const after = RowProgram.source(rowPrograms[currentLevel]);
-    if (before !== after && textDrafts[currentLevel] !== undefined) {
+    const overflow = rowPrograms[currentLevel].length && RowProgram.migrate(before).length > rowSlotCount(LEVELS[currentLevel]);
+    if (overflow && textDrafts[currentLevel] === undefined) textDrafts[currentLevel] = before;
+    if (!overflow && before !== after && textDrafts[currentLevel] !== undefined && rowPrograms[currentLevel].at(-1).expr.trim()) {
       delete textDrafts[currentLevel];
       textHistory.delete(currentLevel);
       editorContents[currentLevel] = LEVELS[currentLevel].lhs.trim() + ' ' + after;
@@ -136,6 +138,7 @@ function diagnoseRows() {
   }
   substCounter = 0;
   rowDiagnostics = rows.map((row, index) => {
+    if (!row.expr.trim()) return { error: row.automatic ? 'Finish the transformation first.' : 'Choose a function.' };
     const call = diagnoseCall(row.expr, env, params);
     try {
       if (errors[index]) throw Error(errors[index]);
@@ -153,105 +156,120 @@ function diagnoseRows() {
     }
   });
 }
+
+function availableGeneratedFunctions() {
+  const rows = getRows(), stock = generatedUsage(rows);
+  return stock.flatMap((entry, index) => {
+    const diagnostic = rowDiagnostics[index];
+    return entry.remaining && diagnostic && !diagnostic.error && diagnostic.type?.tag === 'fun'
+      ? [{ ...entry, index, signature: diagnostic.signature, diagram: diagnostic.diagram }] : [];
+  });
+}
+
+// One placement changes one existing slot. Keeping this independent from DOM
+// events makes pointer, keyboard and tap interactions follow identical rules.
+function placeInFixedRow(level, rows, index, name, inputSlot = false) {
+  if (index < 0 || index >= rows.length || rows[index].automatic) return { error: 'The final row runs automatically.' };
+  const bare = name.replace(/^\((.+)\)$/, '$1'), context = functionProgramContext(level);
+  const producer = rows.findIndex(row => row.id === bare);
+  if (producer >= index) return { error: 'Use a generated function in a row below its producer.' };
+  const next = rows.map(row => ({ ...row }));
+  if (inputSlot) {
+    const call = RowProgram.call(next[index].expr);
+    if (!call || next[index].automaticInput) return { error: 'Choose a function for this row first.' };
+    next[index].expr = RowProgram.setArgument(next[index].expr, 0, name);
+  } else {
+    if (next[index].expr.trim()) return { error: 'Clear this row before placing another function.' };
+    next[index].expr = RowProgram.print({ kind: 'name', name: bare });
+  }
+  let prepared = automaticRows(level, next);
+  const stockError = cardUsageIncreaseError(level, RowProgram.source(rows), RowProgram.source(prepared))
+    || generatedUsageError(prepared);
+  if (stockError) return { error: stockError };
+  for (const [i, row] of prepared.entries()) {
+    if (!row.expr.trim()) continue;
+    if (i === index && !row.automaticInput) {
+      const error = functionRowError(row.expr, context.env, context.params, true);
+      if (error) return { error };
+    }
+    try { context.env[row.id] = inferExpr(row.expr, context.env, context.params); }
+    catch (error) { if (i === index) return { error: normalizeTypeError(error.message) }; }
+  }
+  return { rows: prepared };
+}
+
 function mountRowEditor() {
   rowEditorCleanup?.();
   const controller = new AbortController(), options = { signal: controller.signal };
   const container = document.getElementById('program-rows');
   if (!container) return;
-  const level = LEVELS[currentLevel];
-  const funcs = new Set(level.funcs.flatMap(f => [f.name, f.name.replace(/^\(|\)$/g, '')]));
-  const params = new Set(level.lhs.split('=')[0].trim().split(/\s+/).slice(1));
-  let goalType = parseType(level.target);
-  for (const _ of params) goalType = goalType.to;
-  const goalSignature = typeToString(goalType);
-  const fixedGoalType = fixedSemanticType(goalType);
-  const operators = level.funcs.filter(f => isOperatorName(f.name));
-  const sourceRows = new Set();
-  const editors = () => [...container.querySelectorAll('textarea')];
-  const listen = (el, event, fn, extra = {}) => el.addEventListener(event, fn, { ...options, ...extra });
+  const level = LEVELS[currentLevel], context = functionProgramContext(level);
+  const fixedGoalType = fixedSemanticType(context.goal), goalSignature = typeToString(context.goal).replace(/SKOLEM/g, '');
+  const listen = (node, event, fn, extra = {}) => node.addEventListener(event, fn, { ...options, ...extra });
   const notice = text => { document.getElementById('row-notice').textContent = text; };
-  let drag = null, ghost = null, nativeName = '', suppressClick = false, scrollFrame = null, lastPoint = null;
-  let lastScrollTime = 0, scrollEdge = null, closeDeletePreview = null, readyRowState = null;
-  const refNames = () => new Set(getRows().map(r => r.id));
-  function tokens(text) {
-    return [...text.matchAll(/\((?:\$|\.|<\$>|<\*>|>>=)\)|[a-zA-Z_][a-zA-Z0-9_']*|[!@#$%^&*\-+=<>?/|~:.\\]+|[^\s]/g)]
-      .map(t => ({ name: t[0], start: t.index, end: t.index + t[0].length }));
-  }
-  function drawOverlay(editor) {
-    const overlay = editor.previousElementSibling;
-    if (editor.closest('.editor-container').hidden) { overlay.replaceChildren(); return; }
-    const text = editor.value;
-    let end = 0, html = '';
-    for (const token of tokens(text)) {
-      html += escHtml(text.slice(end, token.start));
-      const bare = token.name.replace(/^\((.+)\)$/, '$1');
-      const cls = funcs.has(bare) ? 'token-func' : params.has(bare) ? 'token-param' : refNames().has(bare) || /^r\d+$/.test(bare) ? 'token-ref' : 'token-unknown';
-      const content = bare === 'undefined' && iconMode ? '' : (funcs.has(bare) || params.has(bare) || refNames().has(bare) || /^r\d+$/.test(bare))
-        ? rowSymbol(bare, token.name.length) : escHtml(token.name);
-      html += `<span class="${cls}" data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}">${content}</span>`;
-      end = token.end;
-    }
-    overlay.innerHTML = html + escHtml(text.slice(end));
-    editor.style.height = '0px';
-    editor.style.height = Math.max(iconMode ? 80 : 40, editor.scrollHeight) + 'px';
-    overlay.scrollTop = editor.scrollTop;
-    overlay.scrollLeft = editor.scrollLeft;
-  }
+  let drag = null, ghost = null, nativeName = '', suppressClick = false, scrollFrame = null, lastPoint = null, closeDialog = null;
+  const sections = () => [...container.querySelectorAll('.program-row')];
+  const isFinal = index => index === rowSlotCount(level) - 1;
+  const editable = index => !getRows()[index]?.automatic;
   function activate(index) {
     activeRow = Math.max(0, Math.min(index, getRows().length - 1));
-    container.querySelectorAll('.program-row').forEach((el, i) => el.classList.toggle('active-row', i === activeRow));
-  }
-  function paintInputs(row, call, index) {
-    const holder = row.querySelector('.function-block');
-    const structured = iconMode && !!call && !sourceRows.has(getRows()[index].id);
-    holder.hidden = !structured;
-    const automatic = getRows()[index].automatic || getRows()[index].automaticInput;
-    holder.classList.toggle('function-head', structured && !getRows()[index].automatic);
-    row.querySelector('.editor-container').hidden = structured || !!automatic;
-    row.querySelector('textarea').readOnly = !!automatic;
-    row.querySelector('.row-call').classList.toggle('structured-call', structured);
-    if (!structured) { holder.replaceChildren(); return; }
-    const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
-    const head = ts[call.infix ? 1 : 0];
-    Object.assign(holder.dataset, { row: index, start: head.start, end: head.end, name: head.name });
-    holder.setAttribute('role', 'group');
-    holder.setAttribute('aria-label', `Function ${call.name} in row ${index + 1}`);
-    holder.title = automatic ? `Automatically apply ${call.name} to the starting value` : `${call.name}. Drag the blue border to move or remove this function.`;
-    holder.innerHTML = '<div class="input-slots">' + call.inputs.map((_, slot) => {
-      const name = call.args[slot], filled = name && name !== '_';
-      const token = filled ? ts[call.infix ? slot * 2 : slot + 1] : null;
-      const picture = filled ? rowSymbol(name, null, call.arguments[slot])
-        : rowSymbol(`Input ${slot + 1} of ${call.name}`, null, call.inputDiagrams[slot]);
-      if (automatic) return `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(name)} is applied automatically"><span class="input-picture">${picture}</span></span>`;
-      return `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-slot="${slot}" data-row="${index}"${token ? ` data-start="${token.start}" data-end="${token.end}" data-name="${escHtml(token.name)}"` : ''} aria-label="Input ${slot + 1} of ${escHtml(call.name)}${filled ? ': ' + escHtml(name) : ': empty'}" title="${filled ? escHtml(name) : 'Drop an argument here'}">
-        <span class="input-picture">${picture}</span></button>`;
-    }).join('') + '</div>';
+    sections().forEach((row, i) => row.classList.toggle('active-row', i === activeRow));
   }
   function paint() {
-    const rows = getRows();
     diagnoseRows();
-    editors().forEach((editor, i) => {
-      if (editor.value !== rows[i].expr) editor.value = rows[i].expr;
-      const row = editor.closest('.program-row');
-      const feedback = row.querySelector('.row-feedback'), diagnostic = rowDiagnostics[i];
-      paintInputs(row, diagnostic.call, i);
-      drawOverlay(editor);
-      row.classList.toggle('row-invalid', !!diagnostic.error && !!rows[i].expr.trim() && !rows[i].automatic);
-      row.classList.toggle('automatic-final-row', !!(rows[i].automatic || rows[i].automaticInput));
+    const rows = getRows(), solved = checkSolution(level, RowProgram.source(rows)).ok;
+    sections().forEach((section, index) => {
+      const row = rows[index], diagnostic = rowDiagnostics[index], call = diagnostic.call;
+      const final = isFinal(index), automatic = final && !!(row.automatic || row.automaticInput);
+      const holder = section.querySelector('.function-block'), empty = section.querySelector('.empty-row-drop');
+      const feedback = section.querySelector('.row-feedback'), goal = section.querySelector('.goal-output');
+      empty.hidden = !!row.expr.trim() || !!row.automatic;
+      if (final && !row.automatic) empty.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span><span aria-hidden="true">＋</span>`;
+      holder.hidden = !row.expr.trim() && !row.automatic;
+      holder.classList.toggle('function-head', !!row.expr.trim() && !row.automatic);
+      holder.classList.toggle('automatic-pending', !!row.automatic && !row.expr.trim());
+      holder.tabIndex = row.expr.trim() && !row.automatic ? 0 : -1;
+      holder.title = row.automatic ? 'The starting value is applied after the whole transformation is ready.'
+        : 'Tap the blue border to return this row’s functions to the top.';
+      holder.setAttribute('aria-label', call ? `Function ${call.name} in row ${index + 1}` : 'Automatic final application');
+      if (row.automatic && !call) {
+        holder.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span>`;
+      } else if (call) {
+        holder.innerHTML = '<div class="input-slots">' + call.inputs.map((_, slot) => {
+          const name = call.args[slot], filled = name && name !== '_';
+          const picture = filled ? rowSymbol(name, null, call.arguments[slot])
+            : rowSymbol(`Input of ${call.name}`, null, call.inputDiagrams[slot]);
+          return automatic
+            ? `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(name)} is applied automatically">${picture}</span>`
+            : `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-row="${index}" aria-label="Input 1 of ${escHtml(call.name)}: ${filled ? escHtml(name) : 'empty'}" title="${filled ? 'Tap to clear this input' : 'Drag a function here from the top, or select this input and tap a card'}"><span class="input-picture">${picture}</span></button>`;
+        }).join('') + '</div>';
+      } else {
+        // Retain malformed saved drafts for repair in text mode, without an
+        // icon-mode text cursor or a hidden drag source inside the row.
+        holder.innerHTML = `<span class="invalid-row-draft">${escHtml(row.expr)}</span>`;
+      }
       const expected = diagnostic.expected;
       const picture = expected ? renderSemanticType(expected.type,
-        (!diagnostic.error && (!diagnostic.call || diagnostic.call.args.length === diagnostic.call.inputs.length) ? 'Result ' : 'Expected result ') + rows[i].id + ': ' + rowTypeSignatures([expected.type])[0], expected.variables, expected.template, expected.isValue) : '';
-      feedback.innerHTML = diagnostic.error
-        ? (picture ? `<div class="row-result-preview" title="Expected result; complete this row before reusing it">${picture}</div>` : '')
-        : `<button type="button" class="row-result" draggable="true" data-func-name="${rows[i].id}" aria-label="Drag result ${rows[i].id}: ${escHtml(diagnostic.signature)}" title="Drag this result into an input in a later row">${picture}</button><span class="row-type">${colorizeType(diagnostic.signature)}</span>`;
-      const awaitingFunction = diagnostic.call && !diagnostic.call.args.length;
-      row.querySelector('.row-error').textContent = rows[i].expr.trim() && !rows[i].automatic && !awaitingFunction ? diagnostic.error || '' : '';
-      if (rows[i].automatic || rows[i].automaticInput) {
-        const result = feedback.querySelector('.row-result');
-        if (result) { result.draggable = false; delete result.dataset.funcName; result.setAttribute('aria-label', 'Automatic result: ' + diagnostic.signature); result.title = 'Result after applying the starting value'; }
+        `${diagnostic.error ? 'Expected result' : 'Result'} ${row.id}: ${rowTypeSignatures([expected.type])[0]}`,
+        expected.variables, expected.template, expected.isValue) : '';
+      feedback.innerHTML = picture ? `<div class="${diagnostic.error ? 'row-result-preview' : 'row-result'}" role="img" aria-label="${automatic ? 'Automatic result' : 'Result ' + row.id}: ${escHtml(diagnostic.signature || 'pending')}">${picture}</div>` : '';
+      const awaitingInput = call && !call.args.length;
+      section.querySelector('.row-error').textContent = row.expr.trim() && !automatic && !awaitingInput ? diagnostic.error || '' : '';
+      section.classList.toggle('row-invalid', !!row.expr.trim() && !!diagnostic.error && !awaitingInput);
+      goal.replaceChildren();
+      if (final) {
+        if (solved) {
+          const result = feedback.querySelector('.row-result');
+          result.classList.add('puzzle-goal', 'goal-reached');
+          result.insertAdjacentHTML('beforeend', '<span class="goal-badge" aria-label="Goal reached">✓</span>');
+        } else {
+          if (diagnostic.error || diagnostic.type?.tag === 'fun') feedback.replaceChildren();
+          goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedGoalType, 'Goal: ' + goalSignature, [], null, true)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></div>`;
+        }
       }
+      goal.hidden = !goal.childElementCount;
     });
-    paintReadyRow();
+    activate(activeRow);
     fitSemanticDiagrams();
     const history = rowHistory.get(currentLevel);
     document.getElementById('undo-rows').disabled = !history?.undo.length;
@@ -259,668 +277,184 @@ function mountRowEditor() {
     clearTimeout(liveCheckTimer);
     runLiveCheck();
   }
-  function paintReadyRow() {
-    const rows = getRows(), autoIndex = rows.findIndex(row => row.automatic || row.automaticInput);
-    const construction = rows.filter(row => !row.automatic);
-    const last = construction.at(-1), index = rows.indexOf(last), diagnostic = rowDiagnostics[index];
-    const state = JSON.stringify(rows);
-    const changed = state !== readyRowState; readyRowState = state;
-    const solved = rowDiagnostics.every(row => !row.error) && checkSolution(level, RowProgram.source(rows)).ok;
-    container.querySelectorAll('.program-row').forEach(row => row.classList.remove('final-row'));
-    container.querySelector('.automatic-placeholder')?.remove();
-    let ready = container.querySelector('.ready-row');
-    // An unfinished function already has its one input slot. Once filled, make
-    // another construction row available before the automatic execution row.
-    const needsRow = !!last.expr.trim() && !diagnostic?.error && !last.automaticInput && !solved;
-    if (!needsRow) { ready?.remove(); ready = null; }
-    else {
-      if (!ready) {
-        ready = document.createElement('section');
-        ready.className = 'program-row ready-row'; ready.tabIndex = -1;
-        ready.innerHTML = '<div class="row-flow"><div class="row-call"><button type="button" class="empty-row-drop" aria-label="New function row">Drop a function here</button></div></div>';
-      }
-      const at = autoIndex < 0 ? rows.length : autoIndex;
-      ready.dataset.row = at; ready.setAttribute('aria-label', `New row ${at + 1}`);
-      container.insertBefore(ready, autoIndex < 0 ? null : editors()[autoIndex].closest('.program-row'));
-    }
-    let finalRow = autoIndex < 0 ? null : editors()[autoIndex].closest('.program-row');
-    if (!finalRow) {
-      const input = functionProgramContext(level).input;
-      finalRow = document.createElement('section');
-      finalRow.className = 'program-row automatic-final-row automatic-placeholder';
-      finalRow.setAttribute('aria-label', 'Automatic final application');
-      finalRow.innerHTML = `<div class="row-flow"><div class="row-call structured-call"><div class="function-block automatic-pending"><span class="automatic-input" role="img" aria-label="Starting value ${escHtml(input)} will be applied automatically">${symbolDisplay(input)}</span></div></div></div>`;
-      container.append(finalRow);
-    }
-    finalRow.classList.add('final-row');
-    paintGoal(solved, finalRow, autoIndex);
-    if (changed && ready) requestAnimationFrame(() => {
-      if (ready.isConnected && !controller.signal.aborted) ready.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    });
-  }
-  function paintGoal(solved, finalRow, autoIndex) {
-    container.querySelectorAll('.goal-output').forEach(node => node.remove());
-    if (solved) {
-      const result = finalRow.querySelector('.row-result');
-      result.classList.add('puzzle-goal', 'goal-reached');
-      result.title = `Goal reached: ${goalSignature}`;
-      result.insertAdjacentHTML('beforeend', '<span class="goal-badge" aria-label="Goal reached">✓</span>');
-      return;
-    }
-    const diagnostic = rowDiagnostics[autoIndex];
-    // Until the transformation accepts the initial value, retain the fixed
-    // goal. Once it can run, also show its actual result, even when incorrect.
-    if (!diagnostic || diagnostic.error || diagnostic.type?.tag === 'fun') finalRow.querySelector('.row-feedback')?.replaceChildren();
-    const goal = document.createElement('div'); goal.className = 'goal-output';
-    goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedGoalType, 'Goal: ' + goalSignature, [], null, true)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M3 2h3v3H3zm6 0h4v3H9zM6 5h3v4H6z" fill="currentColor"/></svg></div>`;
-    finalRow.querySelector('.row-flow').append(goal);
-  }
-  function nextRowId(rows) {
-    // A removed row may still be referenced by unfinished steps. Never silently
-    // reconnect those inputs to an unrelated new row with the same name.
-    const used = new Set(rows.flatMap(row => [row.id, ...tokens(row.expr).map(token => token.name)]));
-    let n = 1;
-    while (used.has(`r${n}`)) n++;
-    return `r${n}`;
-  }
-  function removeEmptyRows() {
-    const rows = getRows(), selected = rows[activeRow]?.id;
-    const remaining = rows.filter(row => row.expr.trim());
-    // Keep a starting drop area when the whole program is empty. Otherwise
-    // paintReadyRow supplies the one spare row without adding it to the source.
-    if (!remaining.length) remaining.push(rows[activeRow] || rows[0]);
-    if (remaining.length === rows.length) return false;
-    const kept = new Set(remaining.map(row => row.id));
-    rows.forEach(row => { if (!kept.has(row.id)) sourceRows.delete(row.id); });
-    rowPrograms[currentLevel] = remaining;
-    const selectedIndex = remaining.findIndex(row => row.id === selected);
-    activeRow = selectedIndex >= 0 ? selectedIndex : Math.min(activeRow, remaining.length - 1);
-    return true;
-  }
-  function build() {
-    const rows = getRows();
-    activeRow = Math.min(activeRow, rows.length - 1);
-    container.innerHTML = rows.map((row, index) => `<section class="program-row${index === activeRow ? ' active-row' : ''}${index === rows.length - 1 ? ' final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}">
-      <div class="row-heading"><span class="row-number">${index + 1}</span><span class="row-role">${index === rows.length - 1 ? 'Final answer' : 'Intermediate result'}</span>
-      <button type="button" class="row-delete" data-action="remove" aria-label="Delete row ${index + 1}" title="Delete row">×</button></div>
-      <div class="row-flow"><div class="row-call"><div class="editor-container"><div class="editor-area"><div class="editor-overlay"${index === 0 ? ' id="editor-overlay"' : ''}></div><textarea class="editor row-editor code"${index === 0 ? ' id="code-editor"' : ''} data-row="${index}" rows="1" inputmode="none" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Row ${index + 1} expression" aria-describedby="row-feedback-${index} row-error-${index}"></textarea></div></div><div class="function-block" hidden></div></div>
-      <div class="row-feedback" id="row-feedback-${index}" aria-live="polite"></div><div class="row-error" id="row-error-${index}" aria-live="polite"></div></div></section>`).join('');
-    paint();
-  }
-  function commit(rebuild = false, keepNewDropArea = false) {
-    const before = rowSnapshot();
-    rowPrograms[currentLevel] = automaticRows(level, getRows());
-    preparedRowPrograms.add(rowPrograms[currentLevel]);
-    rebuild ||= before !== rowSnapshot();
-    const removed = !keepNewDropArea && removeEmptyRows();
-    persistRows(); notice('');
-    rebuild || removed || editors().length !== getRows().length ? build() : paint();
-  }
-  function newRow(at) {
+  function commit(rows, index = activeRow) {
     rememberRows();
-    const rows = getRows();
-    rows.splice(at, 0, { id: nextRowId(rows), expr: '' });
-    activeRow = at; commit(true, true);
-    editors()[at].closest('.program-row').scrollIntoView({ block: 'nearest' });
-    focusRow(at);
+    rowPrograms[currentLevel] = automaticRows(level, rows);
+    preparedRowPrograms.add(rowPrograms[currentLevel]);
+    activeRow = index;
+    persistRows(); notice(''); paint();
   }
-  function confirmRowDeletion(index) {
-    closeDeletePreview?.();
-    const rows = getRows(), snapshot = rowSnapshot(), previewLevel = currentLevel;
-    const affected = new Set([rows[index].id]);
-    // Include indirect dependents as well as direct uses, with exact token names.
-    let changed;
-    do {
-      changed = false;
-      rows.slice(index + 1).forEach(row => {
-        if (!affected.has(row.id) && tokens(row.expr).some(token => affected.has(token.name))) {
-          affected.add(row.id); changed = true;
-        }
-      });
-    } while (changed);
-    const impacted = rows.map((row, i) => ({ ...row, index: i })).filter(row => affected.has(row.id));
-    const count = impacted.length, dependentCount = count - 1;
-    const title = `Delete ${count} ${count === 1 ? 'row' : 'rows'}?`;
-    const summary = dependentCount
-      ? `Row ${index + 1} and ${dependentCount} dependent ${dependentCount === 1 ? 'row' : 'rows'} will be deleted.`
-      : `Row ${index + 1} will be deleted.`;
-    const dialog = document.createElement('dialog');
-    dialog.className = 'connection-picker row-delete-dialog';
-    dialog.setAttribute('aria-labelledby', 'row-delete-title');
-    dialog.setAttribute('aria-describedby', 'row-delete-summary');
-    dialog.innerHTML = `<h2 id="row-delete-title">${title}</h2><p id="row-delete-summary">${summary}</p>
-      <ol class="delete-preview-list" aria-label="Rows to delete">${impacted.map(row => {
-        const used = new Set(tokens(row.expr).map(token => token.name));
-        const dependencies = impacted.filter(other => used.has(other.id)).map(other => other.index + 1);
-        const reason = row.index === index ? 'Selected row' : `Uses ${dependencies.length === 1 ? 'row' : 'rows'} ${dependencies.join(', ')}`;
-        const expression = tokens(row.expr).map(token => rowSymbol(token.name.replace(/^\((.+)\)$/, '$1'))).join(' ');
-        return `<li class="delete-preview-item" data-delete-index="${row.index}"><div class="delete-preview-heading"><strong>Row ${row.index + 1}</strong><span>${reason}</span></div><div class="delete-preview-expression" role="img" aria-label="${escHtml(row.expr || 'Empty row')}">${expression || '<span>Empty row</span>'}</div></li>`;
-      }).join('')}</ol>
-      <p>You can undo this.</p><div class="delete-actions"><button type="button" class="delete-cancel">Cancel</button><button type="button" class="delete-confirm">Delete ${count === 1 ? 'row' : count + ' rows'}</button></div>`;
-    container.querySelectorAll('.program-row:not(.ready-row)').forEach((node, i) => node.classList.toggle('delete-preview', affected.has(rows[i].id)));
-    const close = () => {
-      container.querySelectorAll('.delete-preview').forEach(node => node.classList.remove('delete-preview'));
-      dialog.close(); dialog.remove(); closeDeletePreview = null;
-    };
-    closeDeletePreview = close;
+  function place(name, index, inputSlot = false) {
+    const result = placeInFixedRow(level, getRows(), index, name, inputSlot);
+    if (result.error) { notice(result.error); return; }
+    commit(result.rows, index);
+  }
+  function clearStep(index, inputOnly = false) {
+    const rows = getRows();
+    if (!rows[index].expr.trim() || rows[index].automatic) return;
+    const next = clearedRows(rows, index, inputOnly);
+    const affected = rows.map((row, i) => ({ ...row, index: i }))
+      .filter(row => !row.automatic && row.expr !== next[row.index].expr);
+    const snapshot = rowSnapshot();
+    const apply = () => { if (rowSnapshot() === snapshot) commit(next, index); };
+    if (inputOnly && affected.length === 1) { apply(); return; }
+    closeDialog?.();
+    const dialog = document.createElement('dialog'); dialog.className = 'connection-picker row-delete-dialog';
+    dialog.setAttribute('aria-label', 'Return functions to the palette');
+    dialog.innerHTML = `<h2>Clear ${inputOnly ? 'input' : 'row'}?</h2><p>${affected.length > 1 ? `${affected.length} steps will be cleared, including dependent steps.` : 'This step will be cleared.'} Their cards return to the top. The row slots stay in place.</p>
+      <ol class="delete-preview-list">${affected.map(row => `<li class="delete-preview-item">Row ${row.index + 1}: <code>${escHtml(row.expr)}</code></li>`).join('')}</ol>
+      <div class="delete-actions"><button type="button" class="delete-cancel">Cancel</button><button type="button" class="delete-confirm">Clear</button></div>`;
+    affected.forEach(row => sections()[row.index].classList.add('delete-preview'));
+    const close = () => { sections().forEach(row => row.classList.remove('delete-preview')); dialog.close(); dialog.remove(); closeDialog = null; };
+    closeDialog = close;
     dialog.querySelector('.delete-cancel').onclick = close;
-    dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
-    dialog.querySelector('.delete-confirm').onclick = () => {
-      close();
-      if (currentLevel !== previewLevel || rowSnapshot() !== snapshot) {
-        notice('The rows changed. Review the deletion again.'); return;
-      }
-      rememberRows();
-      const remaining = rows.filter(row => !affected.has(row.id));
-      rowPrograms[currentLevel] = remaining.length ? remaining : [{ id: 'r1', expr: '' }];
-      affected.forEach(id => sourceRows.delete(id));
-      activeRow = Math.min(index, getRows().length - 1);
-      commit(true);
-      container.querySelectorAll('.row-delete')[activeRow]?.focus({ preventScroll: true });
-    };
-    document.body.append(dialog); dialog.showModal(); fitSemanticDiagrams(dialog);
-    dialog.querySelector('.delete-cancel').focus();
+    dialog.querySelector('.delete-confirm').onclick = () => { close(); apply(); };
+    dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
+    document.body.append(dialog); dialog.showModal(); dialog.querySelector('.delete-cancel').focus();
   }
   function historyMove(direction) {
     const history = rowHistory.get(currentLevel), from = history?.[direction];
     if (!from?.length) return;
     history[direction === 'undo' ? 'redo' : 'undo'].push(rowSnapshot());
-    rowPrograms[currentLevel] = JSON.parse(from.pop());
-    commit(true);
-    focusRow(activeRow);
+    rowPrograms[currentLevel] = automaticRows(level, JSON.parse(from.pop()));
+    preparedRowPrograms.add(rowPrograms[currentLevel]);
+    persistRows(); notice(''); paint();
   }
-  function focusRow(index) {
-    const row = editors()[index]?.closest('.program-row');
-    row?.focus({ preventScroll: true });
-  }
-  function removal(text, range, connectors = false) {
-    if (range.slot !== undefined) {
-      const changed = RowProgram.setArgument(text, range.slot, null);
-      let start = 0, end = text.length, changedEnd = changed.length;
-      while (start < end && start < changedEnd && text[start] === changed[start]) start++;
-      while (end > start && changedEnd > start && text[end - 1] === changed[changedEnd - 1]) { end--; changedEnd--; }
-      return { start, end, text: changed, delta: text.length - changed.length };
-    }
-    let { start, end } = connectors ? functionRemovalRange(text, range, level) : range;
-    if (start > 0 && /\s/.test(text[start - 1])) start--;
-    else if (end < text.length && /\s/.test(text[end])) end++;
-    return { start, end, text: text.slice(0, start) + text.slice(end), delta: end - start };
-  }
-  function inserted(text, position, name) {
-    if (text.trim() === 'undefined') text = '';
-    let pos = Math.min(position, text.length);
-    while (pos < text.length && /\s/.test(text[pos])) pos++;
-    const prefix = pos && !/\s/.test(text[pos - 1]) ? ' ' : '';
-    const suffix = pos < text.length && !/\s/.test(text[pos]) ? ' ' : '';
-    // Operators stay parenthesized when passed as function values.
-    return text.slice(0, pos) + prefix + name + suffix + text.slice(pos);
-  }
-  function stockAllows(next, changedId) {
-    next = automaticRows(level, next);
-    const context = functionProgramContext(level);
-    for (const row of next) {
-      if (!row.expr.trim() || row.automatic || row.automaticInput) continue;
-      const error = functionRowError(row.expr, context.env, context.params, true);
-      if (error && row.id === changedId) { notice(error); return false; }
-      try { context.env[row.id] = inferExpr(row.expr, context.env, context.params); } catch (_) {}
-    }
-    const error = cardUsageIncreaseError(level, RowProgram.source(getRows()), RowProgram.source(next));
-    if (error) notice(error);
-    return !error;
-  }
-  function mutateDrop(name, rowIndex, pos, source, connector) {
-    const next = structuredClone(getRows());
-    const createsRow = rowIndex === next.length || next[rowIndex]?.automatic;
-    if (createsRow) next.splice(rowIndex, 0, { id: nextRowId(next), expr: '' });
-    if (refNames().has(name) || /^r\d+$/.test(name)) {
-      const from = next.findIndex(r => r.id === name);
-      if (from < 0 || from >= rowIndex) { notice('Use a result only in a row below it.'); return; }
-    }
-    if (source) {
-      const sourceIndex = source.index + (createsRow && source.index >= rowIndex ? 1 : 0);
-      const original = next[sourceIndex].expr;
-      if (source.index === rowIndex && pos >= source.start && pos <= source.end && !connector) return;
-      const removed = removal(original, source, !!connector);
-      next[sourceIndex].expr = isRowHead(source) ? '' : removed.text;
-      if (source.index === rowIndex) {
-        if (connector && connector.start < removed.end && connector.end > removed.start) {
-          notice('Move this argument into an input slot or another row.'); return;
-        }
-        if (pos >= removed.end) pos -= removed.delta;
-        if (connector && connector.start >= removed.end) {
-          connector = { ...connector, start: connector.start - removed.delta, end: connector.end - removed.delta };
-        }
-      }
-    }
-    if (connector) {
-      const text = next[rowIndex].expr, target = text.slice(connector.start, connector.end);
-      const left = connector.swapped ? name : target, right = connector.swapped ? target : name;
-      next[rowIndex].expr = text.slice(0, connector.start) + `${left} ${connector.op ? connector.op + ' ' : ''}${right}` + text.slice(connector.end);
-    } else next[rowIndex].expr = inserted(next[rowIndex].expr, pos, name);
-    if (!stockAllows(next, next[rowIndex].id)) return;
-    const targetId = next[rowIndex].id, curried = RowProgram.curryRows(next);
-    rememberRows(); rowPrograms[currentLevel] = curried;
-    activeRow = curried.findIndex(row => row.id === targetId);
-    commit(createsRow || curried.length !== next.length); activate(activeRow);
-  }
-  function slotAt(point) {
-    const slot = document.elementFromPoint(point.clientX, point.clientY)?.closest('.argument-slot');
-    return slot && container.contains(slot) ? slot : null;
-  }
-  function sourceForSlot(slot) {
-    const index = Number(slot.dataset.row), position = Number(slot.dataset.slot), call = RowProgram.call(getRows()[index].expr);
-    const name = call?.args[position];
-    if (!name || name === '_') return null;
-    const ts = tokens(getRows()[index].expr).filter(t => t.name !== '(' && t.name !== ')');
-    const token = ts[call.infix ? position * 2 : position + 1];
-    if (!token) return null;
-    return { ...token, name: RowProgram.print({ kind: 'name', name }), index, slot: position, node: slot };
-  }
-  function fillSlot(name, index, position, source) {
-    const next = structuredClone(getRows()), call = RowProgram.call(next[index].expr);
-    if (!call || next[index].automatic || next[index].automaticInput || !rowDiagnostics[index]?.call?.inputs[position]) return;
-    const value = name ? name.replace(/^\((.+)\)$/, '$1') : null;
-    if (value && !funcs.has(value) && !params.has(value) && !refNames().has(value)) return;
-    if (value && (refNames().has(value) || /^r\d+$/.test(value))) {
-      const from = next.findIndex(row => row.id === value);
-      if (from < 0 || from >= index) { notice('Use a result only in a row below it.'); return; }
-      if (rowDiagnostics[from]?.error) { notice('Complete that row before using its result.'); return; }
-    }
-    if (source) {
-      // A source token shown in the expression and its input slot are the same value.
-      const slotSource = source.slot !== undefined ? source : [...container.querySelectorAll(`.argument-slot[data-row="${source.index}"]`)]
-        .map(sourceForSlot).find(input => input && input.start === source.start && input.end === source.end);
-      if (source.index === index && slotSource?.slot === position) return;
-      if (source.index === index && !slotSource) { notice('Keep the function in place. Drag an argument or an earlier result into its input.'); return; }
-      next[source.index].expr = isRowHead(source) ? '' : removal(next[source.index].expr, slotSource || source, true).text;
-    }
-    next[index].expr = RowProgram.setArgument(next[index].expr, position, value ? RowProgram.print({ kind: 'name', name: value }) : null);
-    if (JSON.stringify(next) === rowSnapshot()) return;
-    if (!stockAllows(next, next[index].id)) return;
-    rememberRows(); rowPrograms[currentLevel] = next; activeRow = index; commit(); activate(activeRow);
-  }
-  function chooseArgument(slot) {
-    const index = Number(slot.dataset.row), position = Number(slot.dataset.slot), snapshot = rowSnapshot();
-    const call = rowDiagnostics[index]?.call;
-    if (!call || getRows()[index].automatic || getRows()[index].automaticInput) return;
-    activate(index);
-    const dialog = document.createElement('dialog'); dialog.className = 'connection-picker argument-picker';
-    dialog.setAttribute('aria-label', `Choose input ${position + 1} of ${call.name}`);
-    dialog.innerHTML = `<h2>Choose input ${position + 1}</h2><p>For ${rowSymbol(call.name)}. Choose one function.</p><div class="argument-choices"></div><button type="button" class="connection-cancel">Cancel</button>`;
-    const close = () => { dialog.close(); dialog.remove(); };
-    const stock = functionUsage(level, RowProgram.source(getRows()));
-    const available = stock.filter(f => f.remaining || f.name.replace(/^\(|\)$/g, '') === call.args[position]).map(f => f.name);
-    const availableParams = parameterUsage(level, RowProgram.source(getRows()))
-      .filter(p => (p.remaining || p.name === call.args[position]) && functionProgramContext(level).params[p.name]?.tag === 'fun').map(p => p.name);
-    const choices = [...availableParams, ...getRows().slice(0, index).filter((_, i) => !rowDiagnostics[i]?.error && rowDiagnostics[i].type?.tag === 'fun').map(row => row.id), ...available];
-    for (const name of [...choices, null]) {
-      if (!name && !call.args[position]) continue;
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'argument-choice';
-      button.innerHTML = name ? rowSymbol(name.replace(/^\((.+)\)$/, '$1')) : 'Clear input';
-      button.setAttribute('aria-label', name ? `Use input ${name}` : 'Clear input');
-      button.onclick = () => { close(); if (rowSnapshot() === snapshot) fillSlot(name, index, position); };
-      dialog.querySelector('.argument-choices').append(button);
-    }
-    dialog.querySelector('.connection-cancel').onclick = close;
-    dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
-    document.body.append(dialog); dialog.showModal(); fitSemanticDiagrams(dialog);
+  function placeCard(name) {
+    const rows = getRows(), call = RowProgram.call(rows[activeRow]?.expr || '');
+    if (call && !call.args.length && editable(activeRow)) { place(name, activeRow, true); return; }
+    const producer = rows.findIndex(row => row.id === name);
+    const at = !rows[activeRow]?.expr.trim() && editable(activeRow) && activeRow > producer ? activeRow
+      : rows.findIndex((row, i) => i > producer && !row.expr.trim() && !row.automatic);
+    if (at < 0) { notice('Clear an existing step to return its functions to the top.'); return; }
+    place(name, at);
   }
   function rowAt(point) {
-    const hit = document.elementFromPoint(point.clientX, point.clientY);
-    const row = hit?.closest('.program-row, .ready-row');
-    return row && container.contains(row) && row.dataset.row !== undefined ? Number(row.dataset.row) : null;
-  }
-  function hitToken(index, point) {
-    for (const node of visibleTokens(index)) {
-      const r = node.getBoundingClientRect();
-      if (point.clientX >= r.left && point.clientX <= r.right && point.clientY >= r.top && point.clientY <= r.bottom) return {
-        ...(node.matches('.argument-slot') ? sourceForSlot(node) : {}),
-        index, start: Number(node.dataset.start), end: Number(node.dataset.end), name: node.dataset.name, node, rect: r, head: node.matches('.function-head')
-      };
-    }
-    return null;
-  }
-  function visibleTokens(index) {
-    const editor = editors()[index];
-    if (!editor) return [];
-    return editor.closest('.editor-container').hidden
-      ? editor.closest('.program-row').querySelectorAll('.function-head, .argument-slot.filled')
-      : editor.previousElementSibling.children;
-  }
-  function caret(index, point) {
-    const editor = editors()[index];
-    const style = getComputedStyle(editor), rect = editor.getBoundingClientRect();
-    const height = parseFloat(style.lineHeight);
-    const nodes = visibleTokens(index);
-    const stops = nodes.length ? [] : [{ pos: 0, x: rect.left + parseFloat(style.paddingLeft), y: rect.top + parseFloat(style.paddingTop), height }];
-    for (const node of nodes) {
-      const r = node.getBoundingClientRect();
-      stops.push({ pos: Number(node.dataset.start), x: r.left, y: r.top, height: r.height }, { pos: Number(node.dataset.end), x: r.right, y: r.top, height: r.height });
-    }
-    return stops.reduce((best, stop) => {
-      const distance = s => Math.abs(point.clientY - s.y - s.height / 2) * 1000 + Math.abs(point.clientX - s.x);
-      return distance(stop) < distance(best) ? stop : best;
-    });
-  }
-  function targetFor(name, index, point, source) {
-    if (!operators.length || isOperatorName(name) || operators.some(f => f.name.slice(1, -1) === name)) return null;
-    const target = hitToken(index, point);
-    if (!target || (source?.index === index && source.start === target.start)) return null;
-    if (!funcs.has(target.name) && !params.has(target.name) && !refNames().has(target.name)) return null;
-    const edge = target.rect.width * .25;
-    return point.clientX > target.rect.left + edge && point.clientX < target.rect.right - edge ? target : null;
+    const node = document.elementFromPoint(point.clientX, point.clientY)?.closest('.program-row');
+    return node && container.contains(node) ? Number(node.dataset.row) : null;
   }
   function clearIntent() {
-    document.getElementById('drop-caret')?.remove();
-    container.querySelectorAll('.connection-target, .drag-over, .slot-target').forEach(n => n.classList.remove('connection-target', 'drag-over', 'slot-target'));
+    container.querySelectorAll('.drag-over, .slot-target').forEach(node => node.classList.remove('drag-over', 'slot-target'));
   }
-  function showIntent(name, point, source) {
+  function showIntent(point) {
     clearIntent();
-    if (document.elementFromPoint(point.clientX, point.clientY)?.closest('.goal-output')) {
-      ghost?.classList.remove('removing'); return;
-    }
     const index = rowAt(point);
-    ghost?.classList.toggle('removing', index === null && !!source);
-    if (index === null) return;
-    if (document.elementFromPoint(point.clientX, point.clientY)?.closest('.ready-row')) {
-      container.querySelector('.ready-row')?.classList.add('drag-over'); return;
-    }
-    if (getRows()[index]?.automatic || getRows()[index]?.automaticInput) return;
-    const slot = slotAt(point);
-    if (slot) { slot.classList.add('slot-target'); return; }
-    const target = targetFor(name, index, point, source);
-    if (target) target.node.classList.add('connection-target');
-    else {
-      const stop = caret(index, point), el = document.createElement('div');
-      el.id = 'drop-caret'; el.className = 'drop-caret';
-      Object.assign(el.style, { left: stop.x + 'px', top: stop.y + 'px', height: stop.height + 'px' });
-      document.body.append(el);
-    }
-    editors()[index].closest('.program-row').classList.add('drag-over');
+    if (index === null || !editable(index)) return;
+    sections()[index].classList.add('drag-over');
+    const slot = document.elementFromPoint(point.clientX, point.clientY)?.closest('.argument-slot');
+    slot?.classList.add('slot-target');
   }
-  function picker(name, target, source) {
-    const snapshot = rowSnapshot(), index = target.index;
-    const dialog = document.createElement('dialog');
-    dialog.id = 'connection-picker'; dialog.className = 'connection-picker';
-    dialog.setAttribute('aria-labelledby', 'connection-title');
-    dialog.innerHTML = '<h2 id="connection-title">Choose an operator</h2><p>Apply each input in its own row.</p><div class="connection-order"><span id="connection-order-label"></span><button type="button" id="connection-swap">Swap order</button></div><div class="connection-options"></div><button type="button" class="connection-cancel">Cancel</button>';
-    document.body.append(dialog);
-    let swapped = false;
-    const close = () => { dialog.close(); dialog.remove(); };
-    function choices() {
-      const left = swapped ? name : target.name, right = swapped ? target.name : name;
-      dialog.querySelector('#connection-order-label').innerHTML = rowSymbol(left) + ' → ' + rowSymbol(right);
-      const holder = dialog.querySelector('.connection-options'); holder.replaceChildren();
-      const available = new Set(functionUsage(level, RowProgram.source(getRows())).filter(f => f.remaining).map(f => f.name));
-      for (const op of [...operators.filter(f => available.has(f.name)).map(f => f.name.slice(1, -1)), '']) {
-        const button = document.createElement('button');
-        button.className = 'connection-option'; button.dataset.operator = op;
-        button.setAttribute('aria-label', op ? `Use ${op}` : 'Insert without operator');
-        let text = getRows()[index].expr, start = target.start, end = target.end;
-        if (source?.index === index) {
-          const removed = removal(text, source, true); text = removed.text;
-          if (removed.end <= start) { start -= removed.delta; end -= removed.delta; }
-        }
-        const preview = text.slice(0, start) + `${left} ${op ? op + ' ' : ''}${right}` + text.slice(end);
-        button.innerHTML = `<span class="connection-option-title">${op ? rowSymbol(op) : 'No operator'}</span><span class="connection-preview">${iconMode ? tokens(preview).map(token => rowSymbol(token.name)).join(' ') : `<code>${escHtml(preview)}</code>`}</span>`;
-        button.onclick = () => {
-          close();
-          if (rowSnapshot() === snapshot) mutateDrop(name, index, target.start, source, { ...target, op, swapped });
-        };
-        holder.append(button);
-      }
-    }
-    dialog.querySelector('#connection-swap').onclick = () => { swapped = !swapped; choices(); fitSemanticDiagrams(dialog); };
-    dialog.querySelector('.connection-cancel').onclick = close;
-    dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
-    choices(); dialog.showModal(); fitSemanticDiagrams(dialog);
-  }
-  function isRowHead(source) {
-    if (!source || source.slot !== undefined) return false;
-    if (source.head) return true;
-    // The same function can also be dragged from the row's Edit code view.
-    const text = getRows()[source.index].expr, call = RowProgram.call(text);
-    if (!call) return false;
-    const head = tokens(text).filter(t => t.name !== '(' && t.name !== ')')[call.infix ? 1 : 0];
-    return head?.start === source.start && head?.end === source.end;
-  }
-  function drop(name, point, source) {
-    const hit = document.elementFromPoint(point.clientX, point.clientY);
-    if (hit?.closest('.goal-output, .automatic-input, .automatic-final-row')) return;
-    const slot = slotAt(point);
-    if (slot) { fillSlot(name, Number(slot.dataset.row), Number(slot.dataset.slot), source); return; }
+  function drop(name, point) {
     const index = rowAt(point);
-    if (index === null) {
-      if (source) {
-        rememberRows();
-        const row = getRows()[source.index];
-        row.expr = isRowHead(source) ? '' : removal(row.expr, source, true).text;
-        commit();
-      }
-      return;
-    }
-    if (hit?.closest('.ready-row') || index === getRows().length) { mutateDrop(name, index, 0, source); return; }
-    const target = targetFor(name, index, point, source);
-    if (target) picker(name, target, source);
-    else mutateDrop(name, index, caret(index, point).pos, source);
+    if (index === null || !editable(index)) return;
+    const row = getRows()[index], call = RowProgram.call(row.expr);
+    const slot = document.elementFromPoint(point.clientX, point.clientY)?.closest('.argument-slot');
+    // The complete function rectangle accepts its one missing input, avoiding
+    // tiny hit targets. Filled inputs remain replaceable at their own target.
+    place(name, index, !!slot || !!call && !call.args.length);
   }
   function moveGhost(point) {
-    if (!ghost) return;
-    // The preview's center is the drop point. An elevated or edge-clamped
-    // preview appears to hit a different row/input from the pointer below it.
-    ghost.style.left = point.clientX + 'px';
-    ghost.style.top = point.clientY + 'px';
+    ghost.style.left = point.clientX + 'px'; ghost.style.top = point.clientY + 'px';
   }
+  let edgeSince = 0, edgeDirection = 0, lastScroll = 0;
   function autoScroll(time) {
     if (!drag?.moved || !lastPoint) return;
-    const r = container.getBoundingClientRect();
-    const hovered = rowAt(lastPoint);
-    const onSlot = slotAt(lastPoint);
-    const onToken = onSlot || hovered !== null && hitToken(hovered, lastPoint);
-    const onDropArea = document.elementFromPoint(lastPoint.clientX, lastPoint.clientY)
-      ?.closest('.empty-row-drop, textarea.row-editor');
-    const delta = !onToken && !onDropArea && lastPoint.clientX >= r.left && lastPoint.clientX <= r.right
-      ? lastPoint.clientY < r.top + 36 ? -14 : lastPoint.clientY > r.bottom - 36 ? 14 : 0 : 0;
-    const row = hovered === null ? null : container.querySelector(`.program-row[data-row="${hovered}"]`);
-    const bounds = row?.getBoundingClientRect();
-    const across = bounds && !onSlot && !onDropArea
-      ? lastPoint.clientX < bounds.left + 24 && row.scrollLeft > 0 ? -14
-        : lastPoint.clientX > bounds.right - 24 && row.scrollLeft + row.clientWidth < row.scrollWidth ? 14 : 0
-      : 0;
-    // A visible input or empty row must not scroll out from under a drop.
-    // Scroll only when the player rests the already-dragging finger at the edge.
-    if (!delta && !across) scrollEdge = null;
-    else if (!scrollEdge || scrollEdge.delta !== delta || scrollEdge.across !== across || scrollEdge.row !== row || Math.hypot(lastPoint.clientX - scrollEdge.x, lastPoint.clientY - scrollEdge.y) > 12) {
-      scrollEdge = { x: lastPoint.clientX, y: lastPoint.clientY, delta, across, row, since: time };
-    } else if (time - scrollEdge.since >= 200 && time - lastScrollTime > 30) {
-      container.scrollTop += delta;
-      if (across) row.scrollLeft += across;
-      showIntent(drag.name, lastPoint, drag.source); lastScrollTime = time;
+    const bounds = container.getBoundingClientRect();
+    const direction = lastPoint.clientX >= bounds.left && lastPoint.clientX <= bounds.right
+      ? lastPoint.clientY < bounds.top + 24 ? -1 : lastPoint.clientY > bounds.bottom - 24 ? 1 : 0 : 0;
+    if (direction !== edgeDirection) { edgeSince = time; edgeDirection = direction; }
+    if (direction && time - edgeSince > 250 && time - lastScroll > 30) {
+      container.scrollTop += direction * 12; lastScroll = time; showIntent(lastPoint);
     }
     scrollFrame = requestAnimationFrame(autoScroll);
   }
   function cleanupDrag() {
     if (scrollFrame) cancelAnimationFrame(scrollFrame);
-    scrollFrame = null; lastPoint = null; scrollEdge = null;
+    scrollFrame = null; lastPoint = null; edgeDirection = 0;
     ghost?.remove(); ghost = null;
-    if (drag?.card) drag.card.draggable = true;
-    drag = null;
-    clearIntent();
-    document.querySelectorAll('.dragging, .drag-source').forEach(el => el.classList.remove('dragging', 'drag-source'));
+    if (drag?.card) { drag.card.draggable = true; drag.card.classList.remove('dragging'); }
+    drag = null; clearIntent();
   }
-  listen(container, 'focusin', e => {
-    if (e.target.matches('textarea')) activate(Number(e.target.dataset.row));
-  });
-  function normalizeInput(value) {
-    const known = new Set([...funcs, ...params, ...refNames()]);
-    return value.replace(/\s+/g, ' ').trimStart()
-      .replace(/([a-zA-Z0-9_'])([!@#$%^&*\-+=<>?/|~:.\\]+)/g, '$1 $2')
-      .replace(/([!@#$%^&*\-+=<>?/|~:.\\]+)([a-zA-Z_])/g, '$1 $2')
-      .replace(/[a-zA-Z_][a-zA-Z0-9_']*/g, word => {
-        if (known.has(word)) return word;
-        const parts = []; let rest = word;
-        while (rest) {
-          const match = [...known].filter(n => /^[a-zA-Z_]/.test(n) && rest.startsWith(n)).sort((a, b) => b.length - a.length)[0];
-          if (!match) return word;
-          parts.push(match); rest = rest.slice(match.length);
-        }
-        return parts.join(' ');
-      });
+  function paletteCard(target) {
+    const card = target.closest('#function-palette [data-func-name]');
+    return card && Number(card.dataset.remaining) > 0 ? card : null;
   }
-  listen(container, 'input', e => {
-    if (!e.target.matches('textarea')) return;
-    rememberRows();
-    const index = Number(e.target.dataset.row);
-    sourceRows.add(getRows()[index].id);
-    const cursor = normalizeInput(e.target.value.slice(0, e.target.selectionStart)).length;
-    getRows()[index].expr = normalizeInput(e.target.value);
-    activeRow = index; commit();
-    e.target.setSelectionRange(cursor, cursor);
+  listen(container, 'click', event => {
+    const section = event.target.closest('.program-row');
+    if (!section || suppressClick) return;
+    const index = Number(section.dataset.row); activate(index);
+    const slot = event.target.closest('.argument-slot');
+    if (slot) { if (slot.classList.contains('filled')) clearStep(index, true); return; }
+    if (event.target.closest('.function-head')) clearStep(index);
   });
-  listen(container, 'scroll', e => {
-    if (e.target.matches('textarea')) { e.target.previousElementSibling.scrollTop = e.target.scrollTop; e.target.previousElementSibling.scrollLeft = e.target.scrollLeft; }
-  }, { capture: true });
-  listen(container, 'keydown', e => {
-    if (!e.target.matches('textarea') && (e.ctrlKey || e.metaKey) && /^(z|y)$/i.test(e.key)) {
-      e.preventDefault(); historyMove(e.key.toLowerCase() === 'y' || e.shiftKey ? 'redo' : 'undo'); return;
+  listen(container, 'keydown', event => {
+    if ((event.ctrlKey || event.metaKey) && /^(z|y)$/i.test(event.key)) {
+      event.preventDefault(); historyMove(event.key.toLowerCase() === 'y' || event.shiftKey ? 'redo' : 'undo'); return;
     }
-    if (!e.target.matches('textarea')) return;
-    const editor = e.target, index = Number(editor.dataset.row), start = editor.selectionStart, end = editor.selectionEnd;
-    if ((e.ctrlKey || e.metaKey) && /^(z|y)$/i.test(e.key)) {
-      e.preventDefault(); historyMove(e.key.toLowerCase() === 'y' || e.shiftKey ? 'redo' : 'undo'); return;
-    }
-    if (e.key === 'Enter') { e.preventDefault(); newRow(index + 1); return; }
-    if (start !== end || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    const ts = tokens(editor.value);
-    if (e.key === 'Backspace' || e.key === 'Delete') {
-      const atPunctuation = e.key === 'Backspace' && /[()]/.test(editor.value[start] || ' ') ? ts.find(t => t.start === start) : null;
-      const token = atPunctuation || (e.key === 'Backspace' ? ts.filter(t => t.start < start).at(-1) : ts.find(t => t.end > start));
-      if (!token) return;
-      e.preventDefault(); rememberRows();
-      const removed = removal(editor.value, token);
-      getRows()[index].expr = removed.text; commit();
-      editor.setSelectionRange(removed.start, removed.start);
-    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      const token = e.key === 'ArrowLeft' ? ts.filter(t => t.start < start).at(-1) : ts.find(t => t.end > start);
-      if (token) { e.preventDefault(); const pos = e.key === 'ArrowLeft' ? token.start : token.end; editor.setSelectionRange(pos, pos); }
+    if (event.target.matches('.function-head') && ['Enter', ' ', 'Delete', 'Backspace'].includes(event.key)) {
+      event.preventDefault(); clearStep(Number(event.target.closest('.program-row').dataset.row));
     }
   });
-  listen(container, 'click', e => {
-    if (e.target.closest('.goal-output')) return;
-    if (e.target.closest('.ready-row')) {
-      if (!suppressClick) newRow(Number(e.target.closest('.ready-row').dataset.row));
-      return;
-    }
-    const slot = e.target.closest('.argument-slot');
-    if (slot) { if (!suppressClick) chooseArgument(slot); return; }
-    const button = e.target.closest('[data-action]');
-    if (!button) return;
-    const index = Number(button.closest('.program-row').dataset.row), action = button.dataset.action;
-    if (action === 'remove') confirmRowDeletion(index);
-  });
-  listen(document.getElementById('add-row'), 'click', () => newRow(getRows().length));
   listen(document.getElementById('undo-rows'), 'click', () => historyMove('undo'));
   listen(document.getElementById('redo-rows'), 'click', () => historyMove('redo'));
-  function placeCard(name) {
-    const rows = getRows(), row = rows[activeRow], call = RowProgram.call(row?.expr || '');
-    if (call && !call.args.length && !row.automatic && !row.automaticInput) {
-      fillSlot(name, activeRow, 0); return;
-    }
-    const autoIndex = rows.findIndex(row => row.automatic);
-    const at = row?.expr.trim() ? (autoIndex < 0 ? rows.length : autoIndex) : activeRow;
-    mutateDrop(name, at, 0);
-  }
-  listen(document, 'click', e => {
-    const card = e.target.closest('[data-func-name]');
-    if (!card || !card.matches('button, [role="button"]') || suppressClick) return;
-    placeCard(card.dataset.funcName);
+  listen(document, 'click', event => { const card = paletteCard(event.target); if (card && !suppressClick) placeCard(card.dataset.funcName); });
+  listen(document, 'keydown', event => {
+    const card = paletteCard(event.target);
+    if (card && ['Enter', ' '].includes(event.key)) { event.preventDefault(); placeCard(card.dataset.funcName); }
   });
-  listen(document, 'keydown', e => {
-    const card = e.target.closest('.func-card[role="button"]');
-    if (card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); placeCard(card.dataset.funcName); }
+  listen(document, 'dragstart', event => {
+    const card = paletteCard(event.target);
+    if (!card) { if (container.contains(event.target)) event.preventDefault(); return; }
+    nativeName = card.dataset.funcName;
+    event.dataTransfer.setData('text/plain', nativeName);
   });
-  listen(document, 'dragstart', e => {
-    const card = e.target.closest('[data-func-name]');
-    if (!card) return;
-    nativeName = card.dataset.funcName; e.dataTransfer.setData('text/plain', nativeName);
-    const bounds = card.getBoundingClientRect();
-    e.dataTransfer.setDragImage(card, bounds.width / 2, bounds.height / 2);
-    card.classList.add('dragging');
+  listen(container, 'dragover', event => { if (nativeName) { event.preventDefault(); showIntent(event); } });
+  listen(container, 'drop', event => {
+    if (!nativeName) return;
+    event.preventDefault(); drop(nativeName, event); nativeName = ''; cleanupDrag();
   });
-  listen(container, 'dragover', e => { e.preventDefault(); showIntent(nativeName, e); });
-  listen(container, 'drop', e => { e.preventDefault(); drop(e.dataTransfer.getData('text/plain'), e); cleanupDrag(); nativeName = ''; if (!document.getElementById('connection-picker')) focusRow(activeRow); });
   listen(document, 'dragend', () => { nativeName = ''; cleanupDrag(); });
-  listen(document, 'pointerdown', e => {
-    if (drag && e.pointerId !== drag.id) { cleanupDrag(); return; }
-    if (e.button !== 0 || e.target.closest('dialog')) return;
-    // Mobile browsers may retarget a border touch to a nearby input button.
-    // Use the actual contact point to distinguish the function from its inputs.
-    const target = e.target.closest('.function-block')
-      ? document.elementFromPoint(e.clientX, e.clientY) || e.target : e.target;
-    if (target.closest('.automatic-input') || target.closest('.automatic-final-row') && !target.closest('.function-head')) return;
-    const card = target.closest('[data-func-name]');
-    const editor = target.closest('textarea.row-editor');
-    const slot = target.closest('.argument-slot');
-    const head = target.closest('.function-head');
-    if (!card && !editor && !slot && !head) return;
-    if (card && e.pointerType === 'mouse') return; // native HTML drag on desktop cards
-    const index = Number((editor || slot || head)?.dataset.row);
-    const source = slot ? sourceForSlot(slot) : editor || head ? hitToken(index, e) : null;
-    if (!card && !source) return; // empty space is available for scrolling/editing
-    e.preventDefault();
-    if (editor || slot || head) activate(index);
-    if (card) card.draggable = false;
-    drag = { card, id: e.pointerId, name: card?.dataset.funcName || source.name, source, x: e.clientX, y: e.clientY, moved: false, snapshot: rowSnapshot() };
-    ghost = document.createElement('div'); ghost.id = e.pointerType === 'touch' ? 'touch-drag-ghost' : 'drag-out-ghost'; ghost.className = 'drag-ghost row-drag-ghost';
-    const picture = isRowHead(source) ? rowSymbol(source.name, null, rowDiagnostics[source.index]?.call?.diagram, true)
-      : source?.node?.querySelector('svg.semantic-diagram')?.outerHTML;
-    ghost.innerHTML = (picture || rowSymbol(drag.name.replace(/^\((.+)\)$/, '$1'))) + `<span class="drag-action">${isRowHead(source) ? 'Release outside to clear row' : 'Release outside to remove'}</span>`;
-    document.body.append(ghost); fitSemanticDiagrams(ghost); moveGhost(e);
-    source?.node.classList.add('drag-source'); card?.classList.add('dragging');
+  listen(document, 'pointerdown', event => {
+    if (event.button !== 0 || event.target.closest('dialog')) return;
+    const card = paletteCard(event.target);
+    if (!card) return;
+    if (drag) cleanupDrag();
+    event.preventDefault(); card.draggable = false;
+    drag = { card, name: card.dataset.funcName, id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, snapshot: rowSnapshot() };
+    ghost = document.createElement('div'); ghost.className = 'drag-ghost row-drag-ghost'; ghost.id = 'touch-drag-ghost';
+    ghost.innerHTML = card.querySelector('svg.semantic-diagram')?.outerHTML || escHtml(card.textContent);
+    document.body.append(ghost); fitSemanticDiagrams(ghost); moveGhost(event); card.classList.add('dragging');
   });
-  // Claim the touch sequence too: otherwise the browser may start its own
-  // HTML drag and consume the next tap when it cancels that native gesture.
-  listen(document, 'touchstart', e => { if (drag && e.cancelable) e.preventDefault(); }, { passive: false });
-  listen(document, 'pointermove', e => {
-    if (!drag || drag.id !== e.pointerId) return;
+  listen(document, 'touchstart', event => { if (drag && event.cancelable) event.preventDefault(); }, { passive: false });
+  listen(document, 'pointermove', event => {
+    if (!drag || drag.id !== event.pointerId) return;
     if (rowSnapshot() !== drag.snapshot) { cleanupDrag(); return; }
-    e.preventDefault();
-    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 5) drag.moved = true;
-    moveGhost(e);
+    event.preventDefault();
+    if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 5) drag.moved = true;
+    moveGhost(event);
     if (drag.moved) {
-      lastPoint = { clientX: e.clientX, clientY: e.clientY };
-      showIntent(drag.name, e, drag.source);
-      if (!scrollFrame) scrollFrame = requestAnimationFrame(autoScroll);
+      lastPoint = { clientX: event.clientX, clientY: event.clientY };
+      showIntent(event); if (!scrollFrame) scrollFrame = requestAnimationFrame(autoScroll);
     }
   }, { passive: false });
-  listen(document, 'pointerup', e => {
-    if (!drag || drag.id !== e.pointerId) return;
+  listen(document, 'pointerup', event => {
+    if (!drag || drag.id !== event.pointerId) return;
     const state = drag;
     suppressClick = true; setTimeout(() => { suppressClick = false; }, 0);
-    if (state.moved) {
-      if (state.snapshot === rowSnapshot()) drop(state.name, e, state.source);
-    } else if (state.source?.slot !== undefined) {
-      chooseArgument(state.source.node);
-    } else if (state.source?.head) {
-      focusRow(state.source.index);
-    } else if (state.source) {
-      const editor = editors()[state.source.index]; editor.focus({ preventScroll: true });
-      const pos = caret(state.source.index, e).pos; editor.setSelectionRange(pos, pos);
-    } else if (state.card?.matches('button, [role="button"]')) {
-      placeCard(state.name);
+    if (state.snapshot === rowSnapshot()) {
+      if (state.moved) drop(state.name, event); else placeCard(state.name);
     }
-    // Taps retain caret behavior; dragging never needs a hold.
     cleanupDrag();
   });
   listen(document, 'pointercancel', cleanupDrag);
   listen(window, 'blur', cleanupDrag);
   listen(document, 'visibilitychange', () => { if (document.hidden) cleanupDrag(); });
-  listen(document, 'contextmenu', e => { if (drag) e.preventDefault(); });
-  listen(window, 'resize', () => editors().forEach(drawOverlay));
-  const diagramObserver = new ResizeObserver(() => fitSemanticDiagrams());
-  document.querySelectorAll('.left-panel, .right-panel').forEach(panel => diagramObserver.observe(panel));
-  rowEditorCleanup = () => { diagramObserver.disconnect(); closeDeletePreview?.(); cleanupDrag(); controller.abort(); document.querySelector('.argument-picker')?.remove(); rowEditorCleanup = null; };
-  if (removeEmptyRows()) persistRows();
-  build();
-  document.fonts.ready.then(() => { if (!controller.signal.aborted) editors().forEach(drawOverlay); });
+  listen(document, 'contextmenu', event => { if (drag) event.preventDefault(); });
+  const observer = new ResizeObserver(() => fitSemanticDiagrams());
+  document.querySelectorAll('.left-panel, .right-panel').forEach(panel => observer.observe(panel));
+  rowEditorCleanup = () => { observer.disconnect(); closeDialog?.(); cleanupDrag(); controller.abort(); rowEditorCleanup = null; };
+  // Build exactly once on mounting. Edits repaint content inside these slots.
+  container.innerHTML = getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div><div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div><div class="row-error" aria-live="polite"></div></div></section>`).join('');
+  if (textDrafts[currentLevel] && RowProgram.migrate(textDrafts[currentLevel]).length > rowSlotCount(level)) notice('Your saved program has extra steps. Text mode keeps the full draft for review.');
+  paint();
 }

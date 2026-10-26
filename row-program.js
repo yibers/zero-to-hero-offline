@@ -94,6 +94,13 @@ const RowProgram = (() => {
     return { bindings, final: match[2].trim() };
   }
   function source(rows) {
+    // Empty fixed slots are layout, not Haskell bindings. Keep a hole in the
+    // final expression while its automatic application is still pending.
+    if (rows.at(-1)?.automatic) {
+      const bindings = rows.slice(0, -1).filter(row => row.expr.trim());
+      if (!bindings.length && !rows.at(-1).expr.trim()) return '';
+      rows = [...bindings, { ...rows.at(-1), expr: rows.at(-1).expr.trim() || '_' }];
+    }
     if (rows.length === 1) return rows[0].expr.trim();
     return 'let\n' + rows.slice(0, -1).map(r => `  ${r.id} = ${r.expr.trim()}`).join('\n') + '\nin\n  ' + rows.at(-1).expr.trim();
   }

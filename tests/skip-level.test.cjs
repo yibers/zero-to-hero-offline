@@ -15,7 +15,7 @@ for (const icons of [true, false]) {
     assert.equal(restored.run('LEVELS[currentLevel].level'), 4);
     restored.run('prevLevel();');
     assert.equal(restored.run('LEVELS[currentLevel].level'), 3);
-    assert.equal(restored.run('getCodeFromEditor()'), '(.)');
+    assert.equal(restored.run('getCodeFromEditor()'), icons ? 'let\n  r1 = (.)\nin\n  _' : '(.)');
     assert.equal(restored.run('completedLevels.has(currentLevel)'), false);
     assert.match(restored.nodes.app.innerHTML, /id="skip-level"[^>]*>Skip level/);
     assert.doesNotMatch(restored.nodes.app.innerHTML, /id="skip-level"[^>]*hidden/);

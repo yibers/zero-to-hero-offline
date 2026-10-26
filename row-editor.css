@@ -136,3 +136,14 @@
 .automatic-pending { border-style: dashed; background: #f8fafc; }
 .automatic-final-row .row-result { cursor: default; }
 .automatic-final-row .row-call { flex: 0 1 auto; }
+
+/* Fixed slots keep their position; only the top palette is a drag source. */
+.program-row.drag-over { border-color: #3b82f6; box-shadow: inset 0 0 0 2px #93c5fd; }
+.row-call > .empty-row-drop[hidden], .goal-output[hidden] { display: none; }
+.empty-row-drop { cursor: pointer; font-size: 24px; }
+.function-head, .argument-slot.filled { cursor: pointer; touch-action: auto; }
+.row-result { cursor: default; user-select: none; }
+.program-row .semantic-diagram { -webkit-user-drag: none; user-select: none; }
+.generated-card { border-color: #a78bfa; background: #f5f3ff; }
+.generated-card .row-ref { color: #5b21b6; }
+.invalid-row-draft { font: 12px 'Fira Code', monospace; overflow-wrap: anywhere; }

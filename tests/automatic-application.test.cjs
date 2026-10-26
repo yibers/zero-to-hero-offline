@@ -22,21 +22,22 @@ test('all levels finish automatically from function-only construction, using the
   assert.deepEqual(failures, []);
 });
 
-test('partial functions wait for one function; only completed rows expose reusable results', () => {
+test('partial functions wait for one function; only completed rows expose palette results', () => {
   const app = game();
   app.run(`currentLevel = 1; setEditorContent('(.)'); diagnoseRows();`);
-  assert.equal(app.run('getRows().length'), 1);
+  assert.equal(app.run('getRows().length'), 3);
   assert.match(app.run('rowDiagnostics[0].error'), /Choose one function/);
   assert.equal(app.run('checkSolution(LEVELS[1], getCodeFromEditor()).ok'), false);
   app.run(`setEditorContent('(.) mkHero'); diagnoseRows();`);
-  assert.equal(app.run('getRows().length'), 2);
-  assert.equal(app.run('getRows()[1].automatic'), true);
+  assert.equal(app.run('getRows().length'), 3);
+  assert.equal(app.run('getRows()[2].automatic'), true);
+  assert.equal(app.run('getRows()[2].expr'), '');
   assert.equal(app.run('rowDiagnostics[0].type.tag'), 'fun');
   assert.equal(app.run('rowDiagnostics[0].error'), undefined);
   assert.equal(app.run('checkSolution(LEVELS[1], getCodeFromEditor()).ok'), false);
 });
 
-test('the final application follows edits, disappears when its producer is cleared, and survives refresh', () => {
+test('the final slot stays in place when its producer is cleared and survives refresh', () => {
   const app = game();
   app.run(`currentLevel = 1; setEditorContent(LEVELS[1].solution); getRows(); persistRows();`);
   const saved = app.saved();
@@ -45,19 +46,21 @@ test('the final application follows edits, disappears when its producer is clear
   assert.equal(restored.run('getRows().filter(row => row.automatic).length'), 1);
   assert.equal(restored.nodes['next-level'].hidden, false);
   restored.run(`rowPrograms[1][1].expr = 'r1'; rowPrograms[1] = automaticRows(LEVELS[1], rowPrograms[1]); diagnoseRows();`);
-  assert.equal(restored.run('getRows().some(row => row.automatic)'), false);
+  assert.equal(restored.run('getRows().length'), 3);
+  assert.equal(restored.run('getRows().at(-1).automatic'), true);
+  assert.equal(restored.run('getRows().at(-1).expr'), '');
   assert.match(restored.run('rowDiagnostics[1].error'), /Choose one function/);
   assert.equal(restored.run('checkSolution(LEVELS[1], getCodeFromEditor()).ok'), false);
   restored.run(`rowPrograms[1] = [{id: 'r1', expr: ''}];`);
   assert.equal(restored.run('getCodeFromEditor()'), '');
 });
 
-test('a runnable transformation with the wrong result does not solve the level', () => {
+test('a value-taking function cannot occupy a construction slot', () => {
   const app = game();
   app.run(`currentLevel = 1; setEditorContent('runZero'); diagnoseRows(); runLiveCheck();`);
-  assert.equal(app.run('getCodeFromEditor()'), 'runZero z');
-  assert.equal(app.run('getRows()[0].automaticInput'), true);
-  assert.equal(app.run('rowDiagnostics[0].signature'), 'a');
+  assert.equal(app.run('getRows().length'), 3);
+  assert.equal(app.run('getRows().at(-1).expr'), '');
+  assert.match(app.run('rowDiagnostics[0].error'), /takes a value/);
   assert.equal(app.run('completedLevels.has(currentLevel)'), false);
   assert.equal(app.nodes['next-level'].hidden, true);
 });
@@ -88,7 +91,8 @@ test('the level 9 converter comes from the palette while the only input is autom
   assert.equal(app.run('functionProgramContext(LEVELS[7]).input'), 'z');
   assert.equal(app.run('rowDiagnostics[0].error'), undefined);
   assert.equal(app.run('rowDiagnostics[0].call.arguments[0].type.tag'), 'fun');
-  assert.equal(app.run('getRows().at(-1).expr'), 'r1 z');
+  assert.equal(app.run('getRows().at(-1).expr'), '');
+  assert.deepEqual(app.read('availableGeneratedFunctions().map(card => card.name)'), ['r1']);
 });
 
 

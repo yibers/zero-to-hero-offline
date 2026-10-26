@@ -2,7 +2,10 @@
 // Keep the draft verbatim until the player changes the corresponding icon rows.
 const textHistory = new Map();
 function getTextSource() {
-  return textDrafts[currentLevel] ?? RowProgram.source(getRows());
+  if (textDrafts[currentLevel] !== undefined) return textDrafts[currentLevel];
+  const rows = getRows();
+  // Preparing a fixed grid can preserve an oversized legacy program as a draft.
+  return textDrafts[currentLevel] ?? RowProgram.source(rows);
 }
 function getTextError() {
   try {

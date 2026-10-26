@@ -55,49 +55,70 @@ function functionRowError(expr, env, params, allowPending = false) {
     return null;
   } catch (error) { return normalizeTypeError(error.message); }
 }
-// Keep the generated final application in the ordinary Haskell source, with
-// metadata only to distinguish it from editable construction rows in icon mode.
-// Old explicit final rows are recognized without changing their binding names.
+// Each supplied function copy is a leaf in the construction tree. N copies
+// need N-1 construction slots plus one fixed application to the starting value.
+function rowSlotCount(level) {
+  return level.funcs.reduce((count, func) => count + (func.uses ?? 1), 0);
+}
+function generatedUsage(rows) {
+  return rows.slice(0, -1).map(row => {
+    const used = rows.reduce((count, later) => {
+      try { return count + RowProgram.names(RowProgram.parse(later.expr)).filter(name => name === row.id).length; }
+      catch (_) { return count; }
+    }, 0);
+    return { name: row.id, limit: 1, used, remaining: Math.max(0, 1 - used) };
+  });
+}
+function generatedUsageError(rows, requireAll = false) {
+  const bad = generatedUsage(rows).find(entry => entry.used > 1 || requireAll && entry.used !== 1);
+  return bad ? `Use generated function ${bad.name} exactly once; it is used ${bad.used} times.` : null;
+}
 function automaticRows(level, original) {
-  const { env, params, input } = functionProgramContext(level);
-  const rows = original.filter(row => !row.automatic).map(({ automaticInput, ...row }) => ({ ...row }));
-  const oldFinal = original.find(row => row.automatic);
-  if (!rows.length) return [{ id: original[0]?.id || 'r1', expr: '' }];
-  const last = rows.at(-1), call = RowProgram.call(last.expr);
-  if (call?.args.length === 1 && call.args[0] === input) {
-    if (rows.length > 1 && call.name === rows.at(-2).id) {
-      last.automatic = true;
-      return rows;
-    }
-    // A directly supplied transformation (including the introductory wrap).
-    last.automaticInput = true;
-    return rows;
+  const count = rowSlotCount(level), { env, params, input } = functionProgramContext(level);
+  const rows = original.map(({ automaticInput, ...row }) => ({ ...row }));
+  const last = rows.at(-1), call = last && RowProgram.call(last.expr);
+  let final = rows.find(row => row.automatic);
+  let construction = rows.filter(row => !row.automatic);
+  // Recognize the final expression in saved/text programs without renaming it.
+  if (!final && rows.length > 1 && (last.expr.trim() === '_' ||
+      call?.args.length === 1 && call.args[0] === input && call.name === rows.at(-2).id)) {
+    final = construction.pop();
   }
-  delete last.automaticInput;
+  const used = new Set(rows.flatMap(row => [row.id, ...(row.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || [])]));
+  function fresh() { let n = 1; while (used.has(`r${n}`)) n++; const id = `r${n}`; used.add(id); return { id, expr: '' }; }
+  if (count === 1) {
+    const row = construction[0] || final || fresh(), single = RowProgram.call(row.expr);
+    if (single && !single.args.length) row.expr = RowProgram.setArgument(row.expr, 0, input);
+    if (RowProgram.call(row.expr)?.args[0] === input) row.automaticInput = true;
+    return [row];
+  }
+  construction = construction.slice(0, count - 1);
+  while (construction.length < count - 1) construction.push(fresh());
+  final = { ...(final || fresh()), expr: '', automatic: true };
   try {
-    for (const row of rows.slice(0, -1)) {
-      if (functionRowError(row.expr, env, params)) return rows;
+    // Until every construction slot is complete, the final row stays a goal
+    // preview and does not consume the latest generated function from the top.
+    for (const row of construction) {
+      if (functionRowError(row.expr, env, params)) return [...construction, final];
       env[row.id] = inferExpr(row.expr, env, params);
     }
-    if (!call) return rows;
-    const type = inferExpr(last.expr, env, params);
-    if (!call.args.length && type?.tag === 'fun' && !acceptsFunction(type)
-      && unify(type.from, params[input], {})) {
-      last.expr = RowProgram.setArgument(last.expr, 0, input);
-      last.automaticInput = true;
-    } else if (call.args.length === 0 && type?.from?.tag === 'var' && type.to?.tag !== 'fun'
-      && unify(type.from, params[input], {})) {
-      // A polymorphic wrapper accepts the concrete starting value directly.
-      last.expr = RowProgram.setArgument(last.expr, 0, input);
-      last.automaticInput = true;
-    } else if (!functionRowError(last.expr, env, params)) {
-      const used = new Set(rows.flatMap(row => [row.id, ...(row.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || [])]));
-      let n = 1; while (used.has(`r${n}`)) n++;
-      const id = oldFinal && !used.has(oldFinal.id) ? oldFinal.id : `r${n}`;
-      rows.push({ id, expr: `${last.id} ${input}`, automatic: true });
-    }
-  } catch (_) { /* Preserve incomplete or invalid drafts for correction. */ }
-  return rows;
+    if (!generatedUsageError([...construction, final])) final.expr = `${construction.at(-1).id} ${input}`;
+  } catch (_) { /* Incomplete/invalid steps stay in their original slots. */ }
+  return [...construction, final];
+}
+
+// Clearing a producer also clears consumers, but never removes or renumbers a
+// slot. Returning cards is derived from the resulting program, not a counter.
+function clearedRows(rows, index, inputOnly = false) {
+  const next = rows.map(row => ({ ...row })), affected = new Set([rows[index].id]);
+  for (const row of next.slice(index + 1)) {
+    const names = row.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || [];
+    if (names.some(name => affected.has(name))) affected.add(row.id);
+  }
+  for (const [i, row] of next.entries()) if (affected.has(row.id)) {
+    row.expr = i === index && inputOnly ? RowProgram.setArgument(row.expr, 0, null) : '';
+  }
+  return next;
 }
 
 // Learning requirements are separate from type inference: the exact supplied
@@ -141,6 +162,8 @@ function checkSolution(level, code) {
     const missing = level.funcs.filter(f => (used.get(f.name.replace(/^\(|\)$/g, '')) || 0) < (f.uses ?? 1)).map(f => f.name);
     if (missing.length) return { ok: false, missing,
       msg: `Use every supplied copy in the steps that produce the final result. Still needed: ${missing.join(', ')}. Unused rows do not count.` };
+    const generatedError = generatedUsageError(rows, true);
+    if (generatedError) return { ok: false, msg: generatedError };
     return { ok: true, msg: 'Level complete! The result matches the goal and every function is used exactly as many times as supplied.' };
   } catch (error) { return { ok: false, msg: error.message }; }
 }
