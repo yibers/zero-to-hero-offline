@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="96abb61d9c87">
+<meta name="app-version" content="de8aa5d9777c">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -149,6 +149,16 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .right-panel h2 svg { width: 18px; height: 18px; }
 #function-palette, #parameter-palette { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 #parameter-palette h2 { flex-basis: 100%; }
+#function-palette { align-items: stretch; gap: 12px; }
+.palette-group { flex: 1 1 300px; min-width: 0; padding: 10px; border: 1px solid #cbd5e1; border-radius: 10px; }
+.palette-group.combinators { background: #eaf2ff; border-color: #b4ccef; }
+.palette-group.transformations { background: #f1f5f9; }
+.palette-group-header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 8px; }
+.right-panel .palette-group-header h2 { font-size: 14px; margin: 0; }
+.palette-group-header span { font-size: 12px; color: #475569; }
+.palette-cards { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.func-card[data-card-kind="transformation"] { cursor: pointer; touch-action: manipulation; }
+.func-card:focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
 .right-panel .func-card { flex: 0 1 auto; min-width: 0; max-width: 100%; min-height: 48px; margin-bottom: 0; }
 .right-panel .palette-gecko { max-width: 100%; overflow-x: auto; }
 .icon-palette .type-name, .icon-palette .semantic-icon { max-width: 100%; min-width: 0; }
@@ -229,9 +239,9 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 <script src="levels.js?v=a93a0aae4df7"></script>
 <script src="semantic-icons.js?v=3ce3945685c1"></script>
 <script src="row-program.js?v=ea198cbc5db6"></script>
-<script src="puzzle-rules.js?v=53f203f1fb11"></script>
-<script src="row-editor.js?v=633a5a25c732"></script>
-<script src="text-editor.js?v=288402abe472"></script>
+<script src="puzzle-rules.js?v=5a018bb6ca5b"></script>
+<script src="row-editor.js?v=582ca4c75e56"></script>
+<script src="text-editor.js?v=242d978ee49f"></script>
 <script>
 
 // ─── Haskell Type Parser & Unifier ───
@@ -1192,22 +1202,30 @@ function updateFunctionPalette(level, code) {
   const palette = document.getElementById('function-palette');
   if (!palette) return;
   const stock = functionUsage(level, code), generated = iconMode ? availableGeneratedFunctions() : [];
-  const key = JSON.stringify([stock.map(f => f.remaining), generated.map(f => [f.name, f.signature, f.diagram])]);
+  const key = JSON.stringify([iconMode, level.level, stock.map(f => f.remaining), generated.map(f => [f.name, f.signature, f.diagram])]);
   if (palette.dataset.stock === key) return;
   palette.dataset.stock = key;
-  palette.innerHTML = stock.map((entry, i) => {
-    if (!entry.remaining) return '';
+  const groups = { combinator: [], transformation: [] };
+  function card(name, label, type, contents, remaining, limit, generated = false) {
+    const combinator = isRowCombinator(type), kind = combinator ? 'combinator' : 'transformation';
+    groups[kind].push(`<div class="func-card${generated ? ' generated-card' : ''}" role="button" tabindex="0" draggable="${combinator}" data-func-name="${escHtml(name)}" data-remaining="${remaining}" data-card-kind="${kind}" title="${escHtml(label)}" aria-label="${escHtml(label)}">
+      <div class="function-card-content">${contents}</div>${limit > 1 ? `<span class="function-stock" aria-hidden="true">×${remaining}</span>` : ''}
+    </div>`);
+  }
+  stock.forEach((entry, i) => {
+    if (!entry.remaining) return;
     const f = level.funcs[i], label = `${f.name}: ${entry.remaining} of ${entry.limit} copies remaining`;
-    return `<div class="func-card"${iconMode ? ' role="button" tabindex="0"' : ''} draggable="true" data-func-name="${f.name}" data-remaining="${entry.remaining}" title="${escHtml(label)}" aria-label="${escHtml(label)}">
-      <div class="function-card-content">
-        <div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
-        ${geckoOn ? `<div class="palette-gecko" style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}
-      </div>${entry.limit > 1 ? `<span class="function-stock" aria-hidden="true">×${entry.remaining}</span>` : ''}
-    </div>`;
-  }).join('') + generated.map(entry => {
+    const contents = `<div class="type-sig">${renderTypeSig(f.name, f.sig, iconMode ? `<span class="icon-sym semantic-icon" title="${escHtml(f.name)}">${FUNCTION_CARD_ICONS[level.level][f.name]}</span>` : undefined)}</div>
+      ${geckoOn ? `<div class="palette-gecko" style="margin-top:4px">${renderGeckoArrow(f.sig)}</div>` : ''}`;
+    card(f.name, label, parseType(f.sig), contents, entry.remaining, entry.limit);
+  });
+  generated.forEach(entry => {
     const label = `Generated function ${entry.name}: ${entry.signature}. One use available.`;
-    return `<div class="func-card generated-card" role="button" tabindex="0" draggable="true" data-func-name="${escHtml(entry.name)}" data-remaining="1" title="${escHtml(label)}" aria-label="${escHtml(label)}"><div class="function-card-content">${rowSymbol(entry.name, null, entry.diagram)}</div></div>`;
-  }).join('');
+    card(entry.name, label, entry.diagram.type, rowSymbol(entry.name, null, entry.diagram), 1, 1, true);
+  });
+  palette.innerHTML = [['combinator', 'Combinators', 'Drag or tap'], ['transformation', 'Transformations', 'Tap to use']]
+    .filter(([kind]) => groups[kind].length)
+    .map(([kind, label, hint]) => `<section class="palette-group ${kind}s" aria-label="${label}"><div class="palette-group-header"><h2>${label}</h2><span>${hint}</span></div><div class="palette-cards">${groups[kind].join('')}</div></section>`).join('');
   fitSemanticDiagrams(palette);
 }
 

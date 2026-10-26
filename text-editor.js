@@ -124,9 +124,20 @@ function mountTextEditor() {
     if (!error) replace(insertion, position, position);
   }
   function overEditor(point) { return document.elementFromPoint(point.clientX, point.clientY) === editor; }
+  let suppressCardClick = false;
+  function tapCard(event) {
+    if (suppressCardClick) return;
+    const card = event.target.closest('#function-palette [data-func-name]');
+    if (!card) return;
+    if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault(); insert(card.dataset.funcName, editor.selectionStart);
+  }
+  listen(document, 'click', tapCard);
+  listen(document, 'keydown', tapCard);
   listen(document, 'dragstart', e => {
     const card = e.target.closest('[data-func-name]');
     if (!card) return;
+    if (card.dataset.cardKind === 'transformation') { e.preventDefault(); return; }
     nativeName = card.dataset.funcName;
     e.dataTransfer.setData('text/plain', nativeName);
   });
@@ -149,7 +160,7 @@ function mountTextEditor() {
     if (drag && drag.id !== e.pointerId) { cleanupDrag(); return; }
     if (e.pointerType === 'mouse' || e.button !== 0 || e.target.closest('dialog')) return;
     const card = e.target.closest('[data-func-name]');
-    if (!card) return;
+    if (!card || card.dataset.cardKind === 'transformation') return;
     e.preventDefault(); card.draggable = false;
     drag = { card, name: card.dataset.funcName, id: e.pointerId, x: e.clientX, y: e.clientY, moved: false };
     ghost = document.createElement('div'); ghost.id = 'touch-drag-ghost'; ghost.className = 'drag-ghost'; ghost.textContent = drag.name;
@@ -164,7 +175,9 @@ function mountTextEditor() {
   }, { passive: false });
   listen(document, 'pointerup', e => {
     if (!drag || drag.id !== e.pointerId) return;
+    suppressCardClick = true; setTimeout(() => { suppressCardClick = false; }, 0);
     if (drag.moved && overEditor(e)) insert(drag.name, caretAt(e));
+    else if (!drag.moved) insert(drag.name, editor.selectionStart);
     cleanupDrag();
   });
   listen(document, 'pointercancel', cleanupDrag);

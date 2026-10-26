@@ -42,6 +42,11 @@ function acceptsFunction(type) {
   return type?.tag === 'fun' && !!unify(type.from,
     { tag: 'fun', from: { tag: 'var', name: '_inputFrom' }, to: { tag: 'var', name: '_inputTo' } }, {});
 }
+// Palette categories describe what a card can do at the head of a row now,
+// including specialized/generated functions, rather than a fixed list of names.
+function isRowCombinator(type) {
+  return acceptsFunction(type) && type.to.tag === 'fun';
+}
 function functionRowError(expr, env, params, allowPending = false) {
   try {
     const call = RowProgram.call(expr);

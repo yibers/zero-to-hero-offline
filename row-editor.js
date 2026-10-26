@@ -363,9 +363,12 @@ function mountRowEditor() {
     preparedRowPrograms.add(rowPrograms[currentLevel]);
     persistRows(); notice(''); paint();
   }
-  function placeCard(name) {
+  function placeCard(name, combinator = true) {
     const rows = getRows(), call = RowProgram.call(rows[activeRow]?.expr || '');
     if (call && !call.args.length && editable(activeRow)) { place(name, activeRow, true); return; }
+    if (!combinator && rowSlotCount(level) > 1) {
+      notice('Select an empty input inside a combinator, then tap this transformation.'); return;
+    }
     const producer = rows.findIndex(row => row.id === name);
     const at = !rows[activeRow]?.expr.trim() && editable(activeRow) && activeRow > producer ? activeRow
       : rows.findIndex((row, i) => i > producer && !row.expr.trim() && !row.automatic);
@@ -440,14 +443,15 @@ function mountRowEditor() {
   });
   listen(document.getElementById('undo-rows'), 'click', () => historyMove('undo'));
   listen(document.getElementById('redo-rows'), 'click', () => historyMove('redo'));
-  listen(document, 'click', event => { const card = paletteCard(event.target); if (card && !suppressClick) placeCard(card.dataset.funcName); });
+  listen(document, 'click', event => { const card = paletteCard(event.target); if (card && !suppressClick) placeCard(card.dataset.funcName, card.dataset.cardKind === 'combinator'); });
   listen(document, 'keydown', event => {
     const card = paletteCard(event.target);
-    if (card && ['Enter', ' '].includes(event.key)) { event.preventDefault(); placeCard(card.dataset.funcName); }
+    if (card && ['Enter', ' '].includes(event.key)) { event.preventDefault(); placeCard(card.dataset.funcName, card.dataset.cardKind === 'combinator'); }
   });
   listen(document, 'dragstart', event => {
     const card = paletteCard(event.target);
     if (!card) { if (container.contains(event.target)) event.preventDefault(); return; }
+    if (card.dataset.cardKind !== 'combinator') { event.preventDefault(); return; }
     nativeName = card.dataset.funcName;
     event.dataTransfer.setData('text/plain', nativeName);
   });
@@ -460,7 +464,7 @@ function mountRowEditor() {
   listen(document, 'pointerdown', event => {
     if (event.button !== 0 || event.target.closest('dialog')) return;
     const card = paletteCard(event.target);
-    if (!card) return;
+    if (!card || card.dataset.cardKind !== 'combinator') return;
     if (drag) cleanupDrag();
     event.preventDefault(); card.draggable = false;
     drag = { card, name: card.dataset.funcName, id: event.pointerId, x: event.clientX, y: event.clientY, moved: false, snapshot: rowSnapshot() };
