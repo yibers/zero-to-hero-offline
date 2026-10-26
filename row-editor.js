@@ -45,7 +45,7 @@ function getRowError() {
 }
 function rowSymbol(name, width, diagram = null, inputsOnly = false) {
   if (iconMode && diagram) {
-    const label = name + ': ' + rowTypeSignatures([diagram.type])[0];
+    const label = name + ': ' + rowTypeSignatures([diagram.type], diagram.variables)[0];
     const picture = diagram.arity === undefined
       ? renderSemanticType(diagram.type, label, diagram.variables, diagram.template, diagram.isValue)
       : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables, inputsOnly, diagram.template);
@@ -67,7 +67,20 @@ function rowSymbol(name, width, diagram = null, inputsOnly = false) {
   if (functionIcon) return `<span class="icon-sym semantic-icon horizontal-function" title="${escHtml(name)}"${width ? ` style="width:${width}ch"` : ''}>${functionIcon}</span>`;
   return symbolDisplay(name, null, width);
 }
-function rowTypeSignatures(types) {
+function rowTypeSignatures(types, variables = null) {
+  if (variables) {
+    const markers = new Map(variables);
+    function named(type) {
+      if (type.tag === 'var' && markers.has(type.name)) {
+        const marker = markers.get(type.name);
+        return { ...type, name: marker < 26 ? String.fromCharCode(97 + marker) : `t${marker + 1}` };
+      }
+      if (type.tag === 'fun') return { ...type, from: named(type.from), to: named(type.to) };
+      if (type.tag === 'app') return { ...type, con: named(type.con), arg: named(type.arg) };
+      return type;
+    }
+    return types.map(type => typeToString(named(type)).replace(/SKOLEM/g, ''));
+  }
   const signatures = types.map(type => typeToString(type).replace(/SKOLEM/g, ''));
   const used = new Set(signatures.join(' ').match(/\b[a-z]\b/g) || []), renamed = {};
   let char = 97;
@@ -79,13 +92,51 @@ function rowTypeSignatures(types) {
     return renamed[variable];
   }));
 }
-function diagnoseCall(code, env, params) {
+// Freshen a type for unification while retaining its display identities. This
+// metadata stays out of the checker and never changes argument/tuple order.
+function freshDiagram(name, env, params, diagrams) {
+  const original = env[name] || params[name];
+  if (!original) throw Error('Unknown identifier: ' + name);
+  const mapping = {}, type = env[name] ? freshen(original, mapping) : original;
+  const live = findVars(original);
+  const variables = semanticVariables(original, (diagrams[name]?.variables || []).filter(([name]) => live.has(name)));
+  return { type, variables: variables.map(([name, shape]) => [mapping[name]?.name || name, shape]) };
+}
+function callVariables(head, actuals, subst) {
+  const variables = new Map(), occupied = new Set();
+  function assign(name, preferred) {
+    if (variables.has(name)) return;
+    let marker = preferred;
+    if (occupied.has(marker)) { marker = 0; while (occupied.has(marker)) marker++; }
+    variables.set(name, marker); occupied.add(marker);
+  }
+  // Prefer the function actually supplied. Its leaves should look the same as
+  // the card the player dragged. A remaining independent type takes a free
+  // shape, rather than renaming all the supplied function's types.
+  for (const diagram of [...actuals.filter(Boolean), head]) {
+    for (const [name, marker] of diagram.variables) {
+      const resolved = applySubst(subst, { tag: 'var', name });
+      if (resolved.tag === 'var') assign(resolved.name, marker);
+    }
+  }
+  // Generic input templates can retain aliases of the same unified variable.
+  // A slot assigned a whole compound type needs its own distinct outer shape.
+  for (const diagram of [head, ...actuals.filter(Boolean)]) {
+    for (const [name, marker] of diagram.variables) {
+      const resolved = applySubst(subst, { tag: 'var', name });
+      if (resolved.tag === 'var') variables.set(name, variables.get(resolved.name));
+      else assign(name, marker);
+    }
+  }
+  return [...variables];
+}
+function diagnoseCall(code, env, params, diagrams = {}) {
   const model = RowProgram.call(code);
   if (!model) return null;
   try {
-    const headType = inferExpr(RowProgram.print({ kind: 'name', name: model.name }), env, params);
+    const head = freshDiagram(model.name, env, params, diagrams), headType = head.type;
     let type = headType;
-    const inputs = [], actuals = [];
+    const inputs = [], actuals = [], actualDiagrams = [];
     if (type?.tag === 'fun') {
       inputs.push(type.from); type = type.to;
     }
@@ -94,27 +145,16 @@ function diagnoseCall(code, env, params) {
     model.args.forEach((name, i) => {
       if (name === '_') return;
       try {
-        const actual = inferExpr(RowProgram.print({ kind: 'name', name }), env, params);
+        actualDiagrams[i] = freshDiagram(name, env, params, diagrams);
+        const actual = actualDiagrams[i].type;
         actuals[i] = actual;
         subst = unify(inputs[i], actual, subst) || subst;
       } catch (_) { /* Keep editable slots even when an input is invalid. */ }
     });
-    // Keep the original generic shapes around their assigned types. Templates
-    // are display metadata only; inference continues to use the resolved type.
-    const variableMap = new Map([...findVars(headType)].map((name, i) => [name, i]));
-    for (const [name, marker] of [...variableMap]) {
-      const resolved = applySubst(subst, { tag: 'var', name });
-      if (resolved.tag === 'var' && !variableMap.has(resolved.name)) variableMap.set(resolved.name, marker);
-    }
-    for (const actual of actuals) if (actual) {
-      for (const name of findVars(applySubst(subst, actual))) {
-        if (!variableMap.has(name)) variableMap.set(name, Math.max(-1, ...variableMap.values()) + 1);
-      }
-    }
-    const variables = [...variableMap];
+    const variables = callVariables(head, actualDiagrams, subst);
     let remaining = headType;
     for (const _ of model.args) remaining = remaining.to;
-    return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input))),
+    return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input)), variables),
       inputDiagrams: inputs.map(input => ({ type: applySubst(subst, input), variables, template: input })),
       // Show only the output, specializing it as each supplied input constrains
       // the template. Known output values are filled even in previews; unfilled
@@ -128,7 +168,7 @@ function diagnoseCall(code, env, params) {
 function diagnoseRows() {
   const level = LEVELS[currentLevel], rows = getRows();
   const errors = RowProgram.validate(rows, level);
-  const env = {}, params = {};
+  const env = {}, params = {}, diagrams = {};
   for (const f of level.funcs) env[f.name.replace(/^\(|\)$/g, '')] = parseType(f.sig);
   const target = parseType(level.target), subst = {};
   for (const name of findVars(target)) subst[name] = { tag: 'con', name: `SKOLEM${name}` };
@@ -139,7 +179,7 @@ function diagnoseRows() {
   substCounter = 0;
   rowDiagnostics = rows.map((row, index) => {
     if (!row.expr.trim()) return { error: row.automatic ? 'Finish the transformation first.' : 'Choose a function.' };
-    const call = diagnoseCall(row.expr, env, params);
+    const call = diagnoseCall(row.expr, env, params, diagrams);
     try {
       if (errors[index]) throw Error(errors[index]);
       if (!row.automatic && !row.automaticInput) {
@@ -148,8 +188,11 @@ function diagnoseRows() {
       }
       const type = inferExpr(row.expr, env, params);
       if (!type) throw Error('Incomplete expression.');
-      env[row.id] = type;
-      return { type, signature: rowTypeSignatures([type])[0], diagram: call?.result || { type },
+      // Keep the exact variable identities paired with this result's diagram.
+      // inferExpr above still validates the expression through the real checker.
+      env[row.id] = call?.result.type || type;
+      diagrams[row.id] = call?.result || { type };
+      return { type, signature: rowTypeSignatures([env[row.id]], diagrams[row.id].variables)[0], diagram: diagrams[row.id],
         expected: call?.expected || { type, isValue: true }, call };
     } catch (e) {
       return { error: errors[index] || normalizeTypeError(e.message), expected: call?.expected, call };
@@ -250,7 +293,7 @@ function mountRowEditor() {
       }
       const expected = diagnostic.expected;
       const picture = expected ? renderSemanticType(expected.type,
-        `${diagnostic.error ? 'Expected result' : 'Result'} ${row.id}: ${rowTypeSignatures([expected.type])[0]}`,
+        `${diagnostic.error ? 'Expected result' : 'Result'} ${row.id}: ${rowTypeSignatures([expected.type], expected.variables)[0]}`,
         expected.variables, expected.template, expected.isValue) : '';
       feedback.innerHTML = picture ? `<div class="${diagnostic.error ? 'row-result-preview' : 'row-result'}" role="img" aria-label="${automatic ? 'Automatic result' : 'Result ' + row.id}: ${escHtml(diagnostic.signature || 'pending')}">${picture}</div>` : '';
       const awaitingInput = call && !call.args.length;

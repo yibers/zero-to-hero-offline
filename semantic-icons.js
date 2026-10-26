@@ -1,3 +1,29 @@
+// Stable display names, independent of inference's fresh-variable counters.
+// Named a/b/c/d use circle/square/diamond/triangle across every level. Explicit
+// mappings carry a generated function's shapes into its later uses.
+function semanticVariables(type, preferred = []) {
+  const variables = new Map(preferred.map((entry, i) => Array.isArray(entry) ? entry : [entry, i]));
+  const names = [];
+  function visit(type) {
+    if (!type) return;
+    if (type.tag === 'var' && !names.includes(type.name)) names.push(type.name);
+    if (type.tag === 'fun') { visit(type.from); visit(type.to); }
+    if (type.tag === 'app') { visit(type.con); visit(type.arg); }
+  }
+  visit(type);
+  const used = new Set(variables.values());
+  // Reserve the conventional shapes before assigning any anonymous variables.
+  for (const name of names.filter(name => /^[a-z]$/.test(name))) {
+    const marker = name.charCodeAt(0) - 97;
+    if (!variables.has(name) && !used.has(marker)) { variables.set(name, marker); used.add(marker); }
+  }
+  for (const name of names) if (!variables.has(name)) {
+    let marker = 0; while (used.has(marker)) marker++;
+    variables.set(name, marker); used.add(marker);
+  }
+  return [...variables];
+}
+
 // Pictograms describe the puzzle's type transformations. No runtime behavior is
 // inferred beyond the supplied signatures. Dotted gray shapes identify generic
 // slots; colored outlines show fixed types. Filled shapes represent values of
@@ -163,7 +189,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   function transformation(signature, label, arity = 1, variableNames = [], inputsOnly = false, template = null) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
     arity = 1;
-    const { args, result } = parts(type, arity), variables = variableMap(variableNames);
+    const { args, result } = parts(type, arity), variables = variableMap(semanticVariables(type, variableNames));
     return picture(label, flow(args, result, Infinity, variables, inputsOnly, template), '', type, arity, variables, inputsOnly, template);
   }
   const parsedTypes = new Map();
@@ -335,7 +361,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   }
   function renderType(signature, label = signature, variableNames = [], template = null, isValue = false) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
-    const variables = variableMap(variableNames);
+    const variables = variableMap(semanticVariables(type, variableNames));
     return picture(label, layout(type, Infinity, variables, template, isValue), 'result-shape', type, null, variables, false, template, isValue);
   }
   return {icons, cardIcons, captions, descriptions, renderType, transformation, fixedType, fit};
