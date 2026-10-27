@@ -147,3 +147,10 @@
 .generated-card { border-color: #a78bfa; background: #f5f3ff; }
 .generated-card .row-ref { color: #5b21b6; }
 .invalid-row-draft { font: 12px 'Fira Code', monospace; overflow-wrap: anywhere; }
+
+/* A continuation stays connected to the row that supplies its head. */
+.program-row.continuation-source { margin-bottom: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-left: 3px solid #8b5cf6; }
+.program-row.continuation-row { border-top-left-radius: 0; border-top-right-radius: 0; border-left: 3px solid #8b5cf6; }
+.row-dependency { flex: 0 0 20px; align-self: center; color: #7c3aed; display: flex; align-items: center; justify-content: center; }
+.row-dependency[hidden] { display: none; }
+.function-block.linked-head { cursor: default; touch-action: auto; color: #1e40af; }

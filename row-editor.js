@@ -241,8 +241,8 @@ function placeInFixedRow(level, rows, index, name, inputSlot = false) {
   return { rows: prepared };
 }
 
-// Continue only the step the player just completed. Keeping this out of render
-// and reload means clearing the inserted head really returns it to the palette.
+// Continue only the step the player just completed. The inserted head stays
+// attached to its producer; clearing that producer removes the dependent steps.
 function placeWithContinuation(level, rows, index, name, inputSlot = false) {
   const placed = placeInFixedRow(level, rows, index, name, inputSlot);
   if (placed.error) return placed;
@@ -285,16 +285,22 @@ function mountRowEditor() {
     const rows = getRows(), solved = checkSolution(level, RowProgram.source(rows)).ok;
     sections().forEach((section, index) => {
       const row = rows[index], diagnostic = rowDiagnostics[index], call = diagnostic.call;
+      const linked = !!continuationSource(rows, index);
+      section.classList.toggle('continuation-row', linked);
+      section.classList.toggle('continuation-source', !!continuationSource(rows, index + 1));
+      section.querySelector('.row-dependency').hidden = !linked;
       const final = isFinal(index), automatic = final && !!(row.automatic || row.automaticInput);
       const holder = section.querySelector('.function-block'), empty = section.querySelector('.empty-row-drop');
       const feedback = section.querySelector('.row-feedback'), goal = section.querySelector('.goal-output');
       empty.hidden = !!row.expr.trim() || !!row.automatic;
       if (final && !row.automatic) empty.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span><span aria-hidden="true">＋</span>`;
       holder.hidden = !row.expr.trim() && !row.automatic;
-      holder.classList.toggle('function-head', !!row.expr.trim() && !row.automatic);
+      holder.classList.toggle('function-head', !!row.expr.trim() && !row.automatic && !linked);
+      holder.classList.toggle('linked-head', linked);
       holder.classList.toggle('automatic-pending', !!row.automatic && !row.expr.trim());
-      holder.tabIndex = row.expr.trim() && !row.automatic ? 0 : -1;
+      holder.tabIndex = row.expr.trim() && !row.automatic && !linked ? 0 : -1;
       holder.title = row.automatic ? 'The starting value is applied after the whole transformation is ready.'
+        : linked ? 'Continues the previous row. Change the previous row to change this function.'
         : 'Tap the blue border to return this row’s functions to the top.';
       holder.setAttribute('aria-label', call ? `Function ${call.name} in row ${index + 1}` : 'Automatic final application');
       if (row.automatic && !call) {
@@ -357,6 +363,7 @@ function mountRowEditor() {
   function clearStep(index, inputOnly = false) {
     const rows = getRows();
     if (!rows[index].expr.trim() || rows[index].automatic) return;
+    if (!inputOnly && continuationSource(rows, index)) return;
     const next = clearedRows(rows, index, inputOnly);
     const affected = rows.map((row, i) => ({ ...row, index: i }))
       .filter(row => !row.automatic && row.expr !== next[row.index].expr);
@@ -523,7 +530,7 @@ function mountRowEditor() {
   document.querySelectorAll('.left-panel, .right-panel').forEach(panel => observer.observe(panel));
   rowEditorCleanup = () => { observer.disconnect(); closeDialog?.(); cleanupDrag(); controller.abort(); rowEditorCleanup = null; };
   // Build exactly once on mounting. Edits repaint content inside these slots.
-  container.innerHTML = getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div><div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div><div class="row-error" aria-live="polite"></div></div></section>`).join('');
+  container.innerHTML = getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><span class="row-dependency" role="img" aria-label="Continues the previous row; function is fixed" title="Continues the previous row. Change the previous row to change this function." hidden><svg viewBox="0 0 24 36" width="20" height="30" aria-hidden="true"><path d="M12 1v12m-4-4 4 4 4-4M8 24v-3a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="24" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div><div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div><div class="row-error" aria-live="polite"></div></div></section>`).join('');
   if (textDrafts[currentLevel] && RowProgram.migrate(textDrafts[currentLevel]).length > rowSlotCount(level)) notice('Your saved program has extra steps. Text mode keeps the full draft for review.');
   paint();
 }

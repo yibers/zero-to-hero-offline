@@ -114,7 +114,15 @@ function automaticRows(level, original) {
 
 // Clearing a producer also clears consumers, but never removes or renumbers a
 // slot. Returning cards is derived from the resulting program, not a counter.
+function continuationSource(rows, index) {
+  const row = rows[index], previous = rows[index - 1];
+  // Derive the link from the program so saved continuations and text/icon mode
+  // round-trips retain it without separate metadata that can get out of sync.
+  return row && previous && !row.automatic && previous.expr.trim()
+    && RowProgram.call(row.expr)?.name === previous.id ? previous.id : null;
+}
 function clearedRows(rows, index, inputOnly = false) {
+  if (!inputOnly && continuationSource(rows, index)) return rows.map(row => ({ ...row }));
   const next = rows.map(row => ({ ...row })), affected = new Set([rows[index].id]);
   for (const row of next.slice(index + 1)) {
     const names = row.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || [];

@@ -29,7 +29,7 @@ test('every level starts with exactly one fixed slot per supplied copy and stays
   assert.deepEqual(failures, []);
 });
 
-test('generated functions appear at the top once complete, are consumed once, and return when a consumer is cleared', () => {
+test('generated functions appear at the top once complete and stay consumed by linked heads', () => {
   const app = game();
   app.nodes['function-palette'] = { dataset: {}, innerHTML: '', querySelectorAll: () => [] };
   app.run("currentLevel = 1; setEditorContent('(.)'); diagnoseRows(); runLiveCheck();");
@@ -42,7 +42,8 @@ test('generated functions appear at the top once complete, are consumed once, an
   assert.doesNotMatch(app.nodes['function-palette'].innerHTML, /data-func-name="r1"/);
   assert.match(app.run("placeInFixedRow(LEVELS[1], getRows(), 1, 'r1', true).error"), /exactly once/);
   app.run('rowPrograms[1] = automaticRows(LEVELS[1], clearedRows(getRows(), 1)); diagnoseRows(); runLiveCheck();');
-  assert.deepEqual(app.read('availableGeneratedFunctions().map(card => card.name)'), ['r1']);
+  assert.deepEqual(app.read('availableGeneratedFunctions()'), []);
+  assert.equal(app.run('getRows()[1].expr'), 'r1');
   assert.equal(app.run('getRows().length'), 3);
 });
 
