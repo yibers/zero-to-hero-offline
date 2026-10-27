@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="87e36011d3ee">
+<meta name="app-version" content="dfbf36c92075">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -1224,9 +1224,10 @@ function updateFunctionPalette(level, code) {
     const label = `Generated function ${entry.name}: ${entry.signature}. One use available.`;
     card(entry.name, label, entry.diagram.type, rowSymbol(entry.name, null, entry.diagram), 1, 1, true);
   });
+  const showHeadings = !iconMode || groups.combinator.length > 0;
   palette.innerHTML = [['combinator', 'Combinators', 'Drag or tap'], ['transformation', 'Transformations', 'Tap to use']]
     .filter(([kind]) => groups[kind].length)
-    .map(([kind, label, hint]) => `<section class="palette-group ${kind}s" aria-label="${label}"><div class="palette-group-header"><h2>${label}</h2><span>${hint}</span></div><div class="palette-cards">${groups[kind].join('')}</div></section>`).join('');
+    .map(([kind, label, hint]) => `<section class="palette-group ${kind}s" aria-label="${label}">${showHeadings ? `<div class="palette-group-header"><h2>${label}</h2><span>${hint}</span></div>` : ''}<div class="palette-cards">${groups[kind].join('')}</div></section>`).join('');
   fitSemanticDiagrams(palette);
 }
 
