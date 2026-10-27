@@ -340,7 +340,7 @@ function mountRowEditor() {
       .filter(row => !row.automatic && row.expr !== next[row.index].expr);
     const snapshot = rowSnapshot();
     const apply = () => { if (rowSnapshot() === snapshot) commit(next, index); };
-    if (inputOnly && affected.length === 1) { apply(); return; }
+    if (affected.length === 1) { apply(); return; }
     closeDialog?.();
     const dialog = document.createElement('dialog'); dialog.className = 'connection-picker row-delete-dialog';
     dialog.setAttribute('aria-label', 'Return functions to the palette');
