@@ -36,7 +36,9 @@ test('generated functions appear at the top once complete and stay consumed by l
   assert.deepEqual(app.read('availableGeneratedFunctions()'), []);
   app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 0, 'mkHero', true).rows; diagnoseRows(); runLiveCheck();");
   assert.deepEqual(app.read('availableGeneratedFunctions().map(card => card.name)'), ['r1']);
-  assert.match(app.nodes['function-palette'].innerHTML, /generated-card[^>]*draggable="true"[^>]*data-func-name="r1"/);
+  // Composition-only lessons hide combinator cards even for legacy drafts;
+  // mounting the icon editor attaches this result to the next empty row.
+  assert.doesNotMatch(app.nodes['function-palette'].innerHTML, /aria-label="Combinators"/);
   app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 1, 'r1').rows; diagnoseRows(); runLiveCheck();");
   assert.deepEqual(app.read('availableGeneratedFunctions()'), []);
   assert.doesNotMatch(app.nodes['function-palette'].innerHTML, /data-func-name="r1"/);

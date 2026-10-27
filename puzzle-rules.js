@@ -47,6 +47,12 @@ function acceptsFunction(type) {
 function isRowCombinator(type) {
   return acceptsFunction(type) && type.to.tag === 'fun';
 }
+// Decide from the level's original supplies, not its remaining inventory. A
+// mixed-combinator lesson must never switch modes as cards are consumed.
+function automaticCombinator(level) {
+  const combinators = level.funcs.filter(f => isRowCombinator(parseType(f.sig)));
+  return combinators.length === 1 && combinators[0].name === '(.)' ? '(.)' : null;
+}
 function functionRowError(expr, env, params, allowPending = false) {
   try {
     const call = RowProgram.call(expr);

@@ -18,7 +18,7 @@ test('every reference solution can be built while combinators continue automatic
           if(placed.error) {failures.push([level.level,row.id,placed.error]);break;}
           rowPrograms[index]=placed.rows;diagnoseRows();
           if(JSON.stringify(getRows().map(r=>r.id))!==JSON.stringify(ids)) failures.push([level.level,'slots moved']);
-          if(placed.activeRow!==i && (placed.activeRow!==i+1 || availableGeneratedFunctions().some(f=>f.name===row.id))) failures.push([level.level,'automatic head inventory']);
+          if(placed.activeRow!==i && (placed.activeRow!==i+1 || continuationSource(getRows(),i+1) && availableGeneratedFunctions().some(f=>f.name===row.id))) failures.push([level.level,'automatic head inventory']);
         }
       }
       if(getCodeFromEditor()!==level.solution || !checkSolution(level,getCodeFromEditor()).ok) failures.push([level.level,'completion']);

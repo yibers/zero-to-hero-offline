@@ -241,11 +241,50 @@ function placeInFixedRow(level, rows, index, name, inputSlot = false) {
   return { rows: prepared };
 }
 
+// In composition-only lessons, prepare the next ready input without requiring
+// a palette choice. Keep future slots empty until the preceding result tells us
+// whether their head is a new composition or a continuation. Existing arguments
+// and independent branches are never overwritten.
+function prepareIconRows(level, original) {
+  const rows = automaticRows(level, original), defaultHead = automaticCombinator(level);
+  if (!defaultHead) return rows;
+  const { env, params } = functionProgramContext(level);
+  let remaining = functionUsage(level, RowProgram.source(rows)).find(f => f.name === defaultHead).remaining;
+  let previousType = null;
+  for (const [index, row] of rows.slice(0, -1).entries()) {
+    const previous = rows[index - 1], empty = !row.expr.trim(), defaultPending = row.expr.trim() === defaultHead;
+    if (empty || defaultPending) {
+      const carry = previousType && isRowCombinator(previousType)
+        && !generatedUsage(rows).find(f => f.name === previous.id)?.used;
+      if (carry) {
+        row.expr = previous.id;
+        if (defaultPending) remaining++;
+      } else if (empty && (index === 0 || previousType) && remaining > 0) {
+        row.expr = defaultHead;
+        remaining--;
+      }
+    }
+    previousType = null;
+    try {
+      if (!functionRowError(row.expr, env, params)) {
+        previousType = inferExpr(row.expr, env, params);
+        env[row.id] = previousType;
+      }
+    } catch (_) { /* Keep invalid and unfinished drafts available for repair. */ }
+  }
+  return automaticRows(level, rows);
+}
+
 // Continue only the step the player just completed. The inserted head stays
 // attached to its producer; clearing that producer removes the dependent steps.
 function placeWithContinuation(level, rows, index, name, inputSlot = false) {
   const placed = placeInFixedRow(level, rows, index, name, inputSlot);
   if (placed.error) return placed;
+  if (automaticCombinator(level)) {
+    const prepared = prepareIconRows(level, placed.rows), next = prepared[index + 1];
+    const call = next && !next.automatic && RowProgram.call(next.expr);
+    return { rows: prepared, activeRow: call && !call.args.length ? index + 1 : index };
+  }
   const next = placed.rows[index + 1], row = placed.rows[index];
   const result = { ...placed, activeRow: index };
   if (row.automatic || row.automaticInput || !next || next.automatic || next.expr.trim()) return result;
@@ -269,6 +308,8 @@ function mountRowEditor() {
   const container = document.getElementById('program-rows');
   if (!container) return;
   const level = LEVELS[currentLevel], context = functionProgramContext(level);
+  rowPrograms[currentLevel] = prepareIconRows(level, getRows());
+  preparedRowPrograms.add(rowPrograms[currentLevel]);
   const fixedGoalType = fixedSemanticType(context.goal), goalSignature = typeToString(context.goal).replace(/SKOLEM/g, '');
   const listen = (node, event, fn, extra = {}) => node.addEventListener(event, fn, { ...options, ...extra });
   const notice = text => { document.getElementById('row-notice').textContent = text; };
@@ -286,6 +327,7 @@ function mountRowEditor() {
     sections().forEach((section, index) => {
       const row = rows[index], diagnostic = rowDiagnostics[index], call = diagnostic.call;
       const linked = !!continuationSource(rows, index);
+      const defaultHead = !!automaticCombinator(level) && call?.name === '.';
       section.classList.toggle('continuation-row', linked);
       section.classList.toggle('continuation-source', !!continuationSource(rows, index + 1));
       section.querySelector('.row-dependency').hidden = !linked;
@@ -295,12 +337,14 @@ function mountRowEditor() {
       empty.hidden = !!row.expr.trim() || !!row.automatic;
       if (final && !row.automatic) empty.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span><span aria-hidden="true">＋</span>`;
       holder.hidden = !row.expr.trim() && !row.automatic;
-      holder.classList.toggle('function-head', !!row.expr.trim() && !row.automatic && !linked);
+      holder.classList.toggle('function-head', !!row.expr.trim() && !row.automatic && !linked && !defaultHead);
       holder.classList.toggle('linked-head', linked);
+      holder.classList.toggle('automatic-head', defaultHead);
       holder.classList.toggle('automatic-pending', !!row.automatic && !row.expr.trim());
-      holder.tabIndex = row.expr.trim() && !row.automatic && !linked ? 0 : -1;
+      holder.tabIndex = row.expr.trim() && !row.automatic && !linked && !defaultHead ? 0 : -1;
       holder.title = row.automatic ? 'The starting value is applied after the whole transformation is ready.'
         : linked ? 'Continues the previous row. Change the previous row to change this function.'
+        : defaultHead ? 'Composition is supplied automatically. Tap its input to change the argument.'
         : 'Tap the blue border to return this row’s functions to the top.';
       holder.setAttribute('aria-label', call ? `Function ${call.name} in row ${index + 1}` : 'Automatic final application');
       if (row.automatic && !call) {
@@ -350,7 +394,7 @@ function mountRowEditor() {
   }
   function commit(rows, index = activeRow) {
     rememberRows();
-    rowPrograms[currentLevel] = automaticRows(level, rows);
+    rowPrograms[currentLevel] = prepareIconRows(level, rows);
     preparedRowPrograms.add(rowPrograms[currentLevel]);
     activeRow = index;
     persistRows(); notice(''); paint();
@@ -364,6 +408,7 @@ function mountRowEditor() {
     const rows = getRows();
     if (!rows[index].expr.trim() || rows[index].automatic) return;
     if (!inputOnly && continuationSource(rows, index)) return;
+    if (!inputOnly && automaticCombinator(level) && RowProgram.call(rows[index].expr)?.name === '.') return;
     const next = clearedRows(rows, index, inputOnly);
     const affected = rows.map((row, i) => ({ ...row, index: i }))
       .filter(row => !row.automatic && row.expr !== next[row.index].expr);
@@ -388,7 +433,7 @@ function mountRowEditor() {
     const history = rowHistory.get(currentLevel), from = history?.[direction];
     if (!from?.length) return;
     history[direction === 'undo' ? 'redo' : 'undo'].push(rowSnapshot());
-    rowPrograms[currentLevel] = automaticRows(level, JSON.parse(from.pop()));
+    rowPrograms[currentLevel] = prepareIconRows(level, JSON.parse(from.pop()));
     preparedRowPrograms.add(rowPrograms[currentLevel]);
     persistRows(); notice(''); paint();
   }
