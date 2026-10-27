@@ -68,6 +68,49 @@ tests/          — Playwright + unit tests
 - Semantic icons show each level’s actual type transformations, including ordered slots, pairs, nested wrappers, and function arguments. Generic `a`, `b`, `c`, and `d` consistently use circle, square, diamond, and triangle shapes across levels. Generated functions carry these display identities through later rows, palette cards, inputs, refreshes and responsive wrapping. When functions are combined, the supplied function keeps its shapes wherever the type relationships allow; newly introduced independent types use unoccupied shapes. Actual swaps and rotations retain their real order. Generic types use distinct dotted gray outlines, with the same outline repeated wherever a type variable occurs in a function. Concrete types use colored hollow shapes. Starting parameters, placed value arguments, and completed value results use the same shapes filled with their type color. Empty inputs and function signature diagrams keep their type outlines. Expected outputs and the final goal show the values to produce: known concrete shapes are filled, while unknown generic parts remain dotted. Previews remain non-draggable until usable. As arguments specialize a call, assigned types in empty inputs appear inside their original gray outlines. The gray outline can grow around an entire pair, wrapper, or function without shrinking its contents. Starting values, placed arguments, and actual or expected value results show their own structure without the dotted generic slot around them. Clearing an argument restores the expected type slot. Function values keep the generic placeholders within their own signatures, without the receiving slot’s frame.
 - Editor contents and display preferences persist in localStorage. Clear level resets only the current puzzle. Completed levels provide a “Show reference rows” option in text mode.
 
+## Supported language: the game's LNF subset
+
+The game accepts **let-normal form (LNF)** with named operands. Here this means
+the strict convention where a call refers to an existing name for both its
+function and its argument. LNF terminology varies between sources; these rules
+define the game's supported subset, rather than claiming to implement all of
+Haskell or every language called LNF.
+
+```haskell
+let
+  r1 = (.) mkHero
+  r2 = r1 runZero
+in
+  r2 z
+```
+
+- Every construction binding has the form `name = functionName argumentName`.
+  There is exactly one unary application, and both operands are supplied names
+  or earlier results. Parenthesized operator names such as `(.)` are names too.
+- Intermediate results are introduced with an explicit `let ... in` block.
+  Each binding occupies its own line (semicolons also separate bindings).
+  The final expression is one named-function application. A standalone call
+  such as `wrap value` already fits this form and needs no redundant `let`.
+- Names must be unique lowercase identifiers, must not shadow supplied names,
+  and must not be Haskell keywords. Bindings can refer only to earlier results;
+  recursive and forward references are rejected.
+- `where`, nested calls, infix/backtick calls, nested `let` expressions,
+  anonymous functions, literal expressions, and user-defined control expressions
+  are outside this game's subset. The game supplies values and functions as
+  cards; it does not add general-purpose literal or lambda definitions. General
+  LNF languages can support such definitions when explicitly named.
+
+The function-only construction steps, exact card counts, single use of generated
+results, and automatic final application are **additional puzzle rules**, not
+requirements of LNF itself. Likewise, composition-only levels automatically
+choose `(.)` or the previous row's generated combinator; other levels expose
+additional combinators. Both editors use the same validation. Icon mode builds
+this form directly, and text mode reports unsupported syntax without silently
+accepting it. Existing nested legacy expressions can still be expanded into
+named unary rows when entering icon mode; saved text drafts remain available.
+
+Background: [the stricter LNF convention in resource-analysis research](https://www.cambridge.org/core/journals/mathematical-structures-in-computer-science/article/two-decades-of-automatic-amortized-resource-analysis/9A47A8663CD8A7147E2F17865C368094).
+
 ## Required functions by level
 
 Every supplied copy is required; each function has an exact usage count. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Every level has one starting value, reserved for its final application. All supplied transformations belong to the function palette.

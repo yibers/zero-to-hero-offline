@@ -1,7 +1,11 @@
-// The row language is an acyclic subset of Haskell let: earlier bindings only.
+// The game uses a restricted let-normal form (LNF): named operands, one unary
+// application per row, and acyclic let bindings that reference earlier rows.
 // Keep parsing separate from the UI so migration, validation and scoring agree.
 const RowProgram = (() => {
   const ops = { '$': [0, 'right'], '>>=': [1, 'left'], '<$>': [4, 'left'], '<*>': [4, 'left'], '.': [9, 'right'] };
+  const reserved = new Set(['case', 'class', 'data', 'default', 'deriving', 'do', 'else',
+    'foreign', 'if', 'import', 'in', 'infix', 'infixl', 'infixr', 'instance', 'let',
+    'module', 'newtype', 'of', 'then', 'type', 'where']);
   const atom = name => ({ kind: 'name', name });
   const app = (fn, args) => fn.kind === 'app'
     ? { kind: 'app', fn: fn.fn, args: [...fn.args, ...args] }
@@ -54,7 +58,7 @@ const RowProgram = (() => {
     if (tree.kind === 'app') return [...names(tree.fn), ...tree.args.flatMap(names)];
     return [tree.op, ...names(tree.left), ...names(tree.right)];
   }
-  // A slot contains a value (including a function value), never a nested call.
+  // An LNF slot references a named value (including a function), never a nested call.
   function call(code) {
     try {
       const tree = parse(code);
@@ -167,12 +171,19 @@ const RowProgram = (() => {
     return rows.map((row, index) => {
       let error = null;
       try {
-        if (!/^[a-z][A-Za-z0-9_']*$/.test(row.id) || /^(let|in)$/.test(row.id)) throw Error('Use a lowercase name for each binding.');
+        if (!/^[a-z][A-Za-z0-9_']*$/.test(row.id)) throw Error('Use a lowercase name for each binding.');
+        if (reserved.has(row.id)) throw Error(`LNF: ${row.id} is a Haskell keyword, not a binding name.`);
         if (available.has(row.id)) throw Error('A binding cannot shadow an available name.');
         if (!row.expr.trim() || row.expr.trim() === 'undefined') throw Error('Add an expression to this row.');
         if (/\bundefined\b/.test(row.expr)) throw Error('Using undefined is not allowed.');
+        const words = row.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || [];
+        if (words.includes('where')) throw Error('LNF: use let ... in for intermediate bindings; where is not supported.');
+        if (/[\\λ]/.test(row.expr)) throw Error('LNF: use a named function from the palette or an earlier row; anonymous functions are not supported in this game.');
+        if (row.expr.includes('`')) throw Error('LNF: use named functions in prefix notation, one argument per row.');
+        if (words.some(word => reserved.has(word))) throw Error('LNF: each row uses named functions and arguments; nested bindings and control expressions are not supported.');
         const tree = parse(row.expr);
-        if (count(tree) > 1) throw Error('One argument per row. Apply the returned function in a new row.');
+        if (count(tree) > 1) throw Error('One argument per row. LNF requires naming each intermediate call in a separate let row.');
+        if (tree.kind === 'op') throw Error('LNF: use a parenthesized operator name in prefix notation, one argument per row.');
         if (names(tree).includes('_')) throw Error('Fill the empty input slot before using this result.');
         for (const name of names(tree)) {
           if (!available.has(name)) throw Error(/^r\d+$/.test(name)
