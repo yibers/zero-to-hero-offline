@@ -241,6 +241,28 @@ function placeInFixedRow(level, rows, index, name, inputSlot = false) {
   return { rows: prepared };
 }
 
+// Continue only the step the player just completed. Keeping this out of render
+// and reload means clearing the inserted head really returns it to the palette.
+function placeWithContinuation(level, rows, index, name, inputSlot = false) {
+  const placed = placeInFixedRow(level, rows, index, name, inputSlot);
+  if (placed.error) return placed;
+  const next = placed.rows[index + 1], row = placed.rows[index];
+  const result = { ...placed, activeRow: index };
+  if (row.automatic || row.automaticInput || !next || next.automatic || next.expr.trim()) return result;
+  if (generatedUsage(placed.rows).find(entry => entry.name === row.id)?.used) return result;
+  const { env, params } = functionProgramContext(level);
+  for (const earlier of placed.rows.slice(0, index)) {
+    try {
+      if (!functionRowError(earlier.expr, env, params)) env[earlier.id] = inferExpr(earlier.expr, env, params);
+    } catch (_) { /* An unrelated unfinished branch does not block this one. */ }
+  }
+  try {
+    if (functionRowError(row.expr, env, params) || !isRowCombinator(inferExpr(row.expr, env, params))) return result;
+    const continued = placeInFixedRow(level, placed.rows, index + 1, row.id);
+    return continued.error ? result : { ...continued, activeRow: index + 1 };
+  } catch (_) { return result; }
+}
+
 function mountRowEditor() {
   rowEditorCleanup?.();
   const controller = new AbortController(), options = { signal: controller.signal };
@@ -328,9 +350,9 @@ function mountRowEditor() {
     persistRows(); notice(''); paint();
   }
   function place(name, index, inputSlot = false) {
-    const result = placeInFixedRow(level, getRows(), index, name, inputSlot);
+    const result = placeWithContinuation(level, getRows(), index, name, inputSlot);
     if (result.error) { notice(result.error); return; }
-    commit(result.rows, index);
+    commit(result.rows, result.activeRow);
   }
   function clearStep(index, inputOnly = false) {
     const rows = getRows();
