@@ -92,7 +92,7 @@ test('the level 9 converter comes from the palette while the only input is autom
   assert.equal(app.run('rowDiagnostics[0].error'), undefined);
   assert.equal(app.run('rowDiagnostics[0].call.arguments[0].type.tag'), 'fun');
   assert.equal(app.run('getRows().at(-1).expr'), '');
-  assert.deepEqual(app.read('availableGeneratedFunctions().map(card => card.name)'), ['r1']);
+  assert.deepEqual(app.read('availableGeneratedFunctions().map(card => card.name)'), []);
 });
 
 

@@ -41,7 +41,7 @@ function getRowError() {
   if (!iconMode) return getTextError();
   const errors = RowProgram.validate(getRows(), LEVELS[currentLevel]);
   const index = errors.findIndex(Boolean);
-  return index < 0 ? generatedCombinatorError(LEVELS[currentLevel], getRows()) : `Row ${index + 1}: ${errors[index]}`;
+  return index < 0 ? generatedContinuationError(LEVELS[currentLevel], getRows()) : `Row ${index + 1}: ${errors[index]}`;
 }
 function rowSymbol(name, width, diagram = null, inputsOnly = false) {
   if (iconMode && diagram) {
@@ -102,7 +102,7 @@ function freshDiagram(name, env, params, diagrams) {
   const variables = semanticVariables(original, (diagrams[name]?.variables || []).filter(([name]) => live.has(name)));
   return { type, variables: variables.map(([name, shape]) => [mapping[name]?.name || name, shape]) };
 }
-function callVariables(head, actuals, subst) {
+function callVariables(head, actuals, subst, generatedHead = false) {
   const variables = new Map(), occupied = new Set();
   function assign(name, preferred) {
     if (variables.has(name)) return;
@@ -113,7 +113,8 @@ function callVariables(head, actuals, subst) {
   // Prefer the function actually supplied. Its leaves should look the same as
   // the card the player dragged. A remaining independent type takes a free
   // shape, rather than renaming all the supplied function's types.
-  for (const diagram of [...actuals.filter(Boolean), head]) {
+  const priority = generatedHead ? [head, ...actuals.filter(Boolean)] : [...actuals.filter(Boolean), head];
+  for (const diagram of priority) {
     for (const [name, marker] of diagram.variables) {
       const resolved = applySubst(subst, { tag: 'var', name });
       if (resolved.tag === 'var') assign(resolved.name, marker);
@@ -151,7 +152,10 @@ function diagnoseCall(code, env, params, diagrams = {}) {
         subst = unify(inputs[i], actual, subst) || subst;
       } catch (_) { /* Keep editable slots even when an input is invalid. */ }
     });
-    const variables = callVariables(head, actualDiagrams, subst);
+    // Keep a carried pipeline's established input shapes. If its domain is
+    // still generic, let the newly supplied transformation establish them.
+    const preserveDomain = !!diagrams[model.name] && headType.to?.tag === 'fun' && headType.to.from.tag !== 'var';
+    const variables = callVariables(head, actualDiagrams, subst, preserveDomain);
     let remaining = headType;
     for (const _ of model.args) remaining = remaining.to;
     return { ...model, inputs: rowTypeSignatures(inputs.map(input => applySubst(subst, input)), variables),
@@ -205,7 +209,7 @@ function availableGeneratedFunctions() {
   return stock.flatMap((entry, index) => {
     const diagnostic = rowDiagnostics[index];
     return entry.remaining && diagnostic && !diagnostic.error && diagnostic.type?.tag === 'fun'
-      && (!iconMode || !isRowCombinator(diagnostic.type))
+      && !iconMode
       ? [{ ...entry, index, signature: diagnostic.signature, diagram: diagnostic.diagram }] : [];
   });
 }
@@ -219,12 +223,14 @@ function placeInFixedRow(level, rows, index, name, inputSlot = false) {
   if (producer >= index) return { error: 'Use a generated function in a row below its producer.' };
   const next = rows.map(row => ({ ...row }));
   if (inputSlot) {
+    if (continuationArgument(rows, index)) return { error: 'This input continues the previous row. Change its producer to change it.' };
     const call = RowProgram.call(next[index].expr);
     if (!call || next[index].automaticInput) return { error: 'Choose a function for this row first.' };
     next[index].expr = RowProgram.setArgument(next[index].expr, 0, name);
   } else {
-    if (next[index].expr.trim()) return { error: 'Clear this row before placing another function.' };
-    next[index].expr = RowProgram.print({ kind: 'name', name: bare });
+    const pending = RowProgram.call(next[index].expr);
+    if (next[index].expr.trim() && pending?.name !== '_') return { error: 'Clear this row before placing another function.' };
+    next[index].expr = RowProgram.print({ kind: 'name', name: bare }) + (pending?.name === '_' ? ` ${pending.args[0]}` : '');
   }
   let prepared = automaticRows(level, next);
   const stockError = cardUsageIncreaseError(level, RowProgram.source(rows), RowProgram.source(prepared))
@@ -281,7 +287,7 @@ function prepareIconRows(level, original) {
         // Move a whole already-linked chain immediately before its consumer.
         // Intervening independent work then remains before that consumer too.
         let start = index;
-        while (continuationSource(rows, start)) start--;
+        while (rowDependencySource(rows, start)) start--;
         const chain = new Set(rows.slice(start, index + 1).map(r => r.id));
         const independent = rows.slice(index + 1, consumer).every(r =>
           !(r.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || []).some(name => chain.has(name)));
@@ -304,10 +310,26 @@ function prepareIconRows(level, original) {
       }
     }
     if (changed) continue;
+    // A transformation is the next step's fixed argument. Reserve that input
+    // even before a player chooses its combinator; never guess a mixed lesson's
+    // head, overwrite an existing argument, or consume another generated result.
+    for (const [index, type] of types.entries()) {
+      if (!type || isRowCombinator(type) || index + 1 >= rows.length - 1) continue;
+      const row = rows[index], next = rows[index + 1], call = RowProgram.call(next.expr);
+      if (call?.args[0] === row.id || usage[index].used) continue;
+      if (!next.expr.trim() || call && !call.args.length) {
+        next.expr = next.expr.trim() ? RowProgram.setArgument(next.expr, 0, row.id) : `_ ${row.id}`;
+        changed = true; break;
+      }
+    }
+    if (changed) continue;
     if (defaultHead && functionUsage(level, RowProgram.source(rows)).find(f => f.name === defaultHead).remaining > 0) {
-      const empty = rows.findIndex((row, index) => !row.automatic && !row.expr.trim()
+      const empty = rows.findIndex((row, index) => !row.automatic && (!row.expr.trim() || RowProgram.call(row.expr)?.name === '_')
         && (index === 0 || types[index - 1] && !isRowCombinator(types[index - 1])));
-      if (empty >= 0) { rows[empty].expr = defaultHead; continue; }
+      if (empty >= 0) {
+        const argument = continuationArgument(rows, empty);
+        rows[empty].expr = defaultHead + (argument ? ` ${argument}` : ''); continue;
+      }
     }
     break;
   }
@@ -316,19 +338,22 @@ function prepareIconRows(level, original) {
 
 function placeWithContinuation(level, rows, index, name, inputSlot = false) {
   const bare = name.replace(/^\((.+)\)$/, '$1'), producer = rows.findIndex(row => row.id === bare);
-  if (producer >= 0 && isRowCombinator(constructionTypes(level, rows)[producer])) {
-    return { error: 'Generated combinators continue automatically in the next row; choose their input there.' };
+  if (producer >= 0) {
+    return { error: 'Generated functions continue automatically in the next row; choose an available function there.' };
   }
   const placed = placeInFixedRow(level, rows, index, name, inputSlot);
   if (placed.error) return placed;
   const prepared = prepareIconRows(level, placed.rows);
-  const error = generatedCombinatorError(level, prepared)
+  const error = generatedContinuationError(level, prepared)
     || cardUsageIncreaseError(level, RowProgram.source(rows), RowProgram.source(prepared))
     || generatedUsageError(prepared);
   if (error) return { error };
-  const next = prepared[index + 1], call = next && !next.automatic && RowProgram.call(next.expr);
   const complete = constructionTypes(level, prepared)[index];
-  return { rows: prepared, activeRow: complete && call && !call.args.length ? index + 1 : index };
+  const pending = complete ? prepared.findIndex((row, i) => {
+    const call = RowProgram.call(row.expr);
+    return i > index && !row.automatic && call && (call.name === '_' || !call.args.length);
+  }) : -1;
+  return { rows: prepared, activeRow: pending >= 0 ? pending : index };
 }
 
 function mountRowEditor() {
@@ -356,26 +381,36 @@ function mountRowEditor() {
     sections().forEach((section, index) => {
       const row = rows[index], diagnostic = rowDiagnostics[index], call = diagnostic.call;
       const linked = !!continuationSource(rows, index);
-      const defaultHead = !!automaticCombinator(level) && call?.name === '.';
-      section.classList.toggle('continuation-row', linked);
-      section.classList.toggle('continuation-source', !!continuationSource(rows, index + 1));
-      section.querySelector('.row-dependency').hidden = !linked;
+      const carried = continuationArgument(rows, index), pendingHead = RowProgram.call(row.expr)?.name === '_';
+      const defaultHead = !!automaticCombinator(level) && automaticCombinator(level).replace(/^\(|\)$/g, '') === call?.name;
+      section.classList.toggle('continuation-row', linked || !!carried);
+      section.classList.toggle('continuation-source', !!rowDependencySource(rows, index + 1));
+      const dependency = section.querySelector('.row-dependency');
+      dependency.hidden = !linked && !carried;
+      dependency.setAttribute('aria-label', `Continues the previous row; ${linked ? 'function' : 'input'} is fixed`);
+      dependency.title = `Continues the previous row. Change that row to change this ${linked ? 'function' : 'input'}.`;
       const final = isFinal(index), automatic = final && !!(row.automatic || row.automaticInput);
       const holder = section.querySelector('.function-block'), empty = section.querySelector('.empty-row-drop');
       empty.hidden = !!row.expr.trim() || !!row.automatic;
       if (final && !row.automatic) empty.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span><span aria-hidden="true">＋</span>`;
       holder.hidden = !row.expr.trim() && !row.automatic;
-      holder.classList.toggle('function-head', !!row.expr.trim() && !row.automatic && !linked && !defaultHead);
+      holder.classList.toggle('function-head', !!row.expr.trim() && !row.automatic && !linked && !defaultHead && !pendingHead);
       holder.classList.toggle('linked-head', linked);
+      holder.classList.toggle('pending-function', pendingHead);
       holder.classList.toggle('automatic-head', defaultHead);
       holder.classList.toggle('automatic-pending', !!row.automatic && !row.expr.trim());
-      holder.tabIndex = row.expr.trim() && !row.automatic && !linked && !defaultHead ? 0 : -1;
+      holder.tabIndex = row.expr.trim() && !row.automatic && !linked && !defaultHead && !pendingHead ? 0 : -1;
       holder.title = row.automatic ? 'The starting value is applied after the whole transformation is ready.'
         : linked ? 'Continues the previous row. Change the previous row to change this function.'
-        : defaultHead ? 'Composition is supplied automatically. Tap its input to change the argument.'
+        : pendingHead ? 'Choose a combinator from the top. The previous transformation is already in its input.'
+        : defaultHead ? 'This combinator is supplied automatically.'
         : 'Tap the blue border to return this row’s functions to the top.';
       holder.setAttribute('aria-label', call ? `Function ${call.name} in row ${index + 1}` : 'Automatic final application');
-      if (row.automatic && !call) {
+      if (pendingHead && carried) {
+        const diagram = rowDiagnostics[index - 1]?.diagram;
+        holder.setAttribute('aria-label', `Choose a combinator for row ${index + 1}`);
+        holder.innerHTML = `<button type="button" class="pending-head-choice" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><span class="carried-input" role="img" aria-label="Input ${escHtml(carried)} from the previous row is fixed">${rowSymbol(carried, null, diagram && { ...diagram, isValue: true })}</span>`;
+      } else if (row.automatic && !call) {
         holder.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span>`;
       } else if (call) {
         holder.innerHTML = '<div class="input-slots">' + call.inputs.map((_, slot) => {
@@ -384,6 +419,7 @@ function mountRowEditor() {
             : rowSymbol(`Input of ${call.name}`, null, call.inputDiagrams[slot]);
           return automatic
             ? `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(name)} is applied automatically">${picture}</span>`
+            : carried ? `<span class="carried-input" role="img" aria-label="Input ${escHtml(name)} from the previous row is fixed">${picture}</span>`
             : `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-row="${index}" aria-label="Input 1 of ${escHtml(call.name)}: ${filled ? escHtml(name) : 'empty'}" title="${filled ? 'Tap to clear this input' : 'Drag a function here from the top, or select this input and tap a card'}"><span class="input-picture">${picture}</span></button>`;
         }).join('') + '</div>';
       } else {
@@ -391,7 +427,7 @@ function mountRowEditor() {
         // icon-mode text cursor or a hidden drag source inside the row.
         holder.innerHTML = `<span class="invalid-row-draft">${escHtml(row.expr)}</span>`;
       }
-      const awaitingInput = call && !call.args.length;
+      const awaitingInput = pendingHead || call && !call.args.length;
       section.querySelector('.row-error').textContent = row.expr.trim() && !automatic && !awaitingInput ? diagnostic.error || '' : '';
       section.classList.toggle('row-invalid', !!row.expr.trim() && !!diagnostic.error && !awaitingInput);
       if (final) {
@@ -439,10 +475,12 @@ function mountRowEditor() {
     const rows = getRows();
     if (!rows[index].expr.trim() || rows[index].automatic) return;
     if (!inputOnly && continuationSource(rows, index)) return;
-    if (!inputOnly && automaticCombinator(level) && RowProgram.call(rows[index].expr)?.name === '.') return;
+    if (inputOnly && continuationArgument(rows, index)) return;
+    if (!inputOnly && automaticCombinator(level) && automaticCombinator(level).replace(/^\(|\)$/g, '') === RowProgram.call(rows[index].expr)?.name) return;
     const next = clearedRows(rows, index, inputOnly);
     const affected = rows.map((row, i) => ({ ...row, index: i }))
       .filter(row => !row.automatic && row.expr !== next[row.index].expr);
+    if (!affected.length) return;
     const snapshot = rowSnapshot();
     const apply = () => { if (rowSnapshot() === snapshot) commit(next, index); };
     if (affected.length === 1) { apply(); return; }
@@ -470,13 +508,15 @@ function mountRowEditor() {
   }
   function placeCard(name, combinator = true) {
     const rows = getRows(), call = RowProgram.call(rows[activeRow]?.expr || '');
+    if (call?.name === '_' && editable(activeRow)) { place(name, activeRow); return; }
     if (call && !call.args.length && editable(activeRow)) { place(name, activeRow, true); return; }
     if (!combinator && rowSlotCount(level) > 1) {
       notice('Select an empty input inside a combinator, then tap this transformation.'); return;
     }
     const producer = rows.findIndex(row => row.id === name);
-    const at = !rows[activeRow]?.expr.trim() && editable(activeRow) && activeRow > producer ? activeRow
-      : rows.findIndex((row, i) => i > producer && !row.expr.trim() && !row.automatic);
+    const free = row => !row.expr.trim() || RowProgram.call(row.expr)?.name === '_';
+    const at = free(rows[activeRow]) && editable(activeRow) && activeRow > producer ? activeRow
+      : rows.findIndex((row, i) => i > producer && free(row) && !row.automatic);
     if (at < 0) { notice('Clear an existing step to return its functions to the top.'); return; }
     place(name, at);
   }
@@ -502,7 +542,7 @@ function mountRowEditor() {
     const slot = document.elementFromPoint(point.clientX, point.clientY)?.closest('.argument-slot');
     // The complete function rectangle accepts its one missing input, avoiding
     // tiny hit targets. Filled inputs remain replaceable at their own target.
-    place(name, index, !!slot || !!call && !call.args.length);
+    place(name, index, call?.name !== '_' && (!!slot || !!call && !call.args.length));
   }
   function moveGhost(point) {
     ghost.style.left = point.clientX + 'px'; ghost.style.top = point.clientY + 'px';
@@ -608,6 +648,6 @@ function mountRowEditor() {
   // Build exactly once on mounting. Edits repaint content inside these slots.
   container.innerHTML = getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><span class="row-dependency" role="img" aria-label="Continues the previous row; function is fixed" title="Continues the previous row. Change the previous row to change this function." hidden><svg viewBox="0 0 24 36" width="20" height="30" aria-hidden="true"><path d="M12 1v12m-4-4 4 4 4-4M8 24v-3a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="24" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div>${isFinal(index) ? '<div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div>' : ''}<div class="row-error" aria-live="polite"></div></div></section>`).join('');
   if (textDrafts[currentLevel] && RowProgram.migrate(textDrafts[currentLevel]).length > rowSlotCount(level)) notice('Your saved program has extra steps. Text mode keeps the full draft for review.');
-  else if (generatedCombinatorError(level, getRows())) notice(generatedCombinatorError(level, getRows()));
+  else if (generatedContinuationError(level, getRows())) notice(generatedContinuationError(level, getRows()));
   paint();
 }

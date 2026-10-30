@@ -88,8 +88,8 @@ test('a generic slot can hold a whole compound type without losing its structure
 
 test('function values retain their generic signature without the receiving slot frame', () => {
   const app = game();
-  app.run('currentLevel = 13; setEditorContent("(>>=) _ dup"); diagnoseRows();');
-  const svg = app.run("rowSymbol('dup', null, rowDiagnostics[0].call.arguments[1])");
+  app.run('currentLevel = 11; setEditorContent("let r1 = flip (>>=) in r1 dup"); diagnoseRows();');
+  const svg = app.run("rowSymbol('dup', null, rowDiagnostics[1].call.arguments[0])");
   // dup keeps its a -> Hero (a, a) signature. The receiving b slot no longer
   // surrounds the pair, while the three generic a occurrences still match.
   assert.deepEqual(markers(svg), ['1', '1', '1']);

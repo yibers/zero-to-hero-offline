@@ -29,7 +29,7 @@ test('every level starts with exactly one fixed slot per supplied copy and stays
   assert.deepEqual(failures, []);
 });
 
-test('generated functions appear at the top once complete and stay consumed by linked heads', () => {
+test('generated functions stay out of the palette and consumed by linked heads', () => {
   const app = game();
   app.nodes['function-palette'] = { dataset: {}, innerHTML: '', querySelectorAll: () => [] };
   app.run("currentLevel = 1; setEditorContent('(.)'); diagnoseRows(); runLiveCheck();");
@@ -55,8 +55,8 @@ test('clearing a producer clears its dependents and returns their supplies witho
   app.run('rowPrograms[7] = automaticRows(LEVELS[7], clearedRows(getRows(), 0)); diagnoseRows();');
   assert.deepEqual(app.read('getRows().map(row => row.id)'), app.read('idsBefore'));
   assert.equal(app.run('getRows().length'), 10);
-  assert.deepEqual(app.read('getRows().filter(row => row.expr).map(row => row.id)'), ['r4', 'r6', 'r8']);
-  assert.deepEqual(app.read('functionUsage(LEVELS[7], getCodeFromEditor()).map(card => card.remaining)'), [1, 1, 1, 0, 1]);
+  assert.deepEqual(app.read('getRows().filter(row => row.expr).map(row => row.id)'), []);
+  assert.deepEqual(app.read('functionUsage(LEVELS[7], getCodeFromEditor()).map(card => card.remaining)'), [1, 1, 3, 1, 1, 3]);
 });
 
 test('holes keep their position through source conversion, mode switches and refresh', () => {
@@ -67,7 +67,7 @@ test('holes keep their position through source conversion, mode switches and ref
   assert.deepEqual(saved.read('getRows().map(row => row.id)'), ids);
   assert.equal(saved.run('getRows()[0].expr'), '');
   assert.equal(saved.run('getRows()[3].expr'), 'fmap bd');
-  assert.deepEqual(saved.read('availableGeneratedFunctions().map(card => card.name)'), ['r4']);
+  assert.deepEqual(saved.read('availableGeneratedFunctions().map(card => card.name)'), []);
   assert.match(saved.run("placeInFixedRow(LEVELS[7], getRows(), 0, 'r4').error"), /below its producer/);
   saved.run('iconMode = false; const text = getTextSource(); iconMode = true;');
   assert.equal(saved.run('getCodeFromEditor()'), saved.run('text'));
@@ -93,13 +93,9 @@ test('single-use rules reject reused or discarded generated functions in text mo
   assert.equal(restored.run('getCodeFromEditor()'), duplicate);
 });
 
-test('clearing an input returns that card and dependent cards but preserves independent construction', () => {
+test('clearing an input returns the dependent chain supplies while retaining every fixed slot', () => {
   const app = game();
-  app.run("currentLevel = 6; setEditorContent(LEVELS[6].solution); const original = getRows().map(row => ({...row})); rowPrograms[6] = automaticRows(LEVELS[6], clearedRows(getRows(), 0, true)); diagnoseRows();");
-  assert.equal(app.run('getRows()[0].expr'), '(.)');
-  assert.equal(app.run('getRows()[1].expr'), '');
-  assert.equal(app.run('getRows()[4].expr'), app.run('original[4].expr'));
-  assert.equal(app.run('getRows()[5].expr'), app.run('original[5].expr'));
-  assert.equal(app.run('getRows().at(-1).expr'), '');
-  assert.equal(app.run('getRows().length'), 9);
+  app.run("currentLevel = 6; setEditorContent(LEVELS[6].solution); rowPrograms[6] = automaticRows(LEVELS[6], clearedRows(getRows(), 0, true)); diagnoseRows();");
+  assert.deepEqual(app.read('getRows().map(r=>r.expr)'), ['(<**>)','','','','']);
+  assert.deepEqual(app.read('functionUsage(LEVELS[6],getCodeFromEditor()).map(f=>f.remaining)'),[1,1,1,1]);
 });

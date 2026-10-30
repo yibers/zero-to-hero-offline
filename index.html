@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="1be8a50ea3d3">
+<meta name="app-version" content="8f268dfd2c37">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -230,18 +230,18 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-arrow-header svg { height: 10px; }
 .gecko-arrow-body { display: flex; }
 </style>
-<link rel="stylesheet" href="row-editor.css?v=6a063bc17d69">
+<link rel="stylesheet" href="row-editor.css?v=f5da8767ead6">
 </head>
 <body>
 
 <div id="app"></div>
 
-<script src="levels.js?v=a93a0aae4df7"></script>
-<script src="semantic-icons.js?v=3ce3945685c1"></script>
-<script src="row-program.js?v=e20ea4b63edf"></script>
-<script src="puzzle-rules.js?v=1eb4cd852978"></script>
-<script src="row-editor.js?v=e3a198805ab8"></script>
-<script src="text-editor.js?v=28315bfa4883"></script>
+<script src="levels.js?v=33ec809f6025"></script>
+<script src="semantic-icons.js?v=4382b71cba6d"></script>
+<script src="row-program.js?v=d60934769456"></script>
+<script src="puzzle-rules.js?v=8af9bde69399"></script>
+<script src="row-editor.js?v=420da24643ac"></script>
+<script src="text-editor.js?v=83bde12fbf5f"></script>
 <script>
 
 // ─── Haskell Type Parser & Unifier ───
@@ -490,7 +490,9 @@ function flattenApp(type) {
 }
 
 // ─── Expression Parser (minimal Haskell) ───
-// Supports: function application, ($), (.), (<$>), (<*>), parens
+// Parenthesized operator names are first-class operands in the row language.
+const EXPRESSION_OPERATORS = ['<**>', '<*>', '<$>', '>>=', '>>>', '>=>', '.', '$'];
+const isExpressionOperator = token => EXPRESSION_OPERATORS.includes(token);
 
 function tokenizeExpr(code) {
   const tokens = [];
@@ -508,6 +510,8 @@ function tokenizeExpr(code) {
       continue;
     }
     if (code[i] === '.') { tokens.push('.'); i++; continue; }
+    const extra = ['<**>', '>>>', '>=>'].find(op => code.startsWith(op, i));
+    if (extra) { tokens.push(extra); i += extra.length; continue; }
     if (code.slice(i, i+3) === '>>=') { tokens.push('>>='); i += 3; continue; }
     if (code.slice(i, i+3) === '<$>') { tokens.push('<$>'); i += 3; continue; }
     if (code.slice(i, i+3) === '<*>') { tokens.push('<*>'); i += 3; continue; }
@@ -752,7 +756,7 @@ function inferExpr(code, env, paramTypes) {
   function peek() { return tokens[pos]; }
   function next() { return tokens[pos++]; }
   function isOp(t) {
-    return t === '$' || t === '.' || t === '<$>' || t === '<*>' || t === '>>=' ||
+    return isExpressionOperator(t) ||
            (typeof t === 'object' && t.type === 'infix');
   }
 
@@ -820,7 +824,7 @@ function inferExpr(code, env, paramTypes) {
     if (!func) return null;
     while (pos < tokens.length) {
       const t = peek();
-      if (!t || t === '$' || t === '.' || t === '<$>' || t === '<*>' || t === '>>=' || t === ')') break;
+      if (!t || isExpressionOperator(t) || t === ')') break;
       const arg = parseAtomExpr();
       if (!arg) break;
       func = applyFuncType(func, arg);
@@ -836,7 +840,7 @@ function inferExpr(code, env, paramTypes) {
       // Check for operator section
       const inner = peek();
       if (inner === ')') { next(); return null; }
-      if (inner === '.' || inner === '$' || inner === '<$>' || inner === '<*>' || inner === '>>=') {
+      if (isExpressionOperator(inner)) {
         const opName = next();
         if (peek() === ')') {
           next();
@@ -1036,6 +1040,20 @@ try {
         } catch (_) { /* Leave unrelated incomplete drafts and achievements alone. */ }
       }
     }
+    // Preserve every saved draft when changing the four curricula. Recheck
+    // their achievements, and the carry-forward rule on other complete sources.
+    if (parsed.carryVersion !== 1) {
+      for (const index of [...completedLevels]) {
+        if (!LEVELS[index]) continue;
+        const redesigned = [8, 9, 15, 16].includes(LEVELS[index].level);
+        try {
+          const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index])
+            : typeof editorContents[index] === 'string' ? getEditorContent(index) : null);
+          if (redesigned ? !code || !checkSolution(LEVELS[index], code).ok
+            : code && generatedContinuationError(LEVELS[index], RowProgram.migrate(code))) completedLevels.delete(index);
+        } catch (_) { if (redesigned) completedLevels.delete(index); }
+      }
+    }
     if (parsed.fixedRowsVersion !== 1) {
       for (const index of completedLevels) {
         try {
@@ -1045,7 +1063,7 @@ try {
         } catch (_) { /* Other migrations handle unfinished legacy drafts. */ }
       }
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || parsed.continuationVersion !== 1 || 'bypassCount' in parsed) saveProgress();
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || parsed.continuationVersion !== 1 || parsed.carryVersion !== 1 || 'bypassCount' in parsed) saveProgress();
   }
 } catch(e) {}
 
@@ -1062,6 +1080,7 @@ function saveProgress() {
     middleManVersion: 1,
     fixedRowsVersion: 1,
     continuationVersion: 1,
+    carryVersion: 1,
     currentLevel,
     geckoOn,
     iconMode,

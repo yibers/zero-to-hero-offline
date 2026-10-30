@@ -208,6 +208,10 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         const block = node.closest('.function-block'), style = getComputedStyle(block);
         holder = block.closest('.row-flow');
         reserve = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight) + 4 + (node.closest('.argument-slot') ? 8 : 0);
+        const dependency = holder.querySelector('.row-dependency:not([hidden])');
+        if (dependency) reserve += dependency.getBoundingClientRect().width + (parseFloat(getComputedStyle(holder).columnGap) || 0);
+        const choice = block.querySelector('.pending-head-choice');
+        if (choice) reserve += choice.getBoundingClientRect().width + (parseFloat(style.columnGap) || 0);
       }
       else if (node.closest('.row-result, .row-result-preview, .goal-picture')) { holder = node.closest('.row-flow'); reserve = 36; }
       else if (node.closest('.parameter-icon')) {
@@ -282,9 +286,9 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       f3: ['Last two → Hero', 'Keep Zero’s last two slots and put them in Hero.'],
     },
     8: {
-      f1: ['Hero holding a → b', 'Produce a Hero containing a function from a to b.'],
-      f2: ['Hero holding b → c', 'Produce a Hero containing a function from b to c.'],
-      f3: ['First slot → Hero', 'Take Zero’s first slot and put it in Hero.'],
+      f1: ['Use first to make second', 'Use Zero to produce a function from its first slot type to its second.'],
+      f2: ['Second → Hero third', 'Use Zero to produce a function from its second slot type to Hero of its third.'],
+      f3: ['Take first slot', 'Take the first value out of Zero.'],
     },
     9: {
       bd: ['Square to triangle', 'Convert the concrete square type B to the concrete triangle type D.'],
@@ -320,16 +324,19 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       nest: ['Nested pair in Hero', 'Make a Hero containing a value and a nested pair, all of the same type.'],
     },
     16: {
-      f: ['First slot → Hero', 'Take Zero’s first slot and put it in Hero.'],
-      g: ['Second slot → Hero', 'Take Zero’s second slot and put it in Hero.'],
-      pair: ['Make a pair', 'Combine two arguments into an ordered pair.'],
+      f: ['Take first slot', 'Take the first value out of Zero.'],
+      g: ['Take second slot', 'Take the second value out of Zero.'],
+      pair: ['Pair inside Hero', 'Combine two arguments into an ordered pair inside Hero.'],
     },
   };
   const operatorData = {
     flip: ['Reverse inputs', 'Return a function that accepts its first two inputs in the opposite order.'],
     '$': ['Apply', 'Apply the function on the left to the argument on the right.'],
     '.': ['Compose', 'Combine two functions: apply the right function first, then the left.'],
-    '<$>': ['Map inside Hero', 'Apply a function to the value inside Hero.'],
+    '>>>': ['Compose forward', 'Run the first transformation, then the second.'],
+    '>=>': ['Compose through Hero', 'Run the first transformation, then feed its Hero value into the second.'],
+    '<**>': ['Apply forward', 'Combine shared-input functions, taking the value-producing function first.'],
+    '<$>': ['Map', 'Transform a wrapped value, or the result of a function.'],
     '<*>': ['Applicative apply', 'Apply inside Hero, or combine two functions that share the same input.'],
     '>>=': ['Bind', 'Feed Hero’s value into a function that returns Hero.'],
   };

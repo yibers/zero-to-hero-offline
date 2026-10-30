@@ -2,7 +2,7 @@
 // application per row, and acyclic let bindings that reference earlier rows.
 // Keep parsing separate from the UI so migration, validation and scoring agree.
 const RowProgram = (() => {
-  const ops = { '$': [0, 'right'], '>>=': [1, 'left'], '<$>': [4, 'left'], '<*>': [4, 'left'], '.': [9, 'right'] };
+  const ops = { '$': [0, 'right'], '>>=': [1, 'left'], '<$>': [4, 'left'], '<*>': [4, 'left'], '<**>': [4, 'left'], '>>>': [1, 'left'], '>=>': [1, 'right'], '.': [9, 'right'] };
   const reserved = new Set(['case', 'class', 'data', 'default', 'deriving', 'do', 'else',
     'foreign', 'if', 'import', 'in', 'infix', 'infixl', 'infixr', 'instance', 'let',
     'module', 'newtype', 'of', 'then', 'type', 'where']);

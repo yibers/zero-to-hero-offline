@@ -33,14 +33,14 @@ test('a placed function keeps its shapes and its result carries them through lat
 
 test('independent edits and refresh cannot shuffle an existing branch through fresh-variable numbering', () => {
   const app = game();
-  app.run('currentLevel = 13; setEditorContent(LEVELS[13].solution); diagnoseRows();');
-  const before = markers(app.run("rowSymbol('r6', null, rowDiagnostics[5].diagram)"));
-  const oldType = app.run('typeToString(rowDiagnostics[5].diagram.type)');
-  app.run('rowPrograms[13] = automaticRows(LEVELS[13], clearedRows(getRows(), 0)); diagnoseRows(); persistRows();');
-  assert.notEqual(app.run('typeToString(rowDiagnostics[5].diagram.type)'), oldType);
-  assert.deepEqual(markers(app.run("rowSymbol('r6', null, rowDiagnostics[5].diagram)")), before);
+  app.run(`currentLevel = 7; rowPrograms[7]=[{id:'r1',expr:'(.) f2'},{id:'r2',expr:'r1 f1'},{id:'r3',expr:''},{id:'r4',expr:'fmap bd'}]; diagnoseRows();`);
+  const before = markers(app.run("rowSymbol('r4', null, rowDiagnostics[3].diagram)"));
+  const oldType = app.run('typeToString(rowDiagnostics[3].diagram.type)');
+  app.run('rowPrograms[7] = automaticRows(LEVELS[7], clearedRows(getRows(), 0)); diagnoseRows(); persistRows();');
+  assert.notEqual(app.run('typeToString(rowDiagnostics[3].diagram.type)'), oldType);
+  assert.deepEqual(markers(app.run("rowSymbol('r4', null, rowDiagnostics[3].diagram)")), before);
   const restored = game(app.saved()); restored.run('diagnoseRows();');
-  assert.deepEqual(markers(restored.run("rowSymbol('r6', null, rowDiagnostics[5].diagram)")), before);
+  assert.deepEqual(markers(restored.run("rowSymbol('r4', null, rowDiagnostics[3].diagram)")), before);
 });
 
 test('distinct unresolved types never share a shape within a result in any level', () => {

@@ -67,7 +67,7 @@ const LEVELS = [
       { name: "f3", sig: "Zero a b -> (Hero a, Hero b)", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
     ],
-    solution: "let\n  r1 = (.) f3\n  r2 = r1 f1\n  r3 = (.) snd\n  r4 = r3 r2\nin\n  r4 z"
+    solution: "let\n  r1 = (.) snd\n  r2 = r1 f3\n  r3 = (.) r2\n  r4 = r3 f1\nin\n  r4 z"
   },
   {
     level: 7, name: "Monty Hall",
@@ -82,7 +82,7 @@ const LEVELS = [
       { name: "f3", sig: "Zero a b c -> Hero b c", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
     ],
-    solution: "let\n  r1 = (.) f1\n  r2 = r1 f2\n  r3 = (.) f3\n  r4 = r3 r2\nin\n  r4 z"
+    solution: "let\n  r1 = (.) f3\n  r2 = r1 f1\n  r3 = (.) r2\n  r4 = r3 f2\nin\n  r4 z"
   },
   {
     level: 8, name: "TIE fighter",
@@ -93,13 +93,12 @@ const LEVELS = [
     finalInput: "z",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb SKOLEMc)",
     funcs: [
-      { name: "f1", sig: "Zero a b c -> Hero (a -> b)", uses: 1 },
-      { name: "f2", sig: "Zero a b c -> Hero (b -> c)", uses: 1 },
-      { name: "f3", sig: "Zero a b c -> Hero a", uses: 1 },
-      { name: "(<*>)", sig: "Applicative f => f (a -> b) -> f a -> f b", uses: 4 },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
+      { name: "f1", sig: "Zero a b c -> a -> b", uses: 1 },
+      { name: "f2", sig: "Zero a b c -> b -> Hero c", uses: 1 },
+      { name: "f3", sig: "Zero a b c -> a", uses: 1 },
+      { name: "(<**>)", sig: "Applicative f => f a -> f (a -> b) -> f b", uses: 2 }
     ],
-    solution: "let\n  r1 = (.) (<*>)\n  r2 = r1 f1\n  r3 = (<*>) r2\n  r4 = r3 f3\n  r5 = (.) (<*>)\n  r6 = r5 f2\n  r7 = (<*>) r6\n  r8 = r7 r4\nin\n  r8 z"
+    solution: "let\n  r1 = (<**>) f3\n  r2 = r1 f1\n  r3 = (<**>) r2\n  r4 = r3 f2\nin\n  r4 z"
   },
   {
     level: 9, name: "The middle man",
@@ -114,9 +113,10 @@ const LEVELS = [
       { name: "fmap", sig: "(c -> d) -> Zero a b c -> Zero a b d", uses: 1 },
       { name: "f1", sig: "Zero a b c -> Zero c a b", uses: 3 },
       { name: "f2", sig: "Zero a b c -> Hero a b c", uses: 1 },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 4 }
+      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 1 },
+      { name: "(>>>)", sig: "(a -> b) -> (b -> c) -> a -> c", uses: 3 }
     ],
-    solution: "let\n  r1 = fmap bd\n  r2 = (.) r1\n  r3 = r2 f1\n  r4 = (.) f1\n  r5 = r4 r3\n  r6 = (.) f1\n  r7 = r6 r5\n  r8 = (.) f2\n  r9 = r8 r7\nin\n  r9 z"
+    solution: "let\n  r1 = fmap bd\n  r2 = (.) r1\n  r3 = r2 f1\n  r4 = (>>>) r3\n  r5 = r4 f1\n  r6 = (>>>) r5\n  r7 = r6 f1\n  r8 = (>>>) r7\n  r9 = r8 f2\nin\n  r9 z"
   },
   {
     level: 10, name: "Split the difference",
@@ -131,7 +131,7 @@ const LEVELS = [
       { name: "f3", sig: "Zero a b c d -> Zero d c b a", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 3 }
     ],
-    solution: "let\n  r1 = (.) f1\n  r2 = r1 f3\n  r3 = (.) f1\n  r4 = r3 r2\n  r5 = (.) f2\n  r6 = r5 r4\nin\n  r6 z"
+    solution: "let\n  r1 = (.) f2\n  r2 = r1 f1\n  r3 = (.) r2\n  r4 = r3 f1\n  r5 = (.) r4\n  r6 = r5 f3\nin\n  r6 z"
   },
   {
     level: 11, name: "The roller coaster",
@@ -146,7 +146,7 @@ const LEVELS = [
       { name: "f3", sig: "Zero a b c d -> Hero d", uses: 1 },
       { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 7 }
     ],
-    solution: "let\n  r1 = (.) f2\n  r2 = r1 f1\n  r3 = (.) f1\n  r4 = r3 r2\n  r5 = (.) f2\n  r6 = r5 r4\n  r7 = (.) f1\n  r8 = r7 r6\n  r9 = (.) f2\n  r10 = r9 r8\n  r11 = (.) f2\n  r12 = r11 r10\n  r13 = (.) f3\n  r14 = r13 r12\nin\n  r14 z"
+    solution: "let\n  r1 = (.) f3\n  r2 = r1 f2\n  r3 = (.) r2\n  r4 = r3 f2\n  r5 = (.) r4\n  r6 = r5 f1\n  r7 = (.) r6\n  r8 = r7 f2\n  r9 = (.) r8\n  r10 = r9 f1\n  r11 = (.) r10\n  r12 = r11 f2\n  r13 = (.) r12\n  r14 = r13 f1\nin\n  r14 z"
   },
   // ─── Monad levels ───
   {
@@ -209,11 +209,9 @@ const LEVELS = [
       { name: "f", sig: "Zero a -> Hero a", uses: 1 },
       { name: "dup", sig: "a -> Hero (a, a)", uses: 1 },
       { name: "nest", sig: "(a, a) -> Hero (a, (a, a))", uses: 1 },
-      { name: "(>>=)", sig: "Hero a -> (a -> Hero b) -> Hero b", uses: 2 },
-      { name: "flip", sig: "(a -> b -> c) -> b -> a -> c", uses: 2 },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
+      { name: "(>=>)", sig: "(a -> Hero b) -> (b -> Hero c) -> a -> Hero c", uses: 2 }
     ],
-    solution: "let\n  r1 = flip (>>=)\n  r2 = r1 dup\n  r3 = (.) r2\n  r4 = r3 f\n  r5 = flip (>>=)\n  r6 = r5 nest\n  r7 = (.) r6\n  r8 = r7 r4\nin\n  r8 z"
+    solution: "let\n  r1 = (>=>) f\n  r2 = r1 dup\n  r3 = (>=>) r2\n  r4 = r3 nest\nin\n  r4 z"
   },
   {
     level: 16, name: "Applicative hero",
@@ -224,14 +222,13 @@ const LEVELS = [
     finalInput: "z",
     testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb)",
     funcs: [
-      { name: "f", sig: "Zero a b -> Hero a", uses: 1 },
-      { name: "g", sig: "Zero a b -> Hero b", uses: 1 },
-      { name: "pair", sig: "a -> b -> (a, b)", uses: 1 },
-      { name: "(<$>)", sig: "(a -> b) -> Hero a -> Hero b", uses: 1 },
-      { name: "(<*>)", sig: "Applicative f => f (a -> b) -> f a -> f b", uses: 2 },
-      { name: "(.)", sig: "(b -> c) -> (a -> b) -> a -> c", uses: 2 }
+      { name: "f", sig: "Zero a b -> a", uses: 1 },
+      { name: "g", sig: "Zero a b -> b", uses: 1 },
+      { name: "pair", sig: "a -> b -> Hero (a, b)", uses: 1 },
+      { name: "(<$>)", sig: "(a -> b) -> (r -> a) -> r -> b", uses: 1 },
+      { name: "(<*>)", sig: "Applicative f => f (a -> b) -> f a -> f b", uses: 1 }
     ],
-    solution: "let\n  r1 = (<$>) pair\n  r2 = (.) r1\n  r3 = r2 g\n  r4 = (.) (<*>)\n  r5 = r4 r3\n  r6 = (<*>) r5\n  r7 = r6 f\nin\n  r7 z"
+    solution: "let\n  r1 = (<$>) pair\n  r2 = r1 g\n  r3 = (<*>) r2\n  r4 = r3 f\nin\n  r4 z"
   },
   {
     level: 1, name: "Wrap a value",

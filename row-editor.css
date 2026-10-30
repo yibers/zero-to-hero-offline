@@ -154,3 +154,7 @@
 .row-dependency { flex: 0 0 20px; align-self: center; color: #7c3aed; display: flex; align-items: center; justify-content: center; }
 .row-dependency[hidden] { display: none; }
 .function-block.linked-head, .function-block.automatic-head { cursor: default; touch-action: auto; color: #1e40af; }
+/* A carried transformation stays visible while its next combinator is chosen. */
+.function-block.pending-function { display: flex; align-items: center; gap: 8px; border-style: dashed; }
+.pending-head-choice { flex: 0 0 44px; min-height: 44px; border: 1px dashed #60a5fa; border-radius: 8px; background: #eff6ff; color: #2563eb; font-size: 24px; cursor: pointer; }
+.carried-input { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; }

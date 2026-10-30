@@ -21,9 +21,9 @@ test('palette splits level 9 by usable function type and restricts dragging to c
   for (const name of ['bd', 'f1', 'f2']) assert.deepEqual(kind(html, name), {kind:'transformation',drag:false});
 });
 
-test('generated functions change category according to their specialized type and return after clearing', () => {
+test('generated functions stay attached to rows and never return to the palette independently', () => {
   const app=game(); app.run("currentLevel=7;setEditorContent('fmap bd');");
-  assert.deepEqual(kind(palette(app),'r1'),{kind:'transformation',drag:false});
+  assert.equal(kind(palette(app),'r1'),undefined);
   app.run("rowPrograms[7]=placeInFixedRow(LEVELS[7],getRows(),1,'(.)').rows; rowPrograms[7]=placeInFixedRow(LEVELS[7],getRows(),1,'r1',true).rows;");
   const combined=palette(app);
   assert.equal(kind(combined,'r1'),undefined);
@@ -31,7 +31,8 @@ test('generated functions change category according to their specialized type an
   app.run('rowPrograms[7]=prepareIconRows(LEVELS[7],getRows());');
   assert.equal(app.run('getRows()[2].expr'),'r2');
   app.run('rowPrograms[7]=automaticRows(LEVELS[7],clearedRows(getRows(),1));');
-  assert.deepEqual(kind(palette(app),'r1'),{kind:'transformation',drag:false});
+  assert.equal(kind(palette(app),'r1'),undefined);
+  assert.equal(app.run('getRows()[1].expr'),'_ r1');
 });
 
 test('every construction head in every reference solution is classified as draggable', () => {

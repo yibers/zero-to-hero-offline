@@ -51,12 +51,13 @@ function isRowCombinator(type) {
 // mixed-combinator lesson must never switch modes as cards are consumed.
 function automaticCombinator(level) {
   const combinators = level.funcs.filter(f => isRowCombinator(parseType(f.sig)));
-  return combinators.length === 1 && combinators[0].name === '(.)' ? '(.)' : null;
+  return combinators.length === 1 ? combinators[0].name : null;
 }
 function functionRowError(expr, env, params, allowPending = false) {
   try {
     const call = RowProgram.call(expr);
     if (!call || call.args.length > 1) return 'Each row applies exactly one function to one function.';
+    if (call.name === '_') return allowPending ? null : 'Choose a combinator for the carried transformation.';
     const head = inferExpr(RowProgram.print({ kind: 'name', name: call.name }), env, params);
     if (!acceptsFunction(head)) return 'This function takes a value. Use it as a function argument; the starting value is applied automatically at the end.';
     if (!call.args.length || call.args[0] === '_') return allowPending ? null : 'Choose one function for this input.';
@@ -106,6 +107,18 @@ function generatedCombinatorError(level, rows) {
   }
   return null;
 }
+function generatedContinuationError(level, rows) {
+  const combinatorError = generatedCombinatorError(level, rows);
+  if (combinatorError) return combinatorError;
+  const types = constructionTypes(level, rows);
+  for (const [index, type] of types.entries()) {
+    if (!type || isRowCombinator(type) || index === rows.length - 2) continue;
+    if (RowProgram.call(rows[index + 1].expr)?.args[0] !== rows[index].id) {
+      return `Use generated transformation ${rows[index].id} as the argument in the immediately following row.`;
+    }
+  }
+  return null;
+}
 function automaticRows(level, original) {
   const count = rowSlotCount(level), { env, params, input } = functionProgramContext(level);
   const rows = original.map(({ automaticInput, ...row }) => ({ ...row }));
@@ -135,7 +148,7 @@ function automaticRows(level, original) {
       if (functionRowError(row.expr, env, params)) return [...construction, final];
       env[row.id] = inferExpr(row.expr, env, params);
     }
-    if (!generatedUsageError([...construction, final]) && !generatedCombinatorError(level, [...construction, final])) final.expr = `${construction.at(-1).id} ${input}`;
+    if (!generatedUsageError([...construction, final]) && !generatedContinuationError(level, [...construction, final])) final.expr = `${construction.at(-1).id} ${input}`;
   } catch (_) { /* Incomplete/invalid steps stay in their original slots. */ }
   return [...construction, final];
 }
@@ -149,15 +162,25 @@ function continuationSource(rows, index) {
   return row && previous && !row.automatic && previous.expr.trim()
     && RowProgram.call(row.expr)?.name === previous.id ? previous.id : null;
 }
+function continuationArgument(rows, index) {
+  const row = rows[index], previous = rows[index - 1];
+  return row && previous && !row.automatic && previous.expr.trim()
+    && RowProgram.call(row.expr)?.args[0] === previous.id ? previous.id : null;
+}
+function rowDependencySource(rows, index) {
+  return continuationSource(rows, index) || continuationArgument(rows, index);
+}
 function clearedRows(rows, index, inputOnly = false) {
   if (!inputOnly && continuationSource(rows, index)) return rows.map(row => ({ ...row }));
+  if (inputOnly && continuationArgument(rows, index)) return rows.map(row => ({ ...row }));
   const next = rows.map(row => ({ ...row })), affected = new Set([rows[index].id]);
   for (const row of next.slice(index + 1)) {
     const names = row.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || [];
     if (names.some(name => affected.has(name))) affected.add(row.id);
   }
   for (const [i, row] of next.entries()) if (affected.has(row.id)) {
-    row.expr = i === index && inputOnly ? RowProgram.setArgument(row.expr, 0, null) : '';
+    row.expr = i === index && inputOnly ? RowProgram.setArgument(row.expr, 0, null)
+      : i === index && continuationArgument(rows, index) ? `_ ${rows[index - 1].id}` : '';
   }
   return next;
 }
@@ -205,7 +228,7 @@ function checkSolution(level, code) {
       msg: `Use every supplied copy in the steps that produce the final result. Still needed: ${missing.join(', ')}. Unused rows do not count.` };
     const generatedError = generatedUsageError(rows, true);
     if (generatedError) return { ok: false, msg: generatedError };
-    const continuationError = generatedCombinatorError(level, rows);
+    const continuationError = generatedContinuationError(level, rows);
     if (continuationError) return { ok: false, msg: continuationError };
     return { ok: true, msg: 'Level complete! The result matches the goal and every function is used exactly as many times as supplied.' };
   } catch (error) { return { ok: false, msg: error.message }; }

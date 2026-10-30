@@ -58,21 +58,19 @@ test('unification retains a class constraint when a context is renamed before sp
   assert.equal(app.run("!!unify(parseType('g b'), parseType('R -> A'), renamed)"), true);
 });
 
-test('generic context pictures become Hero and function pictures without losing curried boxes', () => {
+test('generic context pictures resolve into shared-input functions without losing curried boxes', () => {
   const app = game();
-  assert.match(app.run("FUNCTION_CARD_ICONS[8]['(<*>)']"), /class="applicative-context"/);
+  assert.match(app.run("FUNCTION_CARD_ICONS[8]['(<**>)']"), /class="applicative-context"/);
   app.run('currentLevel = 6; setEditorContent(LEVELS[6].solution); diagnoseRows();');
   assert.deepEqual(app.read('rowDiagnostics.filter(row => row.error)'), []);
-  assert.equal(app.run('rowDiagnostics[0].expected.type.tag'), 'fun');
-  assert.match(app.run("rowSymbol('generic', null, rowDiagnostics[0].expected)"), /class="applicative-context"/);
-  for (const index of [1, 2, 3, 5, 6, 7]) {
+  for (const index of [0,1,2,3]) {
     const svg = app.run(`rowSymbol('specialized', null, rowDiagnostics[${index}].expected)`);
     assert.doesNotMatch(svg, /class="applicative-context"|NaN|undefined/);
     assert.match(svg, /class="function-value"/);
   }
+  assert.match(app.run("typeToString(rowDiagnostics[1].type)"), /^Zero .* -> /);
   assert.match(app.run("typeToString(rowDiagnostics[3].type)"), /^Zero .* -> Hero /);
-  assert.match(app.run("typeToString(rowDiagnostics[7].type)"), /^Zero .* -> Hero /);
-  assert.equal(app.run("typeToString(rowDiagnostics[8].type)"), 'Hero SKOLEMc');
+  assert.equal(app.run("typeToString(rowDiagnostics[4].type)"), 'Hero SKOLEMc');
 });
 
 test('text mode retains the Applicative constraint separator', () => {

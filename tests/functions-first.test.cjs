@@ -79,7 +79,7 @@ for (const icons of [true, false]) {
     assert.equal(app.run('currentLevel'), 14);
     assert.equal(app.run('LEVELS[currentLevel].name'), 'Applicative hero');
     assert.equal(app.run('iconMode'), icons);
-    assert.deepEqual(app.read('[...completedLevels]'), [...Array.from({length: 10}, (_, i) => i), 15]);
+    assert.deepEqual(app.read('[...completedLevels]'), [0,1,2,3,15]);
     for (const field of ['editorContents', 'rowPrograms', 'textDrafts']) {
       const expected = Object.fromEntries(Object.entries(saved[field]).filter(([index]) => Number(index) !== 1)
         .map(([index, value]) => [renamedIndex(Number(index)), value]));

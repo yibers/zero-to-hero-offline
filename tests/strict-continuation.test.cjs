@@ -16,18 +16,19 @@ test('all reference solutions obey immediate continuation and remain stable on p
 test('an occupied next row shifts intact, including its dependent branch and references',()=>{
   const app=game();
   app.run(`currentLevel=7;rowPrograms[7]=[
-    {id:'r1',expr:'(.)'}, {id:'r2',expr:'fmap bd'},
+    {id:'r1',expr:'(>>>)'}, {id:'r2',expr:'fmap bd'},
     {id:'r3',expr:'(.) r2'}, {id:'r4',expr:'r3 f1'}];
+    rowPrograms[7]=prepareIconRows(LEVELS[7],getRows());
     const before=getRows().map(r=>({...r})), ids=before.map(r=>r.id);
     rememberRows();const placed=placeWithContinuation(LEVELS[7],getRows(),0,'f2',true);
     rowPrograms[7]=placed.rows;diagnoseRows();persistRows();`);
   assert.equal(app.run('placed.error'),undefined);
   assert.equal(app.run('placed.activeRow'),1);
-  assert.deepEqual(app.read('getRows().slice(0,5).map(r=>r.expr)'),['(.) f2','r1','fmap bd','(.) r3','r4 f1']);
+  assert.deepEqual(app.read('getRows().slice(0,5).map(r=>r.expr)'),['(>>>) f2','r1','fmap bd','(.) r3','r4 f1']);
   assert.deepEqual(app.read('getRows().map(r=>r.id)'),app.read('ids'));
   assert.deepEqual(app.read('rowDiagnostics.slice(2,5).map(r=>!!r.error)'),[false,false,false]);
   assert.equal(app.run('generatedCombinatorError(LEVELS[7],getRows())'),null);
-  assert.deepEqual(app.read('availableGeneratedFunctions().map(f=>f.name)'),['r5']);
+  assert.deepEqual(app.read('availableGeneratedFunctions().map(f=>f.name)'),[]);
   assert.equal(app.run('cardUsage(LEVELS[7],getCodeFromEditor()).some(f=>f.used>f.limit)'),false);
   const restored=game(app.saved());
   restored.run('rowPrograms[7]=prepareIconRows(LEVELS[7],getRows());diagnoseRows();');
@@ -44,8 +45,9 @@ test('deferred saved chains are reordered without losing calls, supplies, or fix
     const before=getRows(), ids=before.map(r=>r.id), stock=functionUsage(LEVELS[4],RowProgram.source(before));
     rowPrograms[4]=prepareIconRows(LEVELS[4],before);diagnoseRows();`);
   assert.deepEqual(app.read('getRows().map(r=>r.id)'),app.read('ids'));
-  assert.equal(app.run('getCodeFromEditor()'),app.run('LEVELS[4].solution'));
-  assert.equal(app.run('checkSolution(LEVELS[4],getCodeFromEditor()).ok'),true);
+  assert.deepEqual(app.read('getRows().slice(0,-1).map(r=>r.expr)'),['(.) f3','r1 f1','(.) snd','r3 r2']);
+  assert.match(app.run('generatedContinuationError(LEVELS[4],getRows())'),/transformation.*immediately/);
+  assert.equal(app.run('checkSolution(LEVELS[4],getCodeFromEditor()).ok'),false);
   assert.deepEqual(app.read('functionUsage(LEVELS[4],getCodeFromEditor())'),app.read('stock'));
 });
 
@@ -89,7 +91,7 @@ test('a combinator cannot consume the final value slot as its continuation',()=>
 
 test('an unfinished new head keeps selection even when the next row has a pending head',()=>{
   const app=game();
-  app.run(`currentLevel=7;rowPrograms[7]=[{id:'r1',expr:''},{id:'r2',expr:'(.)'}];
+  app.run(`currentLevel=7;rowPrograms[7]=[{id:'r1',expr:''},{id:'r2',expr:'(>>>)'}];
     const head=placeWithContinuation(LEVELS[7],getRows(),0,'(.)');rowPrograms[7]=head.rows;`);
   assert.equal(app.run('head.activeRow'),0);
   app.run("const filled=placeWithContinuation(LEVELS[7],getRows(),0,'f2',true);");
