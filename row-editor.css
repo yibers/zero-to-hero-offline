@@ -14,7 +14,8 @@
 .editor-prefix-row[hidden] { display: none; }
 .parameter-icon:hover { background: #d1fae5; border-color: #6ee7b7; }
 .parameter-icon:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
-.program-row { border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 10px; overflow-x: auto; }
+.program-row, .program-source { border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 10px; overflow-x: auto; }
+.program-source { display: flex; align-items: center; min-height: 64px; padding: 6px; }
 .empty-row-drop { display: block; width: 100%; min-height: 64px; margin: 0; padding: 8px; border: 2px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; color: #64748b; font: inherit; font-size: 12px; cursor: pointer; }
 .empty-row-drop:hover, .ready-row.drag-over .empty-row-drop { border-color: #3b82f6; background: #dbeafe; color: #2563eb; }
 .empty-row-drop:focus-visible { outline: 2px solid #2563eb; outline-offset: -4px; }
@@ -78,7 +79,7 @@
 }
 
 /* The function owns its inputs; the result is a separate, reusable value. */
-.row-call > [hidden] { display: none; }
+.row-call[hidden], .row-call > [hidden] { display: none; }
 .row-call.structured-call { margin: 0; flex: 1 1 auto; min-width: 0; max-width: 100%; width: max-content; }
 .function-block { min-width: 0; max-width: 100%; flex-wrap: wrap; display: flex; align-items: center; gap: 8px; border: 2px solid #93c5fd; border-radius: 12px; background: #dbeafe; padding: 8px; }
 .function-head { color: #1e40af; cursor: grab; touch-action: none; }
@@ -131,7 +132,7 @@
 .delete-actions button { flex: 1; }
 .row-delete-dialog .delete-confirm { color: white; border-color: #b91c1c; background: #b91c1c; }
 
-/* The concrete input is fixed in the automatic execution row. */
+/* The fixed starting value appears once, above the function rows. */
 .automatic-input { display: flex; max-width: 100%; min-width: 48px; min-height: 48px; align-items: center; justify-content: center; padding: 2px; border: 1px solid #cbd5e1; border-radius: 6px; background: white; cursor: default; }
 .automatic-pending { border-style: dashed; background: #f8fafc; }
 .automatic-final-row .row-result { cursor: default; }
@@ -143,7 +144,7 @@
 .empty-row-drop { cursor: pointer; font-size: 24px; }
 .function-head, .argument-slot.filled { cursor: pointer; touch-action: auto; }
 .row-result { cursor: default; user-select: none; }
-.program-row .semantic-diagram { -webkit-user-drag: none; user-select: none; }
+.program-row .semantic-diagram, .program-source .semantic-diagram { -webkit-user-drag: none; user-select: none; }
 .generated-card { border-color: #a78bfa; background: #f5f3ff; }
 .generated-card .row-ref { color: #5b21b6; }
 .invalid-row-draft { font: 12px 'Fira Code', monospace; overflow-wrap: anywhere; }

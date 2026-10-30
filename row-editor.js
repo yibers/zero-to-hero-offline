@@ -391,8 +391,8 @@ function mountRowEditor() {
       dependency.title = `Continues the previous row. Change that row to change this ${linked ? 'function' : 'input'}.`;
       const final = isFinal(index), automatic = final && !!(row.automatic || row.automaticInput);
       const holder = section.querySelector('.function-block'), empty = section.querySelector('.empty-row-drop');
+      section.querySelector('.row-call').hidden = automatic;
       empty.hidden = !!row.expr.trim() || !!row.automatic;
-      if (final && !row.automatic) empty.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span><span aria-hidden="true">＋</span>`;
       holder.hidden = !row.expr.trim() && !row.automatic;
       holder.classList.toggle('function-head', !!row.expr.trim() && !row.automatic && !linked && !defaultHead && !pendingHead);
       holder.classList.toggle('linked-head', linked);
@@ -406,20 +406,19 @@ function mountRowEditor() {
         : defaultHead ? 'This combinator is supplied automatically.'
         : 'Tap the blue border to return this row’s functions to the top.';
       holder.setAttribute('aria-label', call ? `Function ${call.name} in row ${index + 1}` : 'Automatic final application');
-      if (pendingHead && carried) {
+      if (automatic) {
+        // The starting value has its own source row above construction.
+        holder.replaceChildren();
+      } else if (pendingHead && carried) {
         const diagram = rowDiagnostics[index - 1]?.diagram;
         holder.setAttribute('aria-label', `Choose a combinator for row ${index + 1}`);
         holder.innerHTML = `<button type="button" class="pending-head-choice" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><span class="carried-input" role="img" aria-label="Input ${escHtml(carried)} from the previous row is fixed">${rowSymbol(carried, null, diagram && { ...diagram, isValue: true })}</span>`;
-      } else if (row.automatic && !call) {
-        holder.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span>`;
       } else if (call) {
         holder.innerHTML = '<div class="input-slots">' + call.inputs.map((_, slot) => {
           const name = call.args[slot], filled = name && name !== '_';
           const picture = filled ? rowSymbol(name, null, call.arguments[slot])
             : rowSymbol(`Input of ${call.name}`, null, call.inputDiagrams[slot]);
-          return automatic
-            ? `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(name)} is applied automatically">${picture}</span>`
-            : carried ? `<span class="carried-input" role="img" aria-label="Input ${escHtml(name)} from the previous row is fixed">${picture}</span>`
+          return carried ? `<span class="carried-input" role="img" aria-label="Input ${escHtml(name)} from the previous row is fixed">${picture}</span>`
             : `<button type="button" class="argument-slot${filled ? ' filled' : ''}" data-row="${index}" aria-label="Input 1 of ${escHtml(call.name)}: ${filled ? escHtml(name) : 'empty'}" title="${filled ? 'Tap to clear this input' : 'Drag a function here from the top, or select this input and tap a card'}"><span class="input-picture">${picture}</span></button>`;
         }).join('') + '</div>';
       } else {
@@ -431,8 +430,7 @@ function mountRowEditor() {
       section.querySelector('.row-error').textContent = row.expr.trim() && !automatic && !awaitingInput ? diagnostic.error || '' : '';
       section.classList.toggle('row-invalid', !!row.expr.trim() && !!diagnostic.error && !awaitingInput);
       if (final) {
-        // Construction results already appear in the palette or next linked
-        // row. Only the final application needs an output beside its input.
+        // The goal stays at the bottom right; the source is above construction.
         const feedback = section.querySelector('.row-feedback'), goal = section.querySelector('.goal-output');
         const expected = diagnostic.expected;
         const picture = expected ? renderSemanticType(expected.type,
@@ -647,7 +645,8 @@ function mountRowEditor() {
   document.querySelectorAll('.left-panel, .right-panel').forEach(panel => observer.observe(panel));
   rowEditorCleanup = () => { observer.disconnect(); closeDialog?.(); cleanupDrag(); controller.abort(); rowEditorCleanup = null; };
   // Build exactly once on mounting. Edits repaint content inside these slots.
-  container.innerHTML = getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><span class="row-dependency" role="img" aria-label="Continues the previous row; function is fixed" title="Continues the previous row. Change the previous row to change this function." hidden><svg viewBox="0 0 24 36" width="20" height="30" aria-hidden="true"><path d="M12 1v12m-4-4 4 4 4-4M8 24v-3a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="24" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div>${isFinal(index) ? '<div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div>' : ''}<div class="row-error" aria-live="polite"></div></div></section>`).join('');
+  container.innerHTML = `<section class="program-source" aria-label="Starting value"><span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)}; applied automatically at the end">${symbolDisplay(context.input)}</span></section>`
+    + getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><span class="row-dependency" role="img" aria-label="Continues the previous row; function is fixed" title="Continues the previous row. Change the previous row to change this function." hidden><svg viewBox="0 0 24 36" width="20" height="30" aria-hidden="true"><path d="M12 1v12m-4-4 4 4 4-4M8 24v-3a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="24" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div>${isFinal(index) ? '<div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div>' : ''}<div class="row-error" aria-live="polite"></div></div></section>`).join('');
   if (textDrafts[currentLevel] && RowProgram.migrate(textDrafts[currentLevel]).length > rowSlotCount(level)) notice('Your saved program has extra steps. Text mode keeps the full draft for review.');
   else if (generatedContinuationError(level, getRows())) notice(generatedContinuationError(level, getRows()));
   paint();
