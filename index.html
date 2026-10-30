@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="c53426fcd54a">
+<meta name="app-version" content="3817cc3c78fb">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -239,7 +239,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 <script src="levels.js?v=590751c3433b"></script>
 <script src="semantic-icons.js?v=28b54ca80a47"></script>
 <script src="row-program.js?v=d60934769456"></script>
-<script src="puzzle-rules.js?v=8af9bde69399"></script>
+<script src="puzzle-rules.js?v=0c6ea69fd79b"></script>
 <script src="row-editor.js?v=5c13470bd12a"></script>
 <script src="text-editor.js?v=83bde12fbf5f"></script>
 <script>
@@ -1079,7 +1079,23 @@ try {
         } catch (_) { /* Other migrations handle unfinished legacy drafts. */ }
       }
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || parsed.continuationVersion !== 1 || parsed.carryVersion !== 1 || parsed.curriculumVersion !== 1 || 'bypassCount' in parsed) saveProgress();
+    // Retire untouched heads inserted by the former any-single-combinator
+    // rule. Keep played rows, completed levels and all authored text drafts.
+    if (parsed.automaticHeadVersion !== 1 && iconMode) {
+      for (const [index, level] of LEVELS.entries()) {
+        const combinators = level.funcs.filter(f => isRowCombinator(parseType(f.sig)));
+        if (combinators.length !== 1 || combinators[0].name === '(.)'
+          || completedLevels.has(index) || textDrafts[index] !== undefined) continue;
+        const rows = rowPrograms[index], head = rows?.length && RowProgram.call(rows[0].expr);
+        if (!head || head.args.length || head.name !== combinators[0].name.replace(/^\((.*)\)$/, '$1')
+          || rows.slice(1).some(row => row.expr.trim() && !(row.automatic && row.expr.trim() === '_'))) continue;
+        const source = typeof editorContents[index] === 'string' ? getEditorContent(index).trim() : '';
+        if (source && source !== 'undefined' && source !== RowProgram.source(rows).trim()) continue;
+        delete rowPrograms[index];
+        delete editorContents[index];
+      }
+    }
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || parsed.continuationVersion !== 1 || parsed.carryVersion !== 1 || parsed.curriculumVersion !== 1 || parsed.automaticHeadVersion !== 1 || 'bypassCount' in parsed) saveProgress();
   }
 } catch(e) {}
 
@@ -1098,6 +1114,7 @@ function saveProgress() {
     continuationVersion: 1,
     carryVersion: 1,
     curriculumVersion: 1,
+    automaticHeadVersion: 1,
     currentLevel,
     geckoOn,
     iconMode,

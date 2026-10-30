@@ -47,11 +47,11 @@ function acceptsFunction(type) {
 function isRowCombinator(type) {
   return acceptsFunction(type) && type.to.tag === 'fun';
 }
-// Decide from the level's original supplies, not its remaining inventory. A
-// mixed-combinator lesson must never switch modes as cards are consumed.
+// Only standard composition is automatic, and only when it is the level's
+// sole combinator. Decide from original supplies, never remaining inventory.
 function automaticCombinator(level) {
   const combinators = level.funcs.filter(f => isRowCombinator(parseType(f.sig)));
-  return combinators.length === 1 ? combinators[0].name : null;
+  return combinators.length === 1 && combinators[0].name === '(.)' ? '(.)' : null;
 }
 function functionRowError(expr, env, params, allowPending = false) {
   try {

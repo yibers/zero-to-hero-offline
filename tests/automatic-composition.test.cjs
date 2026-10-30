@@ -12,9 +12,9 @@ function palette(app) {
   return app.nodes['function-palette'].innerHTML;
 }
 
-test('only single-combinator lessons get automatic heads and hide their combinator group',()=>{
+test('only lessons whose sole combinator is standard composition get automatic heads',()=>{
   const app=game();
-  assert.deepEqual(app.read('LEVEL_ORDER.map(i=>LEVELS[i]).filter(automaticCombinator).map(l=>l.level)'),[3,4,5,6,7,8,10,13,14,16,17,18,20,21,24,25]);
+  assert.deepEqual(app.read('LEVEL_ORDER.map(i=>LEVELS[i]).filter(automaticCombinator).map(l=>l.level)'),[3,4,5,6,7,8,10,16,17,21]);
   for(let i=0;i<app.run('LEVELS.length');i++) {
     app.run(`currentLevel=${i};`);prepare(app);
     const auto=app.run('!!automaticCombinator(LEVELS[currentLevel])');
@@ -29,7 +29,7 @@ test('only single-combinator lessons get automatic heads and hide their combinat
   }
 });
 
-test('single-combinator lessons solve by selecting only supplied arguments',()=>{
+test('automatic standard-composition lessons solve by selecting only supplied arguments',()=>{
   const {solveIconLevel}=require('./helpers/solve-icon-level.cjs');
   const app=game();
   for(const index of app.read('LEVELS.flatMap((level,i)=>automaticCombinator(level)?[i]:[])')) {
@@ -78,4 +78,70 @@ test('mixed-combinator lessons retain their choices even after one kind is exhau
   app.run('iconMode=true;');prepare(app);
   assert.equal(app.run('getRows()[0].expr'),'(.)');
   assert.doesNotMatch(palette(app),/aria-label="Combinators"/);
+});
+
+const manualSingleCombinatorLevels=[13,14,18,20,24,25];
+
+test('other sole combinators start in the palette and clear level returns them there',()=>{
+  const app=game();
+  for(const number of manualSingleCombinatorLevels){
+    app.run(`currentLevel=LEVELS.findIndex(l=>l.level===${number});`);prepare(app);
+    assert.equal(app.run('getRows().every(r=>!r.expr)'),true);
+    assert.equal(app.run('functionUsage(LEVELS[currentLevel],getCodeFromEditor()).every(f=>f.used===0)'),true);
+    assert.match(palette(app),/aria-label="Combinators"/);
+    const head=app.run('LEVELS[currentLevel].funcs.find(f=>isRowCombinator(parseType(f.sig))).name');
+    app.run(`rowPrograms[currentLevel]=placeWithContinuation(LEVELS[currentLevel],getRows(),0,${JSON.stringify(head)}).rows;persistRows();`);
+    const restored=game(app.saved());prepare(restored);
+    assert.equal(restored.run('getRows()[0].expr'),head);
+    // Manually chosen heads remain removable rather than locked as defaults.
+    restored.run('rowPrograms[currentLevel]=prepareIconRows(LEVELS[currentLevel],clearedRows(getRows(),0));');
+    assert.equal(restored.run('getRows()[0].expr'),'');
+    app.run('clearLevel();');prepare(app);
+    assert.equal(app.run('getRows().every(r=>!r.expr)'),true);
+    assert.equal(app.run('activeRow'),0);
+  }
+});
+
+test('old untouched nonstandard automatic heads are removed once without changing other progress',()=>{
+  const seed=game();seed.run('saveProgress();');const saved=seed.saved();delete saved.automaticHeadVersion;
+  saved.completed=[0];saved.currentLevel=seed.run('LEVELS.findIndex(l=>l.level===13)');
+  for(const number of manualSingleCombinatorLevels){
+    seed.run(`currentLevel=LEVELS.findIndex(l=>l.level===${number});`);
+    const index=seed.run('currentLevel');
+    seed.run(`rowPrograms[currentLevel]=automaticRows(LEVELS[currentLevel],[{id:'r1',expr:LEVELS[currentLevel].funcs.find(f=>isRowCombinator(parseType(f.sig))).name}]);`);
+    saved.rowPrograms[index]=seed.read('getRows()');
+    saved.editorContents[index]=seed.run('LEVELS[currentLevel].lhs')+' '+(number%2?'undefined':seed.run('RowProgram.source(getRows())'));
+  }
+  const restored=game(saved);prepare(restored);
+  assert.equal(restored.run('LEVELS[currentLevel].level'),13);
+  assert.equal(restored.run('getRows().every(r=>!r.expr)'),true);
+  assert.deepEqual(restored.read('[...completedLevels]'),[0]);
+  for(const number of manualSingleCombinatorLevels){
+    restored.run(`currentLevel=LEVELS.findIndex(l=>l.level===${number});`);prepare(restored);
+    assert.equal(restored.run('getRows().every(r=>!r.expr)'),true);
+  }
+  assert.equal(restored.saved().automaticHeadVersion,1);
+  const again=game(restored.saved());again.run('saveProgress();');
+  assert.deepEqual(again.saved(),restored.saved());
+});
+
+test('automatic-head migration preserves partial work, completed solutions and authored text',()=>{
+  const seed=game();seed.run('saveProgress();');const saved=seed.saved();delete saved.automaticHeadVersion;
+  const index=seed.run('LEVELS.findIndex(l=>l.level===13)');saved.currentLevel=index;
+  const variants=[
+    {rows:[{id:'r1',expr:'(>>>) runZero'},{id:'r2',expr:'r1'},{id:'r3',expr:'',automatic:true}],icons:true},
+    {rows:[{id:'r1',expr:'(>>>)'},{id:'r2',expr:''},{id:'r3',expr:'',automatic:true}],icons:false},
+    {rows:[{id:'r1',expr:'(>>>)'},{id:'r2',expr:''},{id:'r3',expr:'',automatic:true}],icons:true,text:'let\n  r1 = (>>>)\nin\n  _'},
+    {rows:seed.read(`RowProgram.migrate(LEVELS[${index}].solution)`),icons:true,complete:true}
+  ];
+  for(const variant of variants){
+    const fixture=JSON.parse(JSON.stringify(saved));fixture.iconMode=variant.icons;
+    fixture.rowPrograms[index]=variant.rows;
+    if(variant.text)fixture.textDrafts[index]=variant.text;
+    if(variant.complete)fixture.completed=[index];
+    const restored=game(fixture);
+    assert.deepEqual(restored.saved().rowPrograms[index],variant.rows);
+    assert.deepEqual(restored.saved().textDrafts,fixture.textDrafts);
+    assert.deepEqual(restored.saved().completed,fixture.completed);
+  }
 });
