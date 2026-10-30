@@ -35,9 +35,9 @@ test('generated functions appear at the top once complete and stay consumed by l
   app.run("currentLevel = 1; setEditorContent('(.)'); diagnoseRows(); runLiveCheck();");
   assert.deepEqual(app.read('availableGeneratedFunctions()'), []);
   app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 0, 'mkHero', true).rows; diagnoseRows(); runLiveCheck();");
-  assert.deepEqual(app.read('availableGeneratedFunctions().map(card => card.name)'), ['r1']);
-  // Composition-only lessons hide combinator cards even for legacy drafts;
-  // mounting the icon editor attaches this result to the next empty row.
+  assert.deepEqual(app.read('availableGeneratedFunctions().map(card => card.name)'), []);
+  // Generated combinators never become manual cards, even in a legacy draft;
+  // mounting the icon editor attaches the result to the next row.
   assert.doesNotMatch(app.nodes['function-palette'].innerHTML, /aria-label="Combinators"/);
   app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 1, 'r1').rows; diagnoseRows(); runLiveCheck();");
   assert.deepEqual(app.read('availableGeneratedFunctions()'), []);

@@ -84,6 +84,28 @@ function generatedUsageError(rows, requireAll = false) {
   const bad = generatedUsage(rows).find(entry => entry.used > 1 || requireAll && entry.used !== 1);
   return bad ? `Use generated function ${bad.name} exactly once; it is used ${bad.used} times.` : null;
 }
+// Infer complete construction steps independently of their visual placement.
+// Unfinished branches do not prevent an unrelated branch from continuing.
+function constructionTypes(level, rows) {
+  const { env, params } = functionProgramContext(level);
+  return rows.slice(0, -1).map(row => {
+    try {
+      if (functionRowError(row.expr, env, params)) return null;
+      return env[row.id] = inferExpr(row.expr, env, params);
+    } catch (_) { return null; }
+  });
+}
+function generatedCombinatorError(level, rows) {
+  const types = constructionTypes(level, rows);
+  for (const [index, type] of types.entries()) {
+    if (!type || !isRowCombinator(type)) continue;
+    if (index === rows.length - 2) return `Generated combinator ${rows[index].id} needs another construction row before the final application. Build it earlier.`;
+    if (RowProgram.call(rows[index + 1].expr)?.name !== rows[index].id) {
+      return `Use generated combinator ${rows[index].id} as the function in the immediately following row.`;
+    }
+  }
+  return null;
+}
 function automaticRows(level, original) {
   const count = rowSlotCount(level), { env, params, input } = functionProgramContext(level);
   const rows = original.map(({ automaticInput, ...row }) => ({ ...row }));
@@ -113,7 +135,7 @@ function automaticRows(level, original) {
       if (functionRowError(row.expr, env, params)) return [...construction, final];
       env[row.id] = inferExpr(row.expr, env, params);
     }
-    if (!generatedUsageError([...construction, final])) final.expr = `${construction.at(-1).id} ${input}`;
+    if (!generatedUsageError([...construction, final]) && !generatedCombinatorError(level, [...construction, final])) final.expr = `${construction.at(-1).id} ${input}`;
   } catch (_) { /* Incomplete/invalid steps stay in their original slots. */ }
   return [...construction, final];
 }
@@ -183,6 +205,8 @@ function checkSolution(level, code) {
       msg: `Use every supplied copy in the steps that produce the final result. Still needed: ${missing.join(', ')}. Unused rows do not count.` };
     const generatedError = generatedUsageError(rows, true);
     if (generatedError) return { ok: false, msg: generatedError };
+    const continuationError = generatedCombinatorError(level, rows);
+    if (continuationError) return { ok: false, msg: continuationError };
     return { ok: true, msg: 'Level complete! The result matches the goal and every function is used exactly as many times as supplied.' };
   } catch (error) { return { ok: false, msg: error.message }; }
 }

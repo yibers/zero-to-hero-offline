@@ -41,7 +41,7 @@ function getRowError() {
   if (!iconMode) return getTextError();
   const errors = RowProgram.validate(getRows(), LEVELS[currentLevel]);
   const index = errors.findIndex(Boolean);
-  return index < 0 ? null : `Row ${index + 1}: ${errors[index]}`;
+  return index < 0 ? generatedCombinatorError(LEVELS[currentLevel], getRows()) : `Row ${index + 1}: ${errors[index]}`;
 }
 function rowSymbol(name, width, diagram = null, inputsOnly = false) {
   if (iconMode && diagram) {
@@ -205,6 +205,7 @@ function availableGeneratedFunctions() {
   return stock.flatMap((entry, index) => {
     const diagnostic = rowDiagnostics[index];
     return entry.remaining && diagnostic && !diagnostic.error && diagnostic.type?.tag === 'fun'
+      && (!iconMode || !isRowCombinator(diagnostic.type))
       ? [{ ...entry, index, signature: diagnostic.signature, diagram: diagnostic.diagram }] : [];
   });
 }
@@ -241,65 +242,93 @@ function placeInFixedRow(level, rows, index, name, inputSlot = false) {
   return { rows: prepared };
 }
 
-// In composition-only lessons, prepare the next ready input without requiring
-// a palette choice. Keep future slots empty until the preceding result tells us
-// whether their head is a new composition or a continuation. Existing arguments
-// and independent branches are never overwritten.
+// Move contents between the existing fixed slots, renaming references together.
+// The slot IDs and count never change, and completed work is never discarded.
+function moveConstructionRows(rows, start, count, destination) {
+  const contents = rows.slice(0, -1).map(row => ({ ...row }));
+  const moving = contents.splice(start, count);
+  contents.splice(destination, 0, ...moving);
+  const names = new Map(contents.map((row, index) => [row.id, rows[index].id]));
+  const rename = expr => expr.replace(/[a-zA-Z_][a-zA-Z0-9_']*/g, name => names.get(name) || name);
+  return [...contents.map((row, index) => ({ ...row, id: rows[index].id, expr: rename(row.expr) })),
+    { ...rows.at(-1), expr: rename(rows.at(-1).expr) }];
+}
+
+// Every completed combinator reserves the very next construction step. Saved
+// deferred chains are brought together; occupied steps shift into spare slots.
+// A pending palette head can return to stock, but completed calls stay intact.
 function prepareIconRows(level, original) {
-  const rows = automaticRows(level, original), defaultHead = automaticCombinator(level);
-  if (!defaultHead) return rows;
-  const { env, params } = functionProgramContext(level);
-  let remaining = functionUsage(level, RowProgram.source(rows)).find(f => f.name === defaultHead).remaining;
-  let previousType = null;
-  for (const [index, row] of rows.slice(0, -1).entries()) {
-    const previous = rows[index - 1], empty = !row.expr.trim(), defaultPending = row.expr.trim() === defaultHead;
-    if (empty || defaultPending) {
-      const carry = previousType && isRowCombinator(previousType)
-        && !generatedUsage(rows).find(f => f.name === previous.id)?.used;
-      if (carry) {
-        row.expr = previous.id;
-        if (defaultPending) remaining++;
-      } else if (empty && (index === 0 || previousType) && remaining > 0) {
-        row.expr = defaultHead;
-        remaining--;
+  let rows = automaticRows(level, original);
+  const defaultHead = automaticCombinator(level), seen = new Set();
+  const paletteNames = new Set(level.funcs.map(f => f.name.replace(/^\(|\)$/g, '')));
+  const pendingHead = row => {
+    const call = RowProgram.call(row.expr);
+    return call && !call.args.length && paletteNames.has(call.name)
+      && !generatedUsage(rows).find(entry => entry.name === row.id)?.used;
+  };
+  for (let pass = 0; pass < rows.length * rows.length; pass++) {
+    const snapshot = JSON.stringify(rows);
+    if (seen.has(snapshot)) break;
+    seen.add(snapshot);
+    const types = constructionTypes(level, rows), usage = generatedUsage(rows);
+    let changed = false;
+    for (const [index, type] of types.entries()) {
+      if (!type || !isRowCombinator(type) || index + 1 >= rows.length - 1) continue;
+      const row = rows[index], next = rows[index + 1];
+      if (RowProgram.call(next.expr)?.name === row.id) continue;
+      const consumer = rows.findIndex((later, i) => i > index && !later.automatic && RowProgram.call(later.expr)?.name === row.id);
+      if (consumer > index + 1 && usage[index].used === 1) {
+        // Move a whole already-linked chain immediately before its consumer.
+        // Intervening independent work then remains before that consumer too.
+        let start = index;
+        while (continuationSource(rows, start)) start--;
+        const chain = new Set(rows.slice(start, index + 1).map(r => r.id));
+        const independent = rows.slice(index + 1, consumer).every(r =>
+          !(r.expr.match(/[a-zA-Z_][a-zA-Z0-9_']*/g) || []).some(name => chain.has(name)));
+        if (independent && usage.slice(start, index + 1).every(entry => entry.used === 1)) {
+          rows = moveConstructionRows(rows, start, index - start + 1, consumer - (index - start + 1));
+          changed = true; break;
+        }
+      }
+      // Keep malformed/reused text drafts repairable instead of deleting them.
+      if (usage[index].used) continue;
+      if (!next.expr.trim() || pendingHead(next)) {
+        next.expr = row.id; changed = true; break;
+      }
+      let spare = rows.findIndex((r, i) => i > index + 1 && !r.automatic && !r.expr.trim());
+      if (spare < 0) spare = rows.findIndex((r, i) => i > index + 1 && !r.automatic && pendingHead(r));
+      if (spare >= 0) {
+        rows[spare].expr = row.id;
+        rows = moveConstructionRows(rows, spare, 1, index + 1);
+        changed = true; break;
       }
     }
-    previousType = null;
-    try {
-      if (!functionRowError(row.expr, env, params)) {
-        previousType = inferExpr(row.expr, env, params);
-        env[row.id] = previousType;
-      }
-    } catch (_) { /* Keep invalid and unfinished drafts available for repair. */ }
+    if (changed) continue;
+    if (defaultHead && functionUsage(level, RowProgram.source(rows)).find(f => f.name === defaultHead).remaining > 0) {
+      const empty = rows.findIndex((row, index) => !row.automatic && !row.expr.trim()
+        && (index === 0 || types[index - 1] && !isRowCombinator(types[index - 1])));
+      if (empty >= 0) { rows[empty].expr = defaultHead; continue; }
+    }
+    break;
   }
   return automaticRows(level, rows);
 }
 
-// Continue only the step the player just completed. The inserted head stays
-// attached to its producer; clearing that producer removes the dependent steps.
 function placeWithContinuation(level, rows, index, name, inputSlot = false) {
+  const bare = name.replace(/^\((.+)\)$/, '$1'), producer = rows.findIndex(row => row.id === bare);
+  if (producer >= 0 && isRowCombinator(constructionTypes(level, rows)[producer])) {
+    return { error: 'Generated combinators continue automatically in the next row; choose their input there.' };
+  }
   const placed = placeInFixedRow(level, rows, index, name, inputSlot);
   if (placed.error) return placed;
-  if (automaticCombinator(level)) {
-    const prepared = prepareIconRows(level, placed.rows), next = prepared[index + 1];
-    const call = next && !next.automatic && RowProgram.call(next.expr);
-    return { rows: prepared, activeRow: call && !call.args.length ? index + 1 : index };
-  }
-  const next = placed.rows[index + 1], row = placed.rows[index];
-  const result = { ...placed, activeRow: index };
-  if (row.automatic || row.automaticInput || !next || next.automatic || next.expr.trim()) return result;
-  if (generatedUsage(placed.rows).find(entry => entry.name === row.id)?.used) return result;
-  const { env, params } = functionProgramContext(level);
-  for (const earlier of placed.rows.slice(0, index)) {
-    try {
-      if (!functionRowError(earlier.expr, env, params)) env[earlier.id] = inferExpr(earlier.expr, env, params);
-    } catch (_) { /* An unrelated unfinished branch does not block this one. */ }
-  }
-  try {
-    if (functionRowError(row.expr, env, params) || !isRowCombinator(inferExpr(row.expr, env, params))) return result;
-    const continued = placeInFixedRow(level, placed.rows, index + 1, row.id);
-    return continued.error ? result : { ...continued, activeRow: index + 1 };
-  } catch (_) { return result; }
+  const prepared = prepareIconRows(level, placed.rows);
+  const error = generatedCombinatorError(level, prepared)
+    || cardUsageIncreaseError(level, RowProgram.source(rows), RowProgram.source(prepared))
+    || generatedUsageError(prepared);
+  if (error) return { error };
+  const next = prepared[index + 1], call = next && !next.automatic && RowProgram.call(next.expr);
+  const complete = constructionTypes(level, prepared)[index];
+  return { rows: prepared, activeRow: complete && call && !call.args.length ? index + 1 : index };
 }
 
 function mountRowEditor() {
@@ -579,5 +608,6 @@ function mountRowEditor() {
   // Build exactly once on mounting. Edits repaint content inside these slots.
   container.innerHTML = getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><span class="row-dependency" role="img" aria-label="Continues the previous row; function is fixed" title="Continues the previous row. Change the previous row to change this function." hidden><svg viewBox="0 0 24 36" width="20" height="30" aria-hidden="true"><path d="M12 1v12m-4-4 4 4 4-4M8 24v-3a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="24" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div>${isFinal(index) ? '<div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div>' : ''}<div class="row-error" aria-live="polite"></div></div></section>`).join('');
   if (textDrafts[currentLevel] && RowProgram.migrate(textDrafts[currentLevel]).length > rowSlotCount(level)) notice('Your saved program has extra steps. Text mode keeps the full draft for review.');
+  else if (generatedCombinatorError(level, getRows())) notice(generatedCombinatorError(level, getRows()));
   paint();
 }

@@ -13,7 +13,7 @@ function getTextError() {
     const rows = program ? [...program.bindings, { id: finalRowName(program.bindings), expr: program.final }] : [{ id: 'r1', expr: source }];
     const errors = RowProgram.validate(rows, LEVELS[currentLevel]);
     const index = errors.findIndex(Boolean);
-    if (index < 0) return null;
+    if (index < 0) return generatedCombinatorError(LEVELS[currentLevel], rows);
     const where = program && index < rows.length - 1 ? `Binding ${rows[index].id}` : 'Final expression';
     return `${where}: ${errors[index]}`;
   } catch (e) { return e.message; }

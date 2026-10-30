@@ -27,7 +27,9 @@ test('generated functions change category according to their specialized type an
   app.run("rowPrograms[7]=placeInFixedRow(LEVELS[7],getRows(),1,'(.)').rows; rowPrograms[7]=placeInFixedRow(LEVELS[7],getRows(),1,'r1',true).rows;");
   const combined=palette(app);
   assert.equal(kind(combined,'r1'),undefined);
-  assert.deepEqual(kind(combined,'r2'),{kind:'combinator',drag:true});
+  assert.equal(kind(combined,'r2'),undefined);
+  app.run('rowPrograms[7]=prepareIconRows(LEVELS[7],getRows());');
+  assert.equal(app.run('getRows()[2].expr'),'r2');
   app.run('rowPrograms[7]=automaticRows(LEVELS[7],clearedRows(getRows(),1));');
   assert.deepEqual(kind(palette(app),'r1'),{kind:'transformation',drag:false});
 });

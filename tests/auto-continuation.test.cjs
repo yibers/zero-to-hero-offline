@@ -55,15 +55,17 @@ test('unfinished calls wait; completed combinators move selection and persist as
   assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(.)','','']);
 });
 
-test('transformations stay in the palette and occupied rows are never overwritten',()=>{
+test('transformations stay in the palette while pending heads yield to automatic continuations',()=>{
   const app=game();app.run("currentLevel=7;rowPrograms[7]=[{id:'r1',expr:''}];rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),0,'fmap').rows;const transformed=placeWithContinuation(LEVELS[7],getRows(),0,'bd',true);rowPrograms[7]=transformed.rows;diagnoseRows();");
   assert.equal(app.run('transformed.activeRow'),0);
   assert.equal(app.run('getRows()[1].expr'),'');
   assert.equal(app.run('continuationSource(getRows(),1)'),null);
   assert.deepEqual(app.read('availableGeneratedFunctions().map(f=>f.name)'),['r1']);
   app.run("rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),2,'(.)').rows;rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),1,'(.)').rows;rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),1,'f2',true).rows;diagnoseRows();");
-  assert.equal(app.run('getRows()[2].expr'),'(.)');
-  assert.ok(app.read('availableGeneratedFunctions().map(f=>f.name)').includes('r2'));
+  assert.equal(app.run('getRows()[2].expr'),'r2');
+  assert.equal(app.run('continuationSource(getRows(),2)'),'r2');
+  assert.ok(!app.read('availableGeneratedFunctions().map(f=>f.name)').includes('r2'));
+  assert.equal(app.run('functionUsage(LEVELS[7],getCodeFromEditor()).find(f=>f.name==="(.)").used'),1);
 });
 
 test('clearing a producer clears its automatic continuation but preserves unrelated branches',()=>{
