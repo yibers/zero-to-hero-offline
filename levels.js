@@ -112,11 +112,11 @@ const LEVELS = [
     id: "map-middle", level: 15, name: "Map then rotate",
     objective: "Map Zero’s last slot, then rotate the converted value to the front and change Zero to Hero.",
     init: ["data Zero a b c = DontUseMeZero a b c", "data Hero a b c = DontUseMeHero a b c", "data B = DontUseMeB", "data D = DontUseMeD"],
-    target: "Zero a c B -> Hero D a c",
+    target: "Zero a b B -> Hero D a b",
     lhs: "zeroToHero z =",
     parameterUses: { z: 1 },
     finalInput: "z",
-    testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMc B)",
+    testing: "b = zeroToHero (undefined :: Zero SKOLEMa SKOLEMb B)",
     funcs: [
       { name: "bd", sig: "B -> D", uses: 1 },
       { name: "fmap", sig: "(c -> d) -> Zero a b c -> Zero a b d", uses: 1 },

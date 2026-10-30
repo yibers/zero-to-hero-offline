@@ -19,7 +19,7 @@ function legacySave(icons=true) {
 test('forward composition is the only supplied ordinary composition, and redesigns isolate their concepts',()=>{
   const app=game();
   assert.equal(app.run("LEVELS.some(l=>l.funcs.some(f=>f.name==='(.)'))"),false);
-  const goals={11:'Hero (a, b) -> Hero (b, a)',13:'Hero B -> Hero D',15:'Zero a c B -> Hero D a c',23:'Hero a -> Hero (a, a)'};
+  const goals={11:'Hero (a, b) -> Hero (b, a)',13:'Hero B -> Hero D',15:'Zero a b B -> Hero D a b',23:'Hero a -> Hero (a, a)'};
   for(const old of before){
     const i=before.indexOf(old), level=app.read(`LEVELS[${i}]`);
     assert.equal(level.id,old.id);assert.equal(level.level,old.level);
