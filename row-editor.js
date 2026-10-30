@@ -574,6 +574,7 @@ function mountRowEditor() {
     const section = event.target.closest('.program-row');
     if (!section || suppressClick) return;
     const index = Number(section.dataset.row); activate(index);
+    if (event.target.closest('.carried-input')) return;
     const slot = event.target.closest('.argument-slot');
     if (slot) { if (slot.classList.contains('filled')) clearStep(index, true); return; }
     if (event.target.closest('.function-head')) clearStep(index);
