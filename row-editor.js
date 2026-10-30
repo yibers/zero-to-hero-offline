@@ -333,7 +333,6 @@ function mountRowEditor() {
       section.querySelector('.row-dependency').hidden = !linked;
       const final = isFinal(index), automatic = final && !!(row.automatic || row.automaticInput);
       const holder = section.querySelector('.function-block'), empty = section.querySelector('.empty-row-drop');
-      const feedback = section.querySelector('.row-feedback'), goal = section.querySelector('.goal-output');
       empty.hidden = !!row.expr.trim() || !!row.automatic;
       if (final && !row.automatic) empty.innerHTML = `<span class="automatic-input" role="img" aria-label="Starting value ${escHtml(context.input)} will be applied automatically">${symbolDisplay(context.input)}</span><span aria-hidden="true">＋</span>`;
       holder.hidden = !row.expr.trim() && !row.automatic;
@@ -363,16 +362,19 @@ function mountRowEditor() {
         // icon-mode text cursor or a hidden drag source inside the row.
         holder.innerHTML = `<span class="invalid-row-draft">${escHtml(row.expr)}</span>`;
       }
-      const expected = diagnostic.expected;
-      const picture = expected ? renderSemanticType(expected.type,
-        `${diagnostic.error ? 'Expected result' : 'Result'} ${row.id}: ${rowTypeSignatures([expected.type], expected.variables)[0]}`,
-        expected.variables, expected.template, expected.isValue) : '';
-      feedback.innerHTML = picture ? `<div class="${diagnostic.error ? 'row-result-preview' : 'row-result'}" role="img" aria-label="${automatic ? 'Automatic result' : 'Result ' + row.id}: ${escHtml(diagnostic.signature || 'pending')}">${picture}</div>` : '';
       const awaitingInput = call && !call.args.length;
       section.querySelector('.row-error').textContent = row.expr.trim() && !automatic && !awaitingInput ? diagnostic.error || '' : '';
       section.classList.toggle('row-invalid', !!row.expr.trim() && !!diagnostic.error && !awaitingInput);
-      goal.replaceChildren();
       if (final) {
+        // Construction results already appear in the palette or next linked
+        // row. Only the final application needs an output beside its input.
+        const feedback = section.querySelector('.row-feedback'), goal = section.querySelector('.goal-output');
+        const expected = diagnostic.expected;
+        const picture = expected ? renderSemanticType(expected.type,
+          `${diagnostic.error ? 'Expected result' : 'Result'} ${row.id}: ${rowTypeSignatures([expected.type], expected.variables)[0]}`,
+          expected.variables, expected.template, expected.isValue) : '';
+        feedback.innerHTML = picture ? `<div class="${diagnostic.error ? 'row-result-preview' : 'row-result'}" role="img" aria-label="${automatic ? 'Automatic result' : 'Result ' + row.id}: ${escHtml(diagnostic.signature || 'pending')}">${picture}</div>` : '';
+        goal.replaceChildren();
         if (solved) {
           const result = feedback.querySelector('.row-result');
           result.classList.add('puzzle-goal', 'goal-reached');
@@ -381,8 +383,8 @@ function mountRowEditor() {
           if (diagnostic.error || diagnostic.type?.tag === 'fun') feedback.replaceChildren();
           goal.innerHTML = `<div class="goal-picture puzzle-goal" title="${escHtml('Goal: ' + goalSignature)}">${renderSemanticType(fixedGoalType, 'Goal: ' + goalSignature, [], null, true)}<svg class="goal-badge" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 14V2m0 0h10v7H3" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></div>`;
         }
+        goal.hidden = !goal.childElementCount;
       }
-      goal.hidden = !goal.childElementCount;
     });
     activate(activeRow);
     fitSemanticDiagrams();
@@ -575,7 +577,7 @@ function mountRowEditor() {
   document.querySelectorAll('.left-panel, .right-panel').forEach(panel => observer.observe(panel));
   rowEditorCleanup = () => { observer.disconnect(); closeDialog?.(); cleanupDrag(); controller.abort(); rowEditorCleanup = null; };
   // Build exactly once on mounting. Edits repaint content inside these slots.
-  container.innerHTML = getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><span class="row-dependency" role="img" aria-label="Continues the previous row; function is fixed" title="Continues the previous row. Change the previous row to change this function." hidden><svg viewBox="0 0 24 36" width="20" height="30" aria-hidden="true"><path d="M12 1v12m-4-4 4 4 4-4M8 24v-3a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="24" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div><div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div><div class="row-error" aria-live="polite"></div></div></section>`).join('');
+  container.innerHTML = getRows().map((row, index) => `<section class="program-row${isFinal(index) ? ' final-row automatic-final-row' : ''}" data-row="${index}" tabindex="-1" aria-label="Row ${index + 1}"><div class="row-flow"><span class="row-dependency" role="img" aria-label="Continues the previous row; function is fixed" title="Continues the previous row. Change the previous row to change this function." hidden><svg viewBox="0 0 24 36" width="20" height="30" aria-hidden="true"><path d="M12 1v12m-4-4 4 4 4-4M8 24v-3a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="24" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg></span><div class="row-call structured-call"><button type="button" class="empty-row-drop" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><div class="function-block" role="group" hidden></div></div>${isFinal(index) ? '<div class="row-feedback" aria-live="polite"></div><div class="goal-output" hidden></div>' : ''}<div class="row-error" aria-live="polite"></div></div></section>`).join('');
   if (textDrafts[currentLevel] && RowProgram.migrate(textDrafts[currentLevel]).length > rowSlotCount(level)) notice('Your saved program has extra steps. Text mode keeps the full draft for review.');
   paint();
 }
