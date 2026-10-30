@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="f88a45b8b642">
+<meta name="app-version" content="a266e15cae59">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -1816,6 +1816,7 @@ window.nextLevel = function() {
     if (unsolved === undefined) showComplete = true;
     else currentLevel = unsolved;
   } else currentLevel = LEVEL_ORDER[LEVEL_ORDER.indexOf(currentLevel) + 1];
+  activeRow = 0;
   saveProgress();
   render();
 };
@@ -1847,6 +1848,7 @@ window.clearLevel = function() {
 window.resetGame = function() {
   showComplete = false;
   currentLevel = LEVEL_ORDER[0];
+  activeRow = 0;
   completedLevels.clear();
   editorContents = {};
   rowPrograms = {};
@@ -1883,6 +1885,7 @@ window.prevLevel = function() {
   const position = LEVEL_ORDER.indexOf(currentLevel);
   if (position > 0) {
     currentLevel = LEVEL_ORDER[position - 1];
+    activeRow = 0;
     saveProgress();
     render();
   }
