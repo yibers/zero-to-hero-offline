@@ -336,8 +336,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     'select-pair': { snd: ['Take right item', 'Take the second item of a pair.'] },
     'concrete-conversion': { bd: ['Square to triangle', 'Convert the concrete square type B to the concrete triangle type D.'] },
     'compose-forward': {
-      runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
-      mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
+      bd: ['Square to triangle', 'Convert the concrete square type B to the concrete triangle type D.'],
     },
     'map-last': {
       bd: ['Square to triangle', 'Convert the concrete square type B to the concrete triangle type D.'],

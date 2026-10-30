@@ -20,8 +20,8 @@ test('text validation and completion reject non-LNF and unsupported constructs',
   const app=game();app.run('currentLevel=1;iconMode=false;');
   for(const code of [
     'mkHero (runZero z)',
-    '(.) mkHero runZero',
-    'mkHero . runZero',
+    '(>>>) runZero mkHero',
+    'runZero >>> mkHero',
     'runZero `mkHero` z',
     'runZero z where other = z',
     'let step = \\x -> mkHero x in step z',
@@ -30,7 +30,7 @@ test('text validation and completion reject non-LNF and unsupported constructs',
     'mkHero "hello"',
     'let r1 = let r2 = runZero z in r2 in mkHero r1',
     'if z then runZero else mkHero',
-    'let r1 = r2 runZero; r2 = (.) mkHero in r1 z',
+    'let r1 = r2 runZero; r2 = (>>>) runZero in r1 z',
     'let r1 = r1 runZero in r1 z'
   ]) {
     app.run(`setEditorContent(${JSON.stringify(code)});textDrafts[1]=${JSON.stringify(code)};`);
@@ -46,12 +46,12 @@ test('text validation and completion reject non-LNF and unsupported constructs',
 test('Haskell keywords cannot become row names, while ordinary identifiers retain their meaning',()=>{
   const app=game();app.run('currentLevel=1;iconMode=false;');
   for(const name of ['where','case','do','data','if','type','class','module']) {
-    const code=`let ${name} = (.) mkHero; r2 = ${name} runZero in r2 z`;
+    const code=`let ${name} = (>>>) runZero; r2 = ${name} mkHero in r2 z`;
     app.run(`setEditorContent(${JSON.stringify(code)});`);
     assert.match(app.run('getTextError()'),/Haskell keyword/);
     assert.equal(app.run('checkSolution(LEVELS[1],getCodeFromEditor()).ok'),false);
   }
-  const code="let somewhere = (.) mkHero; where' = somewhere runZero in where' z";
+  const code="let somewhere = (>>>) runZero; where' = somewhere mkHero in where' z";
   app.run(`setEditorContent(${JSON.stringify(code)});`);
   assert.equal(app.run('getTextError()'),null);
   assert.equal(app.run('checkSolution(LEVELS[1],getCodeFromEditor()).ok'),true);

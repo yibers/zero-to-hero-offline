@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { game } = require('./helpers/game-harness.cjs');
 
-test('level 9 has one starting value and exactly one concrete converter in the palette', () => {
+test('map-then-rotate lesson has one starting value and exactly one concrete converter in the palette', () => {
   const app = game();
   app.run("currentLevel = LEVELS.findIndex(level => level.id === 'map-middle');");
   assert.deepEqual(app.read('LEVELS[currentLevel].parameterUses'), { z: 1 });
@@ -12,14 +12,14 @@ test('level 9 has one starting value and exactly one concrete converter in the p
   app.run('setEditorContent(LEVELS[currentLevel].solution); diagnoseRows(); runLiveCheck();');
   assert.equal(app.run('completedLevels.has(currentLevel)'), true);
   assert.deepEqual(app.read('cardUsage(LEVELS[currentLevel], getCodeFromEditor()).filter(card => card.remaining)'), []);
-  assert.deepEqual(app.read('getRows().filter(row => /\\bz\\b/.test(row.expr)).map(row => row.expr)'), ['r9 z']);
+  assert.deepEqual(app.read('getRows().filter(row => /\\bz\\b/.test(row.expr)).map(row => row.expr)'), ['r5 z']);
   assert.equal(app.run('getRows().at(-1).automatic'), true);
   assert.match(app.run('FUNCTION_CARD_ICONS[15].bd'), /data-type="b"/);
   assert.match(app.run('FUNCTION_CARD_ICONS[15].bd'), /data-type="d"/);
 });
 
 for (const icons of [true, false]) {
-  test(`level 9 migrates old saved definitions without losing valid work in ${icons ? 'icon' : 'text'} mode`, () => {
+  test(`map-then-rotate lesson migrates old saved definitions without losing valid work in ${icons ? 'icon' : 'text'} mode`, () => {
     const source = game();
     source.run(`currentLevel = 7; iconMode = ${icons}; setEditorContent(LEVELS[7].solution); runLiveCheck(); saveProgress();`);
     const saved = source.saved();

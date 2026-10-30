@@ -12,19 +12,19 @@ function kind(html, name) {
   return card && { kind: card.match(/data-card-kind="([^"]+)"/)[1], drag: card.includes('draggable="true"') };
 }
 
-test('palette splits level 9 by usable function type and restricts dragging to combinators', () => {
+test('palette splits map-then-rotate lesson by usable function type and restricts dragging to combinators', () => {
   const app = game(); app.run('currentLevel=7;');
   const html = palette(app);
   assert.match(html, /aria-label="Combinators"/);
   assert.match(html, /aria-label="Transformations"/);
-  for (const name of ['(.)', 'fmap']) assert.deepEqual(kind(html, name), {kind:'combinator',drag:true});
-  for (const name of ['bd', 'f1', 'f2']) assert.deepEqual(kind(html, name), {kind:'transformation',drag:false});
+  for (const name of ['(>>>)', 'fmap']) assert.deepEqual(kind(html, name.replaceAll('>', '&gt;')), {kind:'combinator',drag:true});
+  for (const name of ['bd', 'f1', 'f2']) assert.deepEqual(kind(html, name.replaceAll('>', '&gt;')), {kind:'transformation',drag:false});
 });
 
 test('generated functions stay attached to rows and never return to the palette independently', () => {
   const app=game(); app.run("currentLevel=7;setEditorContent('fmap bd');");
   assert.equal(kind(palette(app),'r1'),undefined);
-  app.run("rowPrograms[7]=placeInFixedRow(LEVELS[7],getRows(),1,'(.)').rows; rowPrograms[7]=placeInFixedRow(LEVELS[7],getRows(),1,'r1',true).rows;");
+  app.run("rowPrograms[7]=placeInFixedRow(LEVELS[7],getRows(),1,'(>>>)').rows; rowPrograms[7]=placeInFixedRow(LEVELS[7],getRows(),1,'r1',true).rows;");
   const combined=palette(app);
   assert.equal(kind(combined,'r1'),undefined);
   assert.equal(kind(combined,'r2'),undefined);

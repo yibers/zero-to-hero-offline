@@ -59,12 +59,12 @@ test('old TIE fighter work survives refresh and only its outdated completion is 
       rowPrograms: { 6: source.read(`RowProgram.migrate(${JSON.stringify(old)})`) }
     };
     const restored = game(saved);
-    assert.deepEqual(restored.read('[...completedLevels]'), [0, 12]);
+    assert.deepEqual(restored.read('[...completedLevels]'), [0]);
     assert.equal(restored.run('currentLevel'), 6);
     assert.equal(restored.run('iconMode'), icons);
-    assert.deepEqual(restored.saved().editorContents, saved.editorContents);
-    assert.deepEqual(restored.saved().textDrafts, saved.textDrafts);
-    assert.deepEqual(restored.saved().rowPrograms, saved.rowPrograms);
+    assert.deepEqual(restored.saved().editorContents[6], saved.editorContents[6]);
+    assert.deepEqual(restored.saved().textDrafts[6], saved.textDrafts[6]);
+    assert.deepEqual(restored.saved().rowPrograms[6], saved.rowPrograms[6]);
     assert.equal(restored.saved().applicativeVersion, 1);
     const again = game(restored.saved()); again.run('saveProgress();');
     assert.deepEqual(again.saved(), restored.saved());

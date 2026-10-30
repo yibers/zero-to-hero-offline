@@ -12,28 +12,28 @@ test('named generic types have the same shape in every palette regardless of enc
       .map(match => [level.level, func.name, match[1], match[2]]);
   }))`);
   assert.deepEqual(failures, []);
-  assert.deepEqual(markers(app.run("FUNCTION_CARD_ICONS[3]['(.)']")), [2, 3, 1, 2, 1, 3]);
+  assert.deepEqual(markers(app.run("FUNCTION_CARD_ICONS[3]['(>>>)']")), [1, 2, 2, 3, 1, 3]);
   assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[15].fmap')), [3, 4, 1, 2, 3, 1, 2, 4]);
 });
 
 test('a placed function keeps its shapes and its result carries them through later uses', () => {
   const app = game();
-  app.run("currentLevel = 1; setEditorContent('(.) mkHero'); diagnoseRows();");
-  assert.deepEqual(markers(app.run("rowSymbol('mkHero', null, rowDiagnostics[0].call.arguments[0])")),
-    markers(app.run('FUNCTION_CARD_ICONS[3].mkHero')));
+  app.run("currentLevel = 1; setEditorContent('(>>>) runZero'); diagnoseRows();");
+  assert.deepEqual(markers(app.run("rowSymbol('runZero', null, rowDiagnostics[0].call.arguments[0])")),
+    markers(app.run('FUNCTION_CARD_ICONS[3].runZero')));
   const result = markers(app.run("rowSymbol('r1', null, rowDiagnostics[0].diagram)"));
-  assert.equal(app.run('rowDiagnostics[0].signature'), '(b -> a) -> b -> Hero a');
-  assert.deepEqual(result, [2, 1, 2, 1]); // The existing circle stays; the new domain gets a square.
+  assert.equal(app.run('rowDiagnostics[0].signature'), '(a -> c) -> Zero a -> c');
+  assert.deepEqual(result, [1, 3, 1, 3]); // The existing circle stays; the new output gets its own triangle.
   app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 1, 'r1').rows; diagnoseRows();");
   assert.deepEqual(markers(app.run("rowSymbol('r1', null, rowDiagnostics[1].call.result)")), result);
-  app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 1, 'runZero', true).rows; diagnoseRows();");
+  app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 1, 'mkHero', true).rows; diagnoseRows();");
   assert.deepEqual(markers(app.run("rowSymbol('r2', null, rowDiagnostics[1].diagram)")), [1, 1]);
   assert.equal(app.run('checkSolution(LEVELS[1], getCodeFromEditor()).ok'), true);
 });
 
 test('independent edits and refresh cannot shuffle an existing branch through fresh-variable numbering', () => {
   const app = game();
-  app.run(`currentLevel = 7; rowPrograms[7]=[{id:'r1',expr:'(.) f2'},{id:'r2',expr:'r1 f1'},{id:'r3',expr:''},{id:'r4',expr:'fmap bd'}]; diagnoseRows();`);
+  app.run(`currentLevel = 7; rowPrograms[7]=[{id:'r1',expr:'(>>>) f2'},{id:'r2',expr:'r1 f1'},{id:'r3',expr:''},{id:'r4',expr:'fmap bd'}]; diagnoseRows();`);
   const before = markers(app.run("rowSymbol('r4', null, rowDiagnostics[3].diagram)"));
   const oldType = app.run('typeToString(rowDiagnostics[3].diagram.type)');
   app.run('rowPrograms[7] = automaticRows(LEVELS[7], clearedRows(getRows(), 0)); diagnoseRows(); persistRows();');
@@ -61,12 +61,12 @@ test('actual swaps and rotations remain visible while unrelated type positions s
   assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[11].swap')), [1, 2, 2, 1]);
   assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[15].f1')), [1, 2, 3, 3, 1, 2]);
   app.run('currentLevel = 7; setEditorContent(LEVELS[7].solution); diagnoseRows();');
-  for (const index of [2, 4, 6, 8]) {
-    // The input to each progressively composed transformation stays circle,
-    // concrete square, diamond. Rotations affect the output, not these names.
-    assert.deepEqual(markers(app.run(`rowSymbol('transform', null, rowDiagnostics[${index}].diagram)`)).slice(0, 2), [1, 3]);
+  for (const index of [2, 4]) {
+    // The two generic input positions keep their markers as the converted
+    // concrete slot rotates to the front of the output.
+    assert.deepEqual(markers(app.run(`rowSymbol('transform', null, rowDiagnostics[${index}].diagram)`)).slice(0, 2), [1, 2]);
   }
-  assert.deepEqual(markers(app.run("rowSymbol('final transform', null, rowDiagnostics[8].diagram)")), [1, 3, 1, 3]);
-  assert.equal(app.run('rowDiagnostics[8].signature'), 'Zero a B c -> Hero a D c');
+  assert.deepEqual(markers(app.run("rowSymbol('final transform', null, rowDiagnostics[4].diagram)")), [1, 2, 1, 2]);
+  assert.equal(app.run('rowDiagnostics[4].signature'), 'Zero a b B -> Hero D a b');
   assert.equal(app.run('checkSolution(LEVELS[7], getCodeFromEditor()).ok'), true);
 });

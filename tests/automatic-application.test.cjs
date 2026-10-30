@@ -24,11 +24,11 @@ test('all levels finish automatically from function-only construction, using the
 
 test('partial functions wait for one function; only completed rows expose palette results', () => {
   const app = game();
-  app.run(`currentLevel = 1; setEditorContent('(.)'); diagnoseRows();`);
+  app.run(`currentLevel = 1; setEditorContent('(>>>)'); diagnoseRows();`);
   assert.equal(app.run('getRows().length'), 3);
   assert.match(app.run('rowDiagnostics[0].error'), /Choose one function/);
   assert.equal(app.run('checkSolution(LEVELS[1], getCodeFromEditor()).ok'), false);
-  app.run(`setEditorContent('(.) mkHero'); diagnoseRows();`);
+  app.run(`setEditorContent('(>>>) runZero'); diagnoseRows();`);
   assert.equal(app.run('getRows().length'), 3);
   assert.equal(app.run('getRows()[2].automatic'), true);
   assert.equal(app.run('getRows()[2].expr'), '');
@@ -70,14 +70,14 @@ test('function-only rules reject value steps, bare aliases, and functions that r
   app.run(`currentLevel = 1;`);
   for (const code of [
     'let r1 = runZero z in mkHero r1',
-    'let r1 = (.)\n r2 = r1 mkHero\n r3 = r2 runZero in r3 z'
+    'let r1 = (>>>)\n r2 = r1 runZero\n r3 = r2 mkHero in r3 z'
   ]) {
     assert.equal(app.run(`typeCheck(LEVELS[1], ${JSON.stringify(code)}).ok`), true);
     assert.equal(app.run(`checkSolution(LEVELS[1], ${JSON.stringify(code)}).ok`), false);
   }
   assert.match(app.run(`(() => {
     const {env, params} = functionProgramContext(LEVELS[11]);
-    return functionRowError('dup f', env, params);
+    env.f = parseType('a -> a'); return functionRowError('dup f', env, params);
   })()`), /must return a function/);
   assert.match(app.run(`(() => {
     const {env, params} = functionProgramContext(LEVELS[1]);
@@ -99,7 +99,7 @@ test('the level 9 converter comes from the palette while the only input is autom
 test('text mode exposes the generated final application after constructing icons', () => {
   const app = game();
   app.run(`currentLevel = 1; iconMode = false;
-    textDrafts[1] = 'let r1 = (.) mkHero in r1 runZero';
+    textDrafts[1] = 'let r1 = (>>>) runZero in r1 mkHero';
     iconMode = true; getRows(); runLiveCheck(); iconMode = false;`);
   assert.equal(app.run('getTextSource()'), app.run('LEVELS[1].solution'));
   assert.equal(app.run('checkSolution(LEVELS[1], getTextSource()).ok'), true);

@@ -32,9 +32,9 @@ test('every level starts with exactly one fixed slot per supplied copy and stays
 test('generated functions stay out of the palette and consumed by linked heads', () => {
   const app = game();
   app.nodes['function-palette'] = { dataset: {}, innerHTML: '', querySelectorAll: () => [] };
-  app.run("currentLevel = 1; setEditorContent('(.)'); diagnoseRows(); runLiveCheck();");
+  app.run("currentLevel = 1; setEditorContent('(>>>)'); diagnoseRows(); runLiveCheck();");
   assert.deepEqual(app.read('availableGeneratedFunctions()'), []);
-  app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 0, 'mkHero', true).rows; diagnoseRows(); runLiveCheck();");
+  app.run("rowPrograms[1] = placeInFixedRow(LEVELS[1], getRows(), 0, 'runZero', true).rows; diagnoseRows(); runLiveCheck();");
   assert.deepEqual(app.read('availableGeneratedFunctions().map(card => card.name)'), []);
   // Generated combinators never become manual cards, even in a legacy draft;
   // mounting the icon editor attaches the result to the next row.
@@ -54,9 +54,9 @@ test('clearing a producer clears its dependents and returns their supplies witho
   app.run('currentLevel = 7; setEditorContent(LEVELS[7].solution); diagnoseRows(); const idsBefore = getRows().map(row => row.id);');
   app.run('rowPrograms[7] = automaticRows(LEVELS[7], clearedRows(getRows(), 0)); diagnoseRows();');
   assert.deepEqual(app.read('getRows().map(row => row.id)'), app.read('idsBefore'));
-  assert.equal(app.run('getRows().length'), 10);
+  assert.equal(app.run('getRows().length'), 6);
   assert.deepEqual(app.read('getRows().filter(row => row.expr).map(row => row.id)'), []);
-  assert.deepEqual(app.read('functionUsage(LEVELS[7], getCodeFromEditor()).map(card => card.remaining)'), [1, 1, 3, 1, 1, 3]);
+  assert.deepEqual(app.read('functionUsage(LEVELS[7], getCodeFromEditor()).map(card => card.remaining)'), [1, 1, 1, 1, 2]);
 });
 
 test('holes keep their position through source conversion, mode switches and refresh', () => {
@@ -71,15 +71,15 @@ test('holes keep their position through source conversion, mode switches and ref
   assert.match(saved.run("placeInFixedRow(LEVELS[7], getRows(), 0, 'r4').error"), /below its producer/);
   saved.run('iconMode = false; const text = getTextSource(); iconMode = true;');
   assert.equal(saved.run('getCodeFromEditor()'), saved.run('text'));
-  assert.equal(saved.run('getRows().length'), 10);
-  const fromText = game(); fromText.run("currentLevel = 1; textDrafts[1] = 'let r1 = (.) mkHero in _'; diagnoseRows();");
+  assert.equal(saved.run('getRows().length'), 6);
+  const fromText = game(); fromText.run("currentLevel = 1; textDrafts[1] = 'let r1 = (>>>) runZero in _'; diagnoseRows();");
   assert.equal(fromText.run('getRows()[1].expr'), '');
   assert.equal(fromText.run('getRows().at(-1).expr'), '');
 });
 
 test('single-use rules reject reused or discarded generated functions in text mode', () => {
   const app = game();
-  const duplicate = 'let\n  r1 = (.) mkHero\n  r2 = r1 runZero\n  unused = r1 r2\nin\n  r2 z';
+  const duplicate = 'let\n  r1 = (>>>) runZero\n  r2 = r1 mkHero\n  unused = r1 r2\nin\n  r2 z';
   assert.equal(app.run(`typeCheck(LEVELS[1], ${JSON.stringify(duplicate)}).ok`), true);
   assert.match(app.run(`checkSolution(LEVELS[1], ${JSON.stringify(duplicate)}).msg`), /generated function.*exactly once/);
   app.run(`currentLevel = 1; iconMode = false; setEditorContent(${JSON.stringify(duplicate)}); completedLevels.add(1); saveProgress();`);

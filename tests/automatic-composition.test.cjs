@@ -12,7 +12,7 @@ function palette(app) {
   return app.nodes['function-palette'].innerHTML;
 }
 
-test('only lessons whose sole combinator is standard composition get automatic heads',()=>{
+test('only lessons whose sole combinator is forward composition get automatic heads',()=>{
   const app=game();
   assert.deepEqual(app.read('LEVEL_ORDER.map(i=>LEVELS[i]).filter(automaticCombinator).map(l=>l.level)'),[3,4,5,6,7,8,10,16,17,21]);
   for(let i=0;i<app.run('LEVELS.length');i++) {
@@ -23,13 +23,13 @@ test('only lessons whose sole combinator is standard composition get automatic h
     const hasChoices=app.run('LEVELS[currentLevel].funcs.some(f=>isRowCombinator(parseType(f.sig)))')&&!auto;
     assert.equal(palette(app).includes('aria-label="Combinators"'),hasChoices);
     if(auto) {
-      assert.doesNotMatch(palette(app),/data-func-name="\(\.\)"/);
+      assert.doesNotMatch(palette(app),/data-func-name="\(&gt;&gt;&gt;\)"/);
       assert.equal(app.run('functionUsage(LEVELS[currentLevel],getCodeFromEditor()).find(f=>f.name===automaticCombinator(LEVELS[currentLevel])).used'),1);
     }
   }
 });
 
-test('automatic standard-composition lessons solve by selecting only supplied arguments',()=>{
+test('automatic forward-composition lessons solve by selecting only supplied arguments',()=>{
   const {solveIconLevel}=require('./helpers/solve-icon-level.cjs');
   const app=game();
   for(const index of app.read('LEVELS.flatMap((level,i)=>automaticCombinator(level)?[i]:[])')) {
@@ -41,30 +41,30 @@ test('automatic standard-composition lessons solve by selecting only supplied ar
 
 test('clearing, reload, and undo retain automatic heads and the linked-row lock',()=>{
   const app=game();app.run('currentLevel=1;');prepare(app);
-  app.run("rememberRows();rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),0,'mkHero',true).rows;persistRows();");
+  app.run("rememberRows();rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),0,'runZero',true).rows;persistRows();");
   const restored=game(app.saved());prepare(restored);
   assert.equal(restored.run('getRows()[1].expr'),'r1');
   assert.equal(restored.run('continuationSource(getRows(),1)'),'r1');
   restored.run('rowPrograms[1]=prepareIconRows(LEVELS[1],clearedRows(getRows(),1));');
   assert.equal(restored.run('getRows()[1].expr'),'r1');
-  restored.run("rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),1,'runZero',true).rows;");
+  restored.run("rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),1,'mkHero',true).rows;");
   assert.equal(restored.run('checkSolution(LEVELS[1],getCodeFromEditor()).ok'),true);
   restored.run('rowPrograms[1]=prepareIconRows(LEVELS[1],clearedRows(getRows(),0,true));diagnoseRows();');
-  assert.deepEqual(restored.read('getRows().map(r=>r.expr)'),['(.)','','']);
+  assert.deepEqual(restored.read('getRows().map(r=>r.expr)'),['(>>>)','','']);
   assert.equal(restored.run('continuationSource(getRows(),1)'),null);
   assert.deepEqual(restored.read('functionUsage(LEVELS[1],getCodeFromEditor()).map(f=>f.remaining)'),[1,1,0]);
   app.run('rowPrograms[1]=prepareIconRows(LEVELS[1],JSON.parse(rowHistory.get(1).undo.at(-1)));');
-  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(.)','','']);
+  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(>>>)','','']);
 });
 
 test('existing work survives preparation and generated heads take priority over unused default heads',()=>{
   const app=game();app.run("currentLevel=4;setEditorContent(LEVELS[4].solution);const before=getCodeFromEditor();");prepare(app);
   assert.equal(app.run('getCodeFromEditor()'),app.run('before'));
   app.run('rowPrograms[4]=prepareIconRows(LEVELS[4],clearedRows(getRows(),0,true));');
-  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(.)','','','','']);
+  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(>>>)','','','','']);
   assert.equal(app.run('continuationSource(getRows(),3)'),null);
-  app.run("currentLevel=1;rowPrograms[1]=[{id:'r1',expr:'(.) mkHero'},{id:'r2',expr:'(.)'}];");prepare(app);
-  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(.) mkHero','r1','']);
+  app.run("currentLevel=1;rowPrograms[1]=[{id:'r1',expr:'(>>>) runZero'},{id:'r2',expr:'(>>>)'}];");prepare(app);
+  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(>>>) runZero','r1','']);
   assert.equal(app.run('functionUsage(LEVELS[1],getCodeFromEditor()).find(f=>f.name===automaticCombinator(LEVELS[currentLevel])).used'),1);
 });
 
@@ -74,13 +74,13 @@ test('mixed-combinator lessons retain their choices even after one kind is exhau
   assert.match(palette(app),/aria-label="Combinators"/);
   app.run("currentLevel=1;iconMode=false;setEditorContent('');");
   assert.equal(app.run('getTextSource()'),'');
-  assert.match(palette(app),/data-func-name="\(\.\)"/);
+  assert.match(palette(app),/data-func-name="\(&gt;&gt;&gt;\)"/);
   app.run('iconMode=true;');prepare(app);
-  assert.equal(app.run('getRows()[0].expr'),'(.)');
+  assert.equal(app.run('getRows()[0].expr'),'(>>>)');
   assert.doesNotMatch(palette(app),/aria-label="Combinators"/);
 });
 
-const manualSingleCombinatorLevels=[13,14,18,20,24,25];
+const manualSingleCombinatorLevels=[11,13,14,18,20,23,24,25];
 
 test('other sole combinators start in the palette and clear level returns them there',()=>{
   const app=game();
@@ -129,9 +129,9 @@ test('automatic-head migration preserves partial work, completed solutions and a
   const seed=game();seed.run('saveProgress();');const saved=seed.saved();delete saved.automaticHeadVersion;
   const index=seed.run('LEVELS.findIndex(l=>l.level===13)');saved.currentLevel=index;
   const variants=[
-    {rows:[{id:'r1',expr:'(>>>) runZero'},{id:'r2',expr:'r1'},{id:'r3',expr:'',automatic:true}],icons:true},
-    {rows:[{id:'r1',expr:'(>>>)'},{id:'r2',expr:''},{id:'r3',expr:'',automatic:true}],icons:false},
-    {rows:[{id:'r1',expr:'(>>>)'},{id:'r2',expr:''},{id:'r3',expr:'',automatic:true}],icons:true,text:'let\n  r1 = (>>>)\nin\n  _'},
+    {rows:[{id:'r1',expr:'fmap bd'},{id:'r2',expr:'',automatic:true}],icons:true},
+    {rows:[{id:'r1',expr:'fmap'},{id:'r2',expr:'',automatic:true}],icons:false},
+    {rows:[{id:'r1',expr:'fmap'},{id:'r2',expr:'',automatic:true}],icons:true,text:'let\n  r1 = fmap\nin\n  _'},
     {rows:seed.read(`RowProgram.migrate(LEVELS[${index}].solution)`),icons:true,complete:true}
   ];
   for(const variant of variants){

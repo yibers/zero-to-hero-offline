@@ -47,11 +47,53 @@ function acceptsFunction(type) {
 function isRowCombinator(type) {
   return acceptsFunction(type) && type.to.tag === 'fun';
 }
-// Only standard composition is automatic, and only when it is the level's
+// Only forward composition is automatic, and only when it is the level's
 // sole combinator. Decide from original supplies, never remaining inventory.
 function automaticCombinator(level) {
   const combinators = level.funcs.filter(f => isRowCombinator(parseType(f.sig)));
-  return combinators.length === 1 && combinators[0].name === '(.)' ? '(.)' : null;
+  return combinators.length === 1 && combinators[0].name === '(>>>)' ? '(>>>)' : null;
+}
+
+// Reassociate a complete old program without changing what its functions do.
+// Expanding the named calls lets us reverse each fully applied (.) as a whole;
+// swapping tokens in individual unary rows would reverse the wrong arguments.
+function forwardCompositionSource(code) {
+  try {
+    const definitions = new Map(), program = RowProgram.parseLet(code);
+    const apply = (fn, args) => fn.kind === 'app'
+      ? { kind: 'app', fn: fn.fn, args: [...fn.args, ...args] }
+      : { kind: 'app', fn, args };
+    const name = value => ({ kind: 'name', name: value });
+    function compose(first, last) {
+      const stages = tree => tree.kind === 'app' && tree.fn.name === '>>>' && tree.args.length === 2
+        ? tree.args.flatMap(stages) : [tree];
+      return [...stages(first), ...stages(last)].reduce((chain, next) =>
+        chain ? apply(name('>>>'), [chain, next]) : next, null);
+    }
+    function expand(tree) {
+      if (tree.kind === 'name') return definitions.get(tree.name) || tree;
+      if (tree.kind === 'app') return apply(expand(tree.fn), tree.args.map(expand));
+      return tree.op === '$' ? apply(expand(tree.left), [expand(tree.right)])
+        : apply(name(tree.op), [expand(tree.left), expand(tree.right)]);
+    }
+    for (const row of program?.bindings || []) definitions.set(row.id, expand(RowProgram.parse(row.expr)));
+    function forward(tree) {
+      if (tree.kind === 'name') {
+        if (tree.name === '.') throw Error('Partially applied composition needs manual rebuilding.');
+        return tree;
+      }
+      if (tree.fn.name === '.' && tree.args.length >= 2) {
+        const [last, first, ...rest] = tree.args;
+        return apply(compose(forward(first), forward(last)), rest.map(forward));
+      }
+      if (tree.fn.name === 'flip' && tree.args[0]?.name === '.' && tree.args.length >= 3) {
+        const [, first, last, ...rest] = tree.args;
+        return apply(name('flip'), [name('>>>'), ...[last, first, ...rest].map(forward)]);
+      }
+      return apply(forward(tree.fn), tree.args.map(forward));
+    }
+    return RowProgram.currySource(RowProgram.print(forward(expand(RowProgram.parse(program?.final || code)))));
+  } catch (_) { return null; }
 }
 function functionRowError(expr, env, params, allowPending = false) {
   try {

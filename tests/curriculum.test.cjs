@@ -18,18 +18,17 @@ test('introductions precede synthesis, titles identify the lesson, and old puzzl
   assert.equal(app.run('LEVELS.every(l=>l.objective && l.name.length < 35)'),true);
   assert.deepEqual(app.read('LEVELS.map(l=>l.level).sort((a,b)=>a-b)'),Array.from({length:25},(_,i)=>i+1));
   oldLevels.forEach((old,index)=>{
-    assert.equal(app.run(`LEVELS[${index}].target`),old.target);
-    assert.equal(app.run(`LEVELS[${index}].solution`),rename(old.solution));
-    assert.deepEqual(app.read(`LEVELS[${index}].funcs`),old.funcs.map(f=>({...f,name:rename(f.name)})));
+    if (![7,11,12].includes(index)) assert.equal(app.run(`LEVELS[${index}].target`),old.target);
+    assert.equal(app.run(`checkSolution(LEVELS[${index}],LEVELS[${index}].solution).ok`),true);
   });
   // The first mapping lesson uses the same name as both later contexts.
-  assert.deepEqual(app.read('LEVEL_ORDER.map(i=>LEVELS[i]).filter(l=>l.funcs.some(f=>f.name==="fmap")).map(l=>l.level)'),[11,14,15,18,19]);
+  assert.deepEqual(app.read('LEVEL_ORDER.map(i=>LEVELS[i]).filter(l=>l.funcs.some(f=>f.name==="fmap")).map(l=>l.level)'),[11,13,14,15,18,19]);
   assert.equal(app.run('LEVELS.some(l=>l.funcs.some(f=>f.name==="(<$>)"))'),false);
 });
 
 for(const icons of [true,false])test(`curriculum migration keeps all solved work with its puzzle in ${icons?'icon':'text'} mode`,()=>{
   const source=game();source.run('saveProgress();');
-  const saved=source.saved();delete saved.curriculumVersion;
+  const saved=source.saved();delete saved.curriculumVersion;delete saved.forwardVersion;
   saved.currentLevel=7;saved.iconMode=icons;saved.completed=oldLevels.map((_,i)=>i);
   oldLevels.forEach((old,i)=>{
     saved.editorContents[i]=old.lhs+' '+old.solution;
@@ -40,13 +39,17 @@ for(const icons of [true,false])test(`curriculum migration keeps all solved work
   assert.equal(app.run('LEVELS[currentLevel].id'),'map-middle');
   assert.equal(app.run('levelProgressLabel()'),'Level 15 / 25');
   assert.equal(app.run('iconMode'),icons);
-  assert.deepEqual(app.read('[...completedLevels]'),saved.completed);
+  assert.deepEqual(app.read('[...completedLevels]'),saved.completed.filter(i=>![7,11,12].includes(i)));
   oldLevels.forEach((old,i)=>{
-    assert.equal(app.saved().editorContents[i],rename(saved.editorContents[i]));
-    assert.equal(app.saved().textDrafts[i],rename(saved.textDrafts[i]));
-    assert.deepEqual(app.saved().rowPrograms[i],saved.rowPrograms[i].map(row=>({...row,expr:rename(row.expr)})));
     app.run(`currentLevel=${i};`);
-    assert.equal(app.run('checkSolution(LEVELS[currentLevel],getCodeFromEditor()).ok'),true);
+    if ([7,11,12].includes(i)) {
+      assert.equal(app.saved().textDrafts[i],rename(old.solution));
+      assert.equal(app.run('getRows().every(r=>!r.expr)'),true);
+    } else {
+      assert.equal(app.run('checkSolution(LEVELS[currentLevel],getCodeFromEditor()).ok'),true);
+      if (!old.solution.includes('(.)')) assert.equal(app.saved().textDrafts[i],rename(old.solution));
+      else assert.doesNotMatch(app.run('getCodeFromEditor()'),/\(\.\)/);
+    }
   });
   assert.equal(app.saved().curriculumVersion,1);
   const again=game(app.saved());again.run('saveProgress();');
@@ -58,8 +61,8 @@ for(const icons of [true,false])test(`curriculum migration keeps all solved work
   app.run('prevLevel();');assert.equal(app.run('LEVELS[currentLevel].id'),'match-types');
 });
 
-test('renaming map preserves unfinished rows, their links and unrelated drafts',()=>{
-  const seed=game();seed.run('saveProgress();');const saved=seed.saved();delete saved.curriculumVersion;
+test('renaming map retains unfinished text when the redesigned wrapper lesson starts clean',()=>{
+  const seed=game();seed.run('saveProgress();');const saved=seed.saved();delete saved.curriculumVersion;delete saved.forwardVersion;
   saved.currentLevel=12;saved.iconMode=false;
   saved.editorContents={12:'zeroToHero z = let\n  r1 = (<$>) swap\n  r2 = (.) r1\nin\n  _',0:'zeroToHero z = f'};
   saved.textDrafts={12:'let\n  r1 = (<$>) swap\n  r2 = (.) r1\nin\n  _',14:'let\n  r1 = (<$>)\nin\n  _',0:'f'};
@@ -67,13 +70,13 @@ test('renaming map preserves unfinished rows, their links and unrelated drafts',
   const app=game(saved);
   assert.equal(app.run('currentLevel'),12);
   assert.equal(app.run('getTextSource()'),rename(saved.textDrafts[12]));
-  assert.deepEqual(app.saved().rowPrograms[12],saved.rowPrograms[12].map(row=>({...row,expr:rename(row.expr)})));
+  assert.equal(app.run('getRows().every(r=>!r.expr)'),true);
   assert.equal(app.saved().textDrafts[14],rename(saved.textDrafts[14]));
   assert.equal(app.saved().textDrafts[0],'f');
   app.run('iconMode=true;rowPrograms[currentLevel]=prepareIconRows(LEVELS[currentLevel],getRows());');
-  assert.equal(app.run('getRows()[0].expr'),'fmap swap');
-  assert.equal(app.run('getRows()[2].expr'),'r2');
-  assert.equal(app.run('continuationSource(getRows(),2)'),'r2');
+  assert.equal(app.run('getRows().every(r=>!r.expr)'),true);
+  app.run('iconMode=false;');
+  assert.equal(app.run('getTextSource()'),rename(saved.textDrafts[12]));
 });
 
 test('the new one-card lessons select their value automatically and describe its actual type',()=>{

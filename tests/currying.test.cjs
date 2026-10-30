@@ -29,7 +29,7 @@ test('returned functions are nested boxes in the palette and in specialized row 
 test('prefix, infix, aliased and nested multi-argument calls must be split in text mode', () => {
   const app = game();
   app.run('currentLevel = 1; iconMode = false;');
-  for (const code of ['(.) mkHero runZero', 'mkHero . runZero', 'mkHero (runZero z)', 'let compose = (.) in compose mkHero runZero']) {
+  for (const code of ['(>>>) runZero mkHero', 'runZero >>> mkHero', 'mkHero (runZero z)', 'let compose = (>>>) in compose runZero mkHero']) {
     app.run(`textDrafts[currentLevel] = ${JSON.stringify(code)};`);
     assert.match(app.run('getTextError()'), /One argument per row/);
     assert.match(app.run('checkSolution(LEVELS[currentLevel], getCodeFromEditor()).msg'), /One argument per row/);

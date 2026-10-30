@@ -17,15 +17,15 @@ test('a carried transformation is fixed while its next combinator can be selecte
   assert.equal(app.run('continuationSource(getRows(),1)'),null);
   assert.match(app.run("placeWithContinuation(LEVELS[7],getRows(),1,'f1',true).error"),/continues the previous row/);
   assert.equal(app.run('clearedRows(getRows(),1,true)[1].expr'),'_ r1');
-  app.run("const chosen=placeWithContinuation(LEVELS[7],getRows(),1,'(.)');rowPrograms[7]=chosen.rows;");
+  app.run("const chosen=placeWithContinuation(LEVELS[7],getRows(),1,'(>>>)');rowPrograms[7]=chosen.rows;");
   assert.equal(app.run('chosen.activeRow'),2);
-  assert.equal(app.run('getRows()[1].expr'),'(.) r1');
+  assert.equal(app.run('getRows()[1].expr'),'(>>>) r1');
   assert.equal(app.run('getRows()[2].expr'),'r2');
   app.run('rowPrograms[7]=prepareIconRows(LEVELS[7],clearedRows(getRows(),1));');
   assert.equal(app.run('getRows()[0].expr'),'fmap bd');
   assert.equal(app.run('getRows()[1].expr'),'_ r1');
   assert.equal(app.run('getRows()[2].expr'),'');
-  assert.equal(app.run('functionUsage(LEVELS[7],getCodeFromEditor()).find(f=>f.name==="(.)").remaining'),1);
+  assert.equal(app.run('functionUsage(LEVELS[7],getCodeFromEditor()).find(f=>f.name==="(>>>)").remaining'),2);
   app.run("rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),1,'(>>>)').rows;");
   assert.equal(app.run('getRows()[1].expr'),'(>>>) r1');
   assert.equal(app.run('getRows()[2].expr'),'r2');
@@ -55,9 +55,9 @@ test('pending carried arguments survive refresh and mode switches, and undo rest
 
 test('automatic composition cascades skip completed rows and focus the next actual choice',()=>{
   const app=game();
-  app.run("currentLevel=5;rowPrograms[5]=prepareIconRows(LEVELS[5],[{id:'r1',expr:''}]);rowPrograms[5]=placeWithContinuation(LEVELS[5],getRows(),0,'f3',true).rows;const carried=placeWithContinuation(LEVELS[5],getRows(),1,'f1',true);rowPrograms[5]=carried.rows;diagnoseRows();");
+  app.run("currentLevel=5;rowPrograms[5]=prepareIconRows(LEVELS[5],[{id:'r1',expr:''}]);rowPrograms[5]=placeWithContinuation(LEVELS[5],getRows(),0,'f2',true).rows;const carried=placeWithContinuation(LEVELS[5],getRows(),1,'f1',true);rowPrograms[5]=carried.rows;diagnoseRows();");
   assert.equal(app.run('carried.activeRow'),3);
-  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(.) f3','r1 f1','(.) r2','r3','']);
+  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(>>>) f2','r1 f1','(>>>) r2','r3','']);
   assert.equal(app.run('continuationArgument(getRows(),2)'),'r2');
   assert.equal(app.run('continuationSource(getRows(),3)'),'r3');
   assert.equal(app.run('getRows().at(-1).expr'),'');
@@ -65,7 +65,7 @@ test('automatic composition cascades skip completed rows and focus the next actu
 });
 
 test('the text checker rejects deferred transformations even when Haskell types and exact supplies match',()=>{
-  const app=game(), old=oldLevels.find(l=>l.level===6);
+  const app=game(), old={solution:'let r1 = (>>>) f3; r2 = r1 snd; r3 = (>>>) f1; r4 = r3 r2 in r4 z'};
   app.run(`currentLevel=4;iconMode=false;textDrafts[4]=${JSON.stringify(old.solution)};`);
   assert.equal(app.run('typeCheck(LEVELS[4],getTextSource()).ok'),true);
   assert.match(app.run('checkSolution(LEVELS[4],getTextSource()).msg'),/transformation.*immediately following row/);
@@ -74,7 +74,7 @@ test('the text checker rejects deferred transformations even when Haskell types 
 
 test('redesigned lessons recheck achievements once while retaining every old draft and preference',()=>{
   const source=game();source.run('saveProgress();');const saved=source.saved();
-  delete saved.carryVersion;saved.currentLevel=6;saved.completed=[0,4,6,7,12,13,14];
+  delete saved.carryVersion;delete saved.forwardVersion;saved.currentLevel=6;saved.completed=[0,4,6,7,12,13,14];
   for(const level of oldLevels){
     const index=level.level-2;
     saved.editorContents[index]=level.lhs+' '+level.solution;
@@ -83,8 +83,11 @@ test('redesigned lessons recheck achievements once while retaining every old dra
   }
   for(const icons of [true,false]){
     saved.iconMode=icons;const restored=game(saved);
-    assert.deepEqual(restored.read('[...completedLevels]'),[0,12]);
-    for(const field of ['editorContents','rowPrograms','textDrafts'])assert.deepEqual(restored.saved()[field],saved[field]);
+    assert.deepEqual(restored.read('[...completedLevels]'),[0]);
+    for(const level of oldLevels){
+      const i=level.level-2, draft=restored.saved().textDrafts[i];
+      if(draft!==level.solution) assert.equal(restored.run(`checkSolution(LEVELS[${i}],${JSON.stringify(draft)}).ok`),true);
+    }
     assert.equal(restored.saved().carryVersion,1);
     restored.run('getRows();iconMode=false;');
     assert.equal(restored.run('getTextSource()'),oldLevels.find(l=>l.level===8).solution);

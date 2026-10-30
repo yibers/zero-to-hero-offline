@@ -59,7 +59,7 @@ tests/          — Playwright + unit tests
 - **Automatic carry-forward** — Generated functions continue directly into the next row and never become palette cards. A combinator becomes the next head; a transformation becomes the next fixed input. Mixed lessons leave a plus button for choosing the receiving combinator. Initial combinator cards support dragging or tapping; initial transformations are supplied by tapping an empty input. Construction rows show only the function/input area, without a repeated output diagram. Palette cards support Enter/Space selection. Text mode supports tapping to insert at the caret.
 - **Exact function supplies** — every initial function copy and every generated function must be used exactly once in the solution. Multiple initial copies have a remaining-count badge. Exhausted cards disappear. The same rules apply to text mode, including rejecting discarded or reused generated functions. There is no conciseness score.
 - **Mandatory automatic continuation** — Every generated function is used in the immediately following row, with the last transformation applied to the starting value automatically. Combinators become locked heads; transformations become locked arguments. Purple borders and an arrow/lock indicator show both kinds of dependency. Generated functions cannot return to the palette independently. The player still chooses available functions; the editor never chooses a head in a mixed-combinator lesson. Clearing a manually selected head preserves its carried input, while clearing a producer cascades to dependent steps after confirmation. Links survive refresh, undo and mode switches; placement and continuation share one undo action. Text mode remains authored manually and enforces the same continuation rule. Existing drafts are retained, and outdated completions are rechecked once.
-- **Automatic standard composition** — A level whose only kind of supplied combinator is `(.)` hides that palette section and supplies `(.)` automatically. Other combinators, including `fmap`, `(>>>)`, `(<**>)`, and `(>=>)`, stay in the palette until selected, even when they are the only kind. A generated combinator takes priority. Carrying a transformation into an automatic head can complete a row and generate another head immediately; selection advances to the next actual choice. Copies still count toward the exact supplies. Fixed slots are never added or removed. Mixed lessons retain every combinator choice even after other kinds are exhausted.
+- **Automatic forward composition** — A level whose only kind of supplied combinator is `(>>>)` hides that palette section and supplies `(>>>)` automatically. Other combinators, including `fmap`, `(<**>)`, and `(>=>)`, stay in the palette until selected, even when they are the only kind. A generated combinator takes priority. Carrying a transformation into an automatic head can complete a row and generate another head immediately; selection advances to the next actual choice. Copies still count toward the exact supplies. Fixed slots are never added or removed. Mixed lessons retain every combinator choice even after other kinds are exhausted.
 - **Inputs and results** — The type diagram inside a function is its argument drop target. An automatically carried argument is fixed to its producer; other filled arguments remain editable. Construction rows omit the outer arrow and output preview. Arrows inside function diagrams remain. The final row shows the starting value and fixed goal throughout construction, then applies the complete transformation once every construction slot is complete.
 - **Clearing steps** — tap a manually filled input to clear it, or tap a function's blue border to return the whole step's cards. A step with no dependent steps clears immediately. Clearing a producer that also clears dependent steps asks for confirmation and shows the affected rows. Independent steps remain intact and all slots stay in place. Undo/redo shortcuts restore the fixed layout and its derived inventory.
 - **Touch drag-and-drop** — dragging starts immediately, without a hold. The complete function rectangle accepts its missing input; manually filled argument diagrams remain replacement targets. Swipe the background to scroll. Icon mode has no text cursor or keyboard focus.
@@ -78,15 +78,15 @@ Haskell or every language called LNF.
 
 ```haskell
 let
-  r1 = (.) mkHero
-  r2 = r1 runZero
+  r1 = (>>>) runZero
+  r2 = r1 mkHero
 in
   r2 z
 ```
 
 - Every construction binding has the form `name = functionName argumentName`.
   There is exactly one unary application, and both operands are supplied names
-  or earlier results. Parenthesized operator names such as `(.)` are names too.
+  or earlier results. Parenthesized operator names such as `(>>>)` are names too.
 - Intermediate results are introduced with an explicit `let ... in` block.
   Each binding occupies its own line (semicolons also separate bindings).
   The final expression is one named-function application. A standalone call
@@ -103,7 +103,7 @@ in
 The function-only construction steps, mandatory immediate continuation of generated functions,
 exact card counts, single use of generated
 results, and automatic final application are **additional puzzle rules**, not
-requirements of LNF itself. The editor supplies `(.)` automatically only when
+requirements of LNF itself. The editor supplies `(>>>)` automatically only when
 it is the level’s sole combinator. Other supplied combinators require selection.
 Generated combinators still become the next row’s head automatically. Both editors use the same validation. Icon mode builds
 this form directly, and text mode reports unsupported syntax without silently
@@ -122,37 +122,39 @@ Every supplied copy is required exactly once. Every construction step uses funct
 | --- | --- | --- | --- |
 | 1 | Wrap a value | Put a value inside a wrapper without changing its type. | `wrap` |
 | 2 | Change a wrapper | Replace Zero with Hero while keeping the contained type. | `f` |
-| 3 | Compose two functions | Connect two transformations by matching the intermediate type. | `runZero`, `mkHero`, `(.)` |
-| 4 | Make a pair | Duplicate a value into a pair inside Hero. | `f1`, `f3`, `(.)` |
-| 5 | Match repeated types | Make repeated generic slots agree before changing the wrapper. | `f2`, `f4`, `(.)` |
-| 6 | Compose three functions | Extend a familiar two-function composition by one more transformation. | `runZero`, `mkHero`, `dup`, `(.)` ×2 |
-| 7 | Rearrange slots | Reorder and duplicate slots to meet a transformation’s input. | `f1`, `f2`, `f3`, `(.)` ×2 |
-| 8 | Build a longer composition | Plan a longer chain using repeated duplication and rearrangement. | `f1` ×2, `f2`, `f3`, `(.)` ×3 |
+| 3 | Compose two functions | Connect transformations in execution order, matching the intermediate type. | `runZero`, `mkHero`, `(>>>)` |
+| 4 | Make a pair | Duplicate a value into a pair inside Hero. | `f1`, `f3`, `(>>>)` |
+| 5 | Match repeated types | Make repeated generic slots agree before changing the wrapper. | `f2`, `f4`, `(>>>)` |
+| 6 | Compose three functions | Extend a familiar two-function composition by one more transformation. | `runZero`, `mkHero`, `dup`, `(>>>)` ×2 |
+| 7 | Rearrange slots | Reorder and duplicate slots to meet a transformation’s input. | `f1`, `f2`, `f3`, `(>>>)` ×2 |
+| 8 | Build a longer composition | Plan a longer chain using repeated duplication and rearrangement. | `f1` ×2, `f2`, `f3`, `(>>>)` ×3 |
 | 9 | Select from a pair | Use snd to keep the second component of a pair. | `snd` |
-| 10 | Work with nested pairs | Select a component after building and splitting a nested pair. | `snd`, `f1`, `f3`, `(.)` ×2 |
-| 11 | Map inside a wrapper | Use fmap to change the contents of Hero without removing its wrapper. | `f`, `swap`, `fmap`, `(.)` |
+| 10 | Work with nested pairs | Select a component after building and splitting a nested pair. | `snd`, `f1`, `f3`, `(>>>)` ×2 |
+| 11 | Map inside a wrapper | Use fmap to change the contents of Hero without removing its wrapper. | `swap`, `fmap` |
 | 12 | Convert a concrete type | Convert the fixed type B to D; fixed types are not interchangeable generic slots. | `bd` |
-| 13 | Compose left to right | Use >>> to supply transformations in their execution order. | `runZero`, `mkHero`, `(>>>)` |
+| 13 | Map a concrete type | Convert B to D inside Hero with familiar fmap. | `bd`, `fmap` |
 | 14 | Map one of several slots | Use fmap on the last slot of Zero while its earlier slots stay unchanged. | `bd`, `fmap` |
-| 15 | Map the middle slot | Combine mapping, rotations and both composition directions to change the middle slot. | `bd`, `fmap`, `f1` ×3, `f2`, `(.)`, `(>>>)` ×3 |
-| 16 | Apply a stored function | Apply the function stored beside its argument; () marks the emptied slot. | `apply`, `finish`, `(.)` |
-| 17 | Apply a curried function | Apply a stored function one argument at a time, rotating between applications. | `f1` ×3, `f2` ×4, `f3`, `(.)` ×7 |
+| 15 | Map then rotate | Map the last slot, rotate it to the front, then change the wrapper. | `bd`, `fmap`, `f1`, `f2`, `(>>>)` ×2 |
+| 16 | Apply a stored function | Apply the function stored beside its argument; () marks the emptied slot. | `apply`, `finish`, `(>>>)` |
+| 17 | Apply a curried function | Apply a stored function one argument at a time, rotating between applications. | `f1` ×3, `f2` ×4, `f3`, `(>>>)` ×7 |
 | 18 | Map a function’s output | Use fmap on functions to transform their output, keeping the same input. | `runZero`, `mkHero`, `fmap` |
 | 19 | Share an input with &lt;*&gt; | Combine two functions that receive the same final input. | `f`, `g`, `pair`, `fmap`, `(<*>)` |
 | 20 | Reverse applicative application | Use <**> to take the value-producing function before the function-producing one. | `f1`, `f2`, `f3`, `(<**>)` ×2 |
-| 21 | Flatten nested wrappers | Use join to remove one layer of a nested Hero wrapper. | `wrap`, `join`, `(.)` |
-| 22 | Reverse argument order | Use flip to reverse the two function arguments of familiar composition. | `runZero`, `mkHero`, `(.)`, `flip` |
-| 23 | Bind a wrapped result | Use >>= to feed a wrapped value into a function that returns a wrapper. | `f`, `dup`, `(>>=)`, `flip`, `(.)` |
+| 21 | Flatten nested wrappers | Use join to remove one layer of a nested Hero wrapper. | `wrap`, `join`, `(>>>)` |
+| 22 | Reverse argument order | Use flip to reverse the two function arguments of familiar composition. | `runZero`, `mkHero`, `(>>>)`, `flip` |
+| 23 | Bind a wrapped result | Use >>= to feed a wrapped value into a function that returns a wrapper. | `dup`, `(>>=)`, `flip` |
 | 24 | Compose wrapped results | Use >=> to connect two transformations that each return Hero. | `f`, `dup`, `(>=>)` |
 | 25 | Chain wrapped results | Extend Kleisli composition to three transformations that return Hero. | `f`, `dup`, `nest`, `(>=>)` ×2 |
 
-The nine new introductions are levels 6, 9, 12, 13, 14, 16, 18, 22 and 24. All 16 existing puzzles remain. The former middle-slot puzzle (old level 9) is now level 15, after separate introductions to mapping, concrete conversion, forward composition and mapping the last slot. Bind is now level 23, after an introduction to `flip`. Shared-input application follows mapping a function’s output.
+Composition uses `(>>>)` throughout: supply the first transformation, then the next. For ordinary functions, `first >>> next` means `next . first`. The game retains prefix, unary rows; `>>>` is supplied automatically only when it is the sole combinator.
+
+Levels 11 and 23 start with Hero, so mapping and bind can build the final transformation directly. Level 13 practises concrete conversion inside Hero. Level 15 starts with `Zero a c B`: map B to D, rotate once, then change Zero to Hero, producing `Hero D a c`. These goals let every generated function continue immediately. Level 22 deliberately uses `flip` to reverse the arguments of forward composition. Shared-input application follows mapping a function’s output.
 
 Mapping consistently uses `fmap`; Haskell’s `(<$>)` is another spelling of the same operation. The game specializes mapping to Hero, Zero’s last slot, or function output as appropriate. `(<*>)` and `(<**>)` retain their Applicative constraints and support Hero and shared-input functions. The latter takes the value-producing function first; it is not a general claim that their effect ordering is interchangeable. `(>=>)` composes Hero-returning transformations. `($)` stays removed because rows already provide application.
 
 Level 1 starts with a plain value and supplies `wrap :: a -> Zero a`. In `Zero a`, `Zero` is a type constructor and `a` is the type of the contained value. The shapes describe types and indicate where values occur; they do not display concrete contents such as numbers. The pair-selection and concrete-conversion introductions also use direct final applications, without an unnecessary construction step.
 
-Saved progress stays attached to the same puzzle: array positions are persistent save identities, new puzzles are appended, and displayed numbers determine navigation. Stable puzzle IDs identify descriptions and old migrations independently of titles. Existing drafts, achievements, display preferences and the current puzzle survive the reorder. The two renamed mapping palettes migrate `(<$>)` to `fmap` in saved code and rows once; new lessons start unsolved. Finishing the last level returns to the first unsolved lesson, including any new introductions. Untouched starting heads inserted by the former any-single-combinator rule are removed once; played rows and text drafts remain intact. Older ordering and continuation migrations are still supported.
+Saved progress stays attached to the same puzzle: array positions are persistent save identities, new puzzles are appended, and displayed numbers determine navigation. Stable puzzle IDs identify descriptions and old migrations independently of titles. Existing drafts, achievements, display preferences and the current puzzle survive the reorder. The two renamed mapping palettes migrate `(<$>)` to `fmap` in saved code and rows once; new lessons start unsolved. Finishing the last level returns to the first unsolved lesson, including any new introductions. Untouched starting heads inserted by the former any-single-combinator rule are removed once; played rows and text drafts remain intact. Older ordering and continuation migrations are still supported. Completed backward-composition solutions are translated to forward chains without changing their meaning; unchanged goals keep their achievements. The redesigned goals (11, 13, 15 and 23) start unsolved unless the saved program already solves the new puzzle. Incompatible partial work remains available as a text draft while icon mode starts with the new supplies. This upgrade runs once.
 
 ## Running
 

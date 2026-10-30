@@ -15,13 +15,13 @@ test('every reference solution can be built using initial cards with all generat
 });
 
 function setup() {
-  const app=game();app.run("currentLevel=1;rowPrograms[1]=[{id:'r1',expr:''}];rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),0,'(.)').rows;");return app;
+  const app=game();app.run("currentLevel=1;rowPrograms[1]=[{id:'r1',expr:''}];rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),0,'(>>>)').rows;");return app;
 }
 
 test('unfinished calls wait; completed combinators move selection and persist as locked continuations',()=>{
   const app=setup();
   assert.equal(app.run('getRows()[1].expr'),'');
-  app.run("rememberRows();const placed=placeWithContinuation(LEVELS[1],getRows(),0,'mkHero',true);rowPrograms[1]=placed.rows;diagnoseRows();persistRows();");
+  app.run("rememberRows();const placed=placeWithContinuation(LEVELS[1],getRows(),0,'runZero',true);rowPrograms[1]=placed.rows;diagnoseRows();persistRows();");
   assert.equal(app.run('placed.activeRow'),1);
   assert.equal(app.run('getRows()[1].expr'),'r1');
   assert.deepEqual(app.read('availableGeneratedFunctions()'),[]);
@@ -37,7 +37,7 @@ test('unfinished calls wait; completed combinators move selection and persist as
   assert.deepEqual(cleared.read('availableGeneratedFunctions()'),[]);
   // The placement and its continuation share a single undo snapshot.
   app.run('rowPrograms[1]=automaticRows(LEVELS[1],JSON.parse(rowHistory.get(1).undo.at(-1)));');
-  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(.)','','']);
+  assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['(>>>)','','']);
 });
 
 test('transformations fill the next input before its combinator is chosen',()=>{
@@ -46,33 +46,33 @@ test('transformations fill the next input before its combinator is chosen',()=>{
   assert.equal(app.run('getRows()[1].expr'),'_ r1');
   assert.equal(app.run('continuationArgument(getRows(),1)'),'r1');
   assert.deepEqual(app.read('availableGeneratedFunctions()'),[]);
-  app.run("rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),1,'(.)').rows;diagnoseRows();");
-  assert.equal(app.run('getRows()[1].expr'),'(.) r1');
+  app.run("rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),1,'(>>>)').rows;diagnoseRows();");
+  assert.equal(app.run('getRows()[1].expr'),'(>>>) r1');
   assert.equal(app.run('getRows()[2].expr'),'r2');
   assert.equal(app.run('continuationSource(getRows(),2)'),'r2');
 });
 
 test('clearing a producer clears its automatic continuation but preserves unrelated branches',()=>{
-  const app=game();app.run("currentLevel=7;rowPrograms[7]=[{id:'r1',expr:''}];rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),3,'fmap').rows;rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),3,'bd',true).rows;rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),0,'(.)').rows;rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),0,'f2',true).rows;");
+  const app=game();app.run("currentLevel=7;rowPrograms[7]=[{id:'r1',expr:''}];rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),3,'fmap').rows;rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),3,'bd',true).rows;rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),0,'(>>>)').rows;rowPrograms[7]=placeWithContinuation(LEVELS[7],getRows(),0,'f2',true).rows;");
   assert.equal(app.run('getRows()[1].expr'),'r1');
   app.run('rowPrograms[7]=automaticRows(LEVELS[7],clearedRows(getRows(),0));diagnoseRows();');
   assert.equal(app.run('getRows()[1].expr'),'');
   assert.equal(app.run('getRows()[3].expr'),'fmap bd');
-  assert.equal(app.run('getRows().length'),10);
+  assert.equal(app.run('getRows().length'),6);
 });
 
 
 test('a linked input remains editable, and clearing its producer removes the link',()=>{
   const app=setup();
-  app.run("rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),0,'mkHero',true).rows;rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),1,'runZero',true).rows;const complete=getRows().map(r=>({...r}));");
+  app.run("rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),0,'runZero',true).rows;rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),1,'mkHero',true).rows;const complete=getRows().map(r=>({...r}));");
   assert.equal(app.run('continuationSource(getRows(),1)'),'r1');
   assert.equal(app.run('continuationSource(getRows(),2)'),null);
   app.run('rowPrograms[1]=automaticRows(LEVELS[1],clearedRows(getRows(),1,true));diagnoseRows();');
   assert.equal(app.run('getRows()[1].expr'),'r1');
   assert.equal(app.run('continuationSource(getRows(),1)'),'r1');
   assert.equal(app.run('getRows().at(-1).expr'),'');
-  assert.equal(app.run('functionUsage(LEVELS[1],getCodeFromEditor()).find(f=>f.name==="runZero").remaining'),1);
-  app.run("rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),1,'runZero',true).rows;");
+  assert.equal(app.run('functionUsage(LEVELS[1],getCodeFromEditor()).find(f=>f.name==="mkHero").remaining'),1);
+  app.run("rowPrograms[1]=placeWithContinuation(LEVELS[1],getRows(),1,'mkHero',true).rows;");
   assert.equal(app.run('checkSolution(LEVELS[1],getCodeFromEditor()).ok'),true);
   app.run('rowPrograms[1]=automaticRows(LEVELS[1],clearedRows(getRows(),0));');
   assert.deepEqual(app.read('getRows().map(r=>r.expr)'),['','','']);
@@ -86,5 +86,5 @@ test('existing saved heads and text-mode round trips retain the previous-row lin
   restored.run('iconMode=false;const source=getTextSource();setEditorContent(source);iconMode=true;diagnoseRows();');
   assert.equal(restored.run('continuationSource(getRows(),1)'),'r1');
   restored.run('rowPrograms[1]=automaticRows(LEVELS[1],clearedRows(getRows(),1));');
-  assert.equal(restored.run('getRows()[1].expr'),'r1 runZero');
+  assert.equal(restored.run('getRows()[1].expr'),'r1 mkHero');
 });
