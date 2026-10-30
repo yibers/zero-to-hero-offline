@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="656b8607ef1e">
+<meta name="app-version" content="c53426fcd54a">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -236,8 +236,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=33ec809f6025"></script>
-<script src="semantic-icons.js?v=4382b71cba6d"></script>
+<script src="levels.js?v=590751c3433b"></script>
+<script src="semantic-icons.js?v=28b54ca80a47"></script>
 <script src="row-program.js?v=d60934769456"></script>
 <script src="puzzle-rules.js?v=8af9bde69399"></script>
 <script src="row-editor.js?v=5c13470bd12a"></script>
@@ -949,9 +949,25 @@ try {
       if (Array.isArray(parsed.completed)) parsed.completed = parsed.completed.filter(index => Number(index) !== 1).map(shift);
       if (parsed.currentLevel != null) parsed.currentLevel = shift(parsed.currentLevel);
     }
+    // Curriculum order changes only display numbers, so saved indices stay put.
+    // Mapping now has one spelling. Translate that alias without changing rows,
+    // unfinished source, completion marks or the player's current puzzle.
+    if (parsed.curriculumVersion !== 1) {
+      const renameMap = source => source.replace(/\(\s*<\$>\s*\)/g, 'fmap').replace(/<\$>/g, '`fmap`');
+      for (const [index, level] of LEVELS.entries()) {
+        if (!['map-wrapper', 'shared-input'].includes(level.id)) continue;
+        for (const field of ['editorContents', 'textDrafts']) {
+          if (typeof parsed[field]?.[index] === 'string') parsed[field][index] = renameMap(parsed[field][index]);
+        }
+        if (Array.isArray(parsed.rowPrograms?.[index])) {
+          parsed.rowPrograms[index] = parsed.rowPrograms[index].map(row => row && typeof row.expr === 'string'
+            ? { ...row, expr: renameMap(row.expr) } : row);
+        }
+      }
+    }
     completedLevels = new Set(parsed.completed || []);
     editorContents = parsed.editorContents || {};
-    const middleManIndex = LEVELS.findIndex(level => level.name === 'The middle man');
+    const middleManIndex = LEVELS.findIndex(level => level.id === 'map-middle');
     if (parsed.middleManVersion !== 1 && typeof editorContents[middleManIndex] === 'string') {
       editorContents[middleManIndex] = editorContents[middleManIndex]
         .replace(/^zeroToHero\s+ad\s+bd\s+cd\s+z\s*=/, LEVELS[middleManIndex].lhs);
@@ -992,7 +1008,7 @@ try {
       for (const key of Object.keys(rowPrograms)) rowPrograms[key] = RowProgram.curryRows(rowPrograms[key]);
     }
     if (parsed.applicativeVersion !== 1) {
-      const index = LEVELS.findIndex(level => level.name === 'TIE fighter');
+      const index = LEVELS.findIndex(level => level.id === 'reverse-applicative');
       const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index])
         : RowProgram.source(RowProgram.migrate(getEditorContent(index))));
       if (!checkSolution(LEVELS[index], code).ok) completedLevels.delete(index);
@@ -1001,7 +1017,7 @@ try {
     // work for editing, but recheck only these changed achievements once.
     if (parsed.transformationsVersion !== 1) {
       for (const index of [...completedLevels]) {
-        if (LEVELS[index]?.level < 12) continue;
+        if (!['flatten-wrappers', 'bind', 'map-wrapper', 'chain-wrapped', 'shared-input'].includes(LEVELS[index]?.id)) continue;
         try {
           const code = iconMode && rowPrograms[index] ? RowProgram.source(rowPrograms[index])
             : textDrafts[index] ?? RowProgram.source(RowProgram.migrate(getEditorContent(index)));
@@ -1045,7 +1061,7 @@ try {
     if (parsed.carryVersion !== 1) {
       for (const index of [...completedLevels]) {
         if (!LEVELS[index]) continue;
-        const redesigned = [8, 9, 15, 16].includes(LEVELS[index].level);
+        const redesigned = ['reverse-applicative', 'map-middle', 'chain-wrapped', 'shared-input'].includes(LEVELS[index].id);
         try {
           const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index])
             : typeof editorContents[index] === 'string' ? getEditorContent(index) : null);
@@ -1063,7 +1079,7 @@ try {
         } catch (_) { /* Other migrations handle unfinished legacy drafts. */ }
       }
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || parsed.continuationVersion !== 1 || parsed.carryVersion !== 1 || 'bypassCount' in parsed) saveProgress();
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || parsed.continuationVersion !== 1 || parsed.carryVersion !== 1 || parsed.curriculumVersion !== 1 || 'bypassCount' in parsed) saveProgress();
   }
 } catch(e) {}
 
@@ -1081,6 +1097,7 @@ function saveProgress() {
     fixedRowsVersion: 1,
     continuationVersion: 1,
     carryVersion: 1,
+    curriculumVersion: 1,
     currentLevel,
     geckoOn,
     iconMode,
@@ -1165,7 +1182,7 @@ function render() {
         <button id="skip-level" onclick="skipLevel()" title="Go to the next level without solving this one" ${completedLevels.has(currentLevel) ? 'hidden' : ''} ${currentLevel === LEVEL_ORDER.at(-1) ? 'disabled' : ''}>Skip level</button>
         <button id="clear-level" onclick="clearLevel()" title="Start this level again">Clear level</button>
       </div>
-      <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${level.name}</div>
+      <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${escHtml(level.name)}</div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="gecko-toggle" onclick="toggleIconMode()">
           Icons

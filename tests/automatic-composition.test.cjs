@@ -14,8 +14,8 @@ function palette(app) {
 
 test('only single-combinator lessons get automatic heads and hide their combinator group',()=>{
   const app=game();
-  assert.deepEqual(app.read('LEVELS.filter(automaticCombinator).map(l=>l.level)'),[3,4,5,6,7,8,10,11,12,15]);
-  for(let i=0;i<16;i++) {
+  assert.deepEqual(app.read('LEVEL_ORDER.map(i=>LEVELS[i]).filter(automaticCombinator).map(l=>l.level)'),[3,4,5,6,7,8,10,13,14,16,17,18,20,21,24,25]);
+  for(let i=0;i<app.run('LEVELS.length');i++) {
     app.run(`currentLevel=${i};`);prepare(app);
     const auto=app.run('!!automaticCombinator(LEVELS[currentLevel])');
     assert.equal(app.run('getRows()[0].expr'),auto?app.run('automaticCombinator(LEVELS[currentLevel])'):'');

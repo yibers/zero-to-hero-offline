@@ -60,7 +60,7 @@ test('unification retains a class constraint when a context is renamed before sp
 
 test('generic context pictures resolve into shared-input functions without losing curried boxes', () => {
   const app = game();
-  assert.match(app.run("FUNCTION_CARD_ICONS[8]['(<**>)']"), /class="applicative-context"/);
+  assert.match(app.run("FUNCTION_CARD_ICONS[20]['(<**>)']"), /class="applicative-context"/);
   app.run('currentLevel = 6; setEditorContent(LEVELS[6].solution); diagnoseRows();');
   assert.deepEqual(app.read('rowDiagnostics.filter(row => row.error)'), []);
   for (const index of [0,1,2,3]) {

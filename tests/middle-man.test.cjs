@@ -4,7 +4,7 @@ const { game } = require('./helpers/game-harness.cjs');
 
 test('level 9 has one starting value and exactly one concrete converter in the palette', () => {
   const app = game();
-  app.run('currentLevel = LEVELS.findIndex(level => level.level === 9);');
+  app.run("currentLevel = LEVELS.findIndex(level => level.id === 'map-middle');");
   assert.deepEqual(app.read('LEVELS[currentLevel].parameterUses'), { z: 1 });
   assert.equal(app.run('LEVELS[currentLevel].lhs'), 'zeroToHero z =');
   assert.deepEqual(app.read('LEVELS[currentLevel].funcs.find(f => f.name === "bd")'), { name: 'bd', sig: 'B -> D', uses: 1 });
@@ -14,8 +14,8 @@ test('level 9 has one starting value and exactly one concrete converter in the p
   assert.deepEqual(app.read('cardUsage(LEVELS[currentLevel], getCodeFromEditor()).filter(card => card.remaining)'), []);
   assert.deepEqual(app.read('getRows().filter(row => /\\bz\\b/.test(row.expr)).map(row => row.expr)'), ['r9 z']);
   assert.equal(app.run('getRows().at(-1).automatic'), true);
-  assert.match(app.run('FUNCTION_CARD_ICONS[9].bd'), /data-type="b"/);
-  assert.match(app.run('FUNCTION_CARD_ICONS[9].bd'), /data-type="d"/);
+  assert.match(app.run('FUNCTION_CARD_ICONS[15].bd'), /data-type="b"/);
+  assert.match(app.run('FUNCTION_CARD_ICONS[15].bd'), /data-type="d"/);
 });
 
 for (const icons of [true, false]) {

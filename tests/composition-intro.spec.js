@@ -149,7 +149,7 @@ test('inserting a level preserves every old puzzle draft, completion, setting an
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('zth_progress')));
   expect(saved.levelOrderVersion).toBe(1);
   expect(saved.currentLevel).toBe(8);
-  await expect(page.locator('nav')).toContainText('The middle man');
+  await expect(page.locator('nav')).toContainText('Map the middle slot');
   await expect(page.locator('.level-badge')).toContainText('Level 10 / 17');
   expect(saved.completed).toEqual([0, 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]);
   for (const field of ['editorContents', 'rowPrograms', 'textDrafts']) {
@@ -169,7 +169,7 @@ test.describe('phone composition introduction', () => {
     await open(page);
     await page.evaluate(() => { currentLevel = 1; setEditorContent(LEVELS[1].solution); render(); });
     await page.getByRole('button', { name: 'Next level', exact: true }).tap();
-    await expect(page.locator('nav')).toContainText('Assembly by composition');
+    await expect(page.locator('nav')).toContainText('Compose two functions');
     await expect(page.locator('.level-badge')).toContainText('Level 4 / 17');
     const cdp = await page.context().newCDPSession(page);
     async function drag(source, target) {
@@ -195,10 +195,10 @@ test.describe('phone composition introduction', () => {
     await expect(page.locator('.goal-reached')).toHaveCount(1);
     await expect(page.locator('textarea.row-editor').last()).not.toBeFocused();
     await page.reload();
-    await expect(page.locator('nav')).toContainText('Assembly by composition');
+    await expect(page.locator('nav')).toContainText('Compose two functions');
     await expect(page.locator('#status-bar')).toHaveClass(/success/);
     await page.getByRole('button', { name: 'Next level', exact: true }).tap();
-    await expect(page.locator('nav')).toContainText('Which path?');
+    await expect(page.locator('nav')).toContainText('Make a pair');
     await expect(page.locator('.level-badge')).toContainText('Level 5 / 17');
   });
 

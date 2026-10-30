@@ -6,7 +6,7 @@ const {solveIconLevel}=require('./helpers/solve-icon-level.cjs');
 
 test('every reference solution can be built using initial cards with all generated functions carried automatically', () => {
   const app=game();let carried=0;
-  for(let index=0;index<16;index++) {
+  for(let index=0;index<app.run('LEVELS.length');index++) {
     const result=solveIconLevel(app,index);
     assert.deepEqual(result.failures,[],`level ${app.run('LEVELS[currentLevel].level')}`);
     carried+=result.carried;

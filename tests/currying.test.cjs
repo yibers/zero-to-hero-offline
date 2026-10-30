@@ -15,7 +15,7 @@ test('every palette function and every reference row expose exactly one input', 
 
 test('returned functions are nested boxes in the palette and in specialized row results', () => {
   const app = game();
-  const palette = app.run('FUNCTION_CARD_ICONS[16].pair');
+  const palette = app.run('FUNCTION_CARD_ICONS[19].pair');
   assert.match(palette, /class="icon-output">[\s\S]*class="function-value"/);
   const nested = app.run("renderSemanticType(fixedSemanticType('a -> b -> c'))");
   assert.equal((nested.match(/class="function-value"/g) || []).length, 2);

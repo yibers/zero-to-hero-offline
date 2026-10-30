@@ -43,7 +43,7 @@ test.describe('Zero to Hero', () => {
   });
 
   test('shows level 1 with correct UI elements', async ({ page }) => {
-    await expect(page.locator('nav')).toContainText('Trial');
+    await expect(page.locator('nav')).toContainText('Change a wrapper');
     await expect(page.locator('nav')).toContainText('Level 1 / 16');
     await expect(page.locator('body')).toContainText('To Implement');
     await expect(page.locator('body')).toContainText('Your Solution');
@@ -289,7 +289,7 @@ test.describe('Zero to Hero', () => {
 
   test('no extra spaces after drag-in, selection delete, drag-in cycle', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await advanceTo(page, 'A perfect pair');
+    await advanceTo(page, 'Work with nested pairs');
     await expect(page.locator('nav')).toContainText('Level 6');
 
     // Step 1: Drag f1 into the editor
@@ -317,7 +317,7 @@ test.describe('Zero to Hero', () => {
 
   test('drag-in/backspace-delete/drag-in cycle does not shift token rightward', async ({ page }) => {
     const editor = page.locator('#code-editor');
-    await advanceTo(page, 'A perfect pair');
+    await advanceTo(page, 'Work with nested pairs');
     await expect(page.locator('nav')).toContainText('Level 6');
 
     const f1Card = page.locator('.func-card', { hasText: 'f1' }).first();

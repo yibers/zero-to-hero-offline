@@ -5,7 +5,7 @@ const { game } = require('./helpers/game-harness.cjs');
 test('the introduction wraps one value while preserving its type and enforcing its supplies', () => {
   const app = game();
   assert.equal(app.run('LEVELS[currentLevel].level'), 1);
-  assert.equal(app.run('levelProgressLabel()'), 'Level 1 / 16');
+  assert.equal(app.run('levelProgressLabel()'), 'Level 1 / 25');
   assert.equal(app.run('LEVELS[currentLevel].target'), 'a -> Zero a');
   assert.deepEqual(app.read('LEVELS[currentLevel].parameterUses'), { value: 1 });
   assert.equal(app.run('checkSolution(LEVELS[currentLevel], "wrap value").ok'), true);
@@ -28,7 +28,7 @@ test('completion, refresh, next, previous and reset follow the introductory orde
   assert.equal(app.run('LEVELS[currentLevel].level'), 1);
   app.run('setEditorContent("wrap value"); runLiveCheck();');
   assert.equal(app.nodes['next-level'].hidden, false);
-  assert.match(app.nodes['level-badge'].innerHTML, /Level 1 \/ 16/);
+  assert.match(app.nodes['level-badge'].innerHTML, /Level 1 \/ 25/);
   assert.equal(app.run('completedLevels.size'), 1);
   app.run('runLiveCheck();');
   assert.equal(app.run('completedLevels.size'), 1);
@@ -36,8 +36,8 @@ test('completion, refresh, next, previous and reset follow the introductory orde
   assert.equal(restored.run('getCodeFromEditor()'), 'wrap value');
   assert.equal(restored.run('completedLevels.has(currentLevel)'), true);
   restored.run('nextLevel();');
-  assert.equal(restored.run('LEVELS[currentLevel].name'), 'Trial');
-  assert.equal(restored.run('levelProgressLabel()'), 'Level 2 / 16');
+  assert.equal(restored.run('LEVELS[currentLevel].name'), 'Change a wrapper');
+  assert.equal(restored.run('levelProgressLabel()'), 'Level 2 / 25');
   restored.run('nextLevel();');
   assert.equal(restored.run('LEVELS[currentLevel].level'), 2);
   restored.run('prevLevel();');
@@ -48,7 +48,7 @@ test('completion, refresh, next, previous and reset follow the introductory orde
   assert.equal(restored.run('LEVELS[currentLevel].level'), 2);
   restored.run('currentLevel = LEVEL_ORDER.at(-1); completedLevels = new Set(LEVEL_ORDER); nextLevel();');
   assert.equal(restored.run('showComplete'), true);
-  assert.equal(restored.run('LEVELS[currentLevel].level'), 16);
+  assert.equal(restored.run('LEVELS[currentLevel].level'), 25);
   restored.run('resetGame();');
   assert.equal(restored.run('LEVELS[currentLevel].level'), 1);
   assert.equal(restored.run('showComplete'), false);
@@ -57,7 +57,7 @@ test('completion, refresh, next, previous and reset follow the introductory orde
 
 test('all puzzles retain valid solutions and icons, with the introduction first in navigation', () => {
   const app = game();
-  assert.deepEqual(app.read('LEVEL_ORDER.map(index => LEVELS[index].level)'), Array.from({ length: 16 }, (_, i) => i + 1));
+  assert.deepEqual(app.read('LEVEL_ORDER.map(index => LEVELS[index].level)'), Array.from({ length: 25 }, (_, i) => i + 1));
   assert.deepEqual(app.read(`LEVELS.filter(level => !checkSolution(level, level.solution).ok
     || level.funcs.some(f => !FUNCTION_CARD_ICONS[level.level][f.name])).map(level => level.level)`), []);
   app.run('iconMode = false; render();');
@@ -76,8 +76,8 @@ test('current saved programs and achievements round-trip without changing prefer
   const saved = app.saved(), restored = game(saved);
   restored.run('saveProgress();');
   assert.deepEqual(restored.saved(), saved);
-  assert.equal(restored.run('LEVELS[currentLevel].name'), 'TIE fighter');
-  assert.equal(restored.run('levelProgressLabel()'), 'Level 8 / 16');
+  assert.equal(restored.run('LEVELS[currentLevel].name'), 'Reverse applicative application');
+  assert.equal(restored.run('levelProgressLabel()'), 'Level 20 / 25');
   assert.equal(restored.run('typeof bypass'), 'undefined');
   restored.run('render();');
   assert.doesNotMatch(restored.nodes.app.innerHTML, /Bypass|bypass-button/);

@@ -26,7 +26,7 @@ test('TIE fighter builds the transformation and supplies z once at the end, in e
       [['f1', 1, 0], ['f2', 1, 0], ['f3', 1, 0], ['(<**>)', 2, 0], ['z', 1, 0]]);
     assert.equal(app.run('completedLevels.has(currentLevel)'), true);
     assert.equal(app.nodes['next-level'].hidden, false);
-    assert.equal(app.run("FUNCTION_CARD_ICONS[8]['(<$>)']"), undefined);
+    assert.equal(app.run("FUNCTION_CARD_ICONS[20]['(<$>)']"), undefined);
     const restored = game(app.saved()); restored.run('render(); runLiveCheck();');
     assert.equal(restored.run('getCodeFromEditor()'), app.run('getCodeFromEditor()'));
     assert.equal(restored.run('completedLevels.has(currentLevel)'), true);
@@ -45,7 +45,7 @@ test('TIE fighter enforces the new supplies, final input and useful copies', () 
   assert.equal(app.run(`typeCheck(LEVELS[6], ${JSON.stringify(early)}).ok`), true);
   assert.match(app.run(`checkSolution(LEVELS[6], ${JSON.stringify(early)}).msg`), /pass z once in the final row/);
   assert.equal(app.run('cardUsageIncreaseError(LEVELS[6], "f1 z", "let r1 = f1 z in f2 z") !== null'), true);
-  assert.deepEqual(app.read("LEVELS.filter(level => level.funcs.some(f => f.name === '(<$>)')).map(level => level.level)"), [14, 16]);
+  assert.deepEqual(app.read("LEVELS.filter(level => level.funcs.some(f => f.name === '(<$>)')).map(level => level.level)"), []);
 });
 
 test('old TIE fighter work survives refresh and only its outdated completion is removed', () => {

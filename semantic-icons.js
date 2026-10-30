@@ -256,77 +256,108 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     }
   }
   const data = {
-    1: { wrap: ['Wrap a value', 'Put a value inside Zero, keeping the same value and its type.'] },
-    2: { f: ['Change Zero to Hero', 'Change Zero to Hero, keeping the same value.'] },
-    3: {
+    'wrap-value': { wrap: ['Wrap a value', 'Put a value inside Zero, keeping the same value and its type.'] },
+    'change-wrapper': { f: ['Change Zero to Hero', 'Change Zero to Hero, keeping the same value.'] },
+    'compose-two': {
       runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
       mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
     },
-    4: {
+    'make-pair': {
       f1: ['Zero → Hero', 'Change Zero to Hero, keeping its value.'],
       f2: ['Unwrap and duplicate', 'Take Zero’s value and duplicate it into a pair.'],
       f3: ['Duplicate inside Hero', 'Duplicate Hero’s value into a pair inside Hero.'],
     },
-    5: {
+    'match-types': {
       f1: ['Swap; make Hero', 'Swap the two slots and change Zero to Hero.'],
       f2: ['Matching slots → Hero', 'Change Zero to Hero when both slots have the same type.'],
       f3: ['Swap slots', 'Swap the two slots inside Zero.'],
       f4: ['Repeat second slot', 'Replace the first slot with a copy of the second.'],
     },
-    6: {
+    'nested-pairs': {
       fst: ['Take left item', 'Take the first item of a pair.'],
       snd: ['Take right item', 'Take the second item of a pair.'],
       f1: ['Pair in second slot', 'Keep Zero’s first slot and put both original values into a pair in its second slot.'],
       f2: ['Reversed pair in Hero', 'Put Zero’s two values into Hero as a reversed pair.'],
       f3: ['Split into two Heroes', 'Put each Zero slot into its own Hero, returning a pair of Heroes.'],
     },
-    7: {
+    'rearrange-slots': {
       f1: ['Swap first and last', 'Swap Zero’s first and last slots; keep the middle slot.'],
       f2: ['Repeat last slot', 'Keep the first slot and replace the middle slot with a copy of the last.'],
       f3: ['Last two → Hero', 'Keep Zero’s last two slots and put them in Hero.'],
     },
-    8: {
+    'reverse-applicative': {
       f1: ['Use first to make second', 'Use Zero to produce a function from its first slot type to its second.'],
       f2: ['Second → Hero third', 'Use Zero to produce a function from its second slot type to Hero of its third.'],
       f3: ['Take first slot', 'Take the first value out of Zero.'],
     },
-    9: {
+    'map-middle': {
       bd: ['Square to triangle', 'Convert the concrete square type B to the concrete triangle type D.'],
       fmap: ['Map the last slot', 'Apply the supplied function to Zero’s last slot; keep the first two slots.'],
       f1: ['Last slot to front', 'Rotate Zero’s last slot to the front.'],
       f2: ['Zero → Hero', 'Change Zero to Hero, keeping all three slots.'],
     },
-    10: {
+    'longer-composition': {
       f1: ['Duplicate first two', 'Keep the first two slots and duplicate each: a, a, b, b.'],
       f2: ['Duplicate last two', 'Put copies of Zero’s last two slots in Hero: c, c, d, d.'],
       f3: ['Reverse four slots', 'Reverse the order of all four Zero slots.'],
     },
-    11: {
+    'curried-application': {
       f1: ['Apply first to second', 'Apply the function in slot 1 to slot 2. Replace slot 1 with (), and slot 2 with the result.'],
       f2: ['First slot to end', 'Rotate Zero’s first slot to the end.'],
       f3: ['Last slot → Hero', 'Take Zero’s last slot and put it in Hero.'],
     },
-    12: {
+    'flatten-wrappers': {
       wrap: ['Two Hero layers', 'Move Zero’s value inside two nested Hero layers.'],
       join: ['Flatten Hero layers', 'Flatten two nested Hero layers into one.'],
     },
-    13: {
+    'bind': {
       f: ['Zero → Hero', 'Change Zero to Hero, keeping its value.'],
       dup: ['Duplicate into Hero', 'Duplicate a value into a pair inside Hero.'],
     },
-    14: {
+    'map-wrapper': {
       f: ['Pair inside Hero', 'Put Zero’s two slots into Hero as an ordered pair.'],
       swap: ['Swap pair items', 'Swap the first and second items of a pair.'],
     },
-    15: {
+    'chain-wrapped': {
       f: ['Zero → Hero', 'Change Zero to Hero, keeping its value.'],
       dup: ['Duplicate into Hero', 'Duplicate a value into a pair inside Hero.'],
       nest: ['Nested pair in Hero', 'Make a Hero containing a value and a nested pair, all of the same type.'],
     },
-    16: {
+    'shared-input': {
       f: ['Take first slot', 'Take the first value out of Zero.'],
       g: ['Take second slot', 'Take the second value out of Zero.'],
       pair: ['Pair inside Hero', 'Combine two arguments into an ordered pair inside Hero.'],
+    },
+    'compose-three': {
+      runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
+      mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
+      dup: ['Duplicate inside Hero', 'Duplicate Hero’s value into a pair inside Hero.'],
+    },
+    'select-pair': { snd: ['Take right item', 'Take the second item of a pair.'] },
+    'concrete-conversion': { bd: ['Square to triangle', 'Convert the concrete square type B to the concrete triangle type D.'] },
+    'compose-forward': {
+      runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
+      mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
+    },
+    'map-last': {
+      bd: ['Square to triangle', 'Convert the concrete square type B to the concrete triangle type D.'],
+      fmap: ['Map the last slot', 'Apply the supplied function to Zero’s last slot; keep the first two slots.'],
+    },
+    'stored-application': {
+      apply: ['Apply stored function', 'Apply the function in Zero’s first slot to its second slot. Keep the result in the second slot; () marks the emptied first slot.'],
+      finish: ['Last slot → Hero', 'Take Zero’s last slot and put it in Hero.'],
+    },
+    'map-function': {
+      runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
+      mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
+    },
+    'reverse-arguments': {
+      runZero: ['Unwrap Zero', 'Unwrap Zero and take its value.'],
+      mkHero: ['Wrap in Hero', 'Put a value inside Hero.'],
+    },
+    'compose-wrapped': {
+      f: ['Zero → Hero', 'Change Zero to Hero, keeping its value.'],
+      dup: ['Duplicate into Hero', 'Duplicate a value into a pair inside Hero.'],
     },
   };
   const operatorData = {
@@ -336,6 +367,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     '>>>': ['Compose forward', 'Run the first transformation, then the second.'],
     '>=>': ['Compose through Hero', 'Run the first transformation, then feed its Hero value into the second.'],
     '<**>': ['Apply forward', 'Combine shared-input functions, taking the value-producing function first.'],
+    fmap: ['Map', 'Transform a wrapped value, or the result of a function.'],
     '<$>': ['Map', 'Transform a wrapped value, or the result of a function.'],
     '<*>': ['Applicative apply', 'Apply inside Hero, or combine two functions that share the same input.'],
     '>>=': ['Bind', 'Feed Hero’s value into a function that returns Hero.'],
@@ -350,7 +382,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     const labels = captions[level.level] = {}, details = descriptions[level.level] = {};
     for (const func of level.funcs) {
       const bare = func.name.replace(/^\((.*)\)$/, '$1');
-      const info = data[level.level][bare] || operatorData[bare];
+      const info = data[level.id]?.[bare] || operatorData[bare];
       if (!info) throw new Error(`Missing icon description: level ${level.level}, ${bare}`);
       labels[bare] = labels[func.name] = info[0];
       details[bare] = details[func.name] = info[1];
@@ -363,8 +395,8 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     names.forEach((name, i) => {
       const type = args[i];
       const info = type.tag === 'fun' ? `Function from ${typeToString(type.from)} to ${typeToString(type.to)}.`
-        : name === 'z' ? (level.name === 'The roller coaster' ? 'Zero holding a function and three arguments.' : 'Your starting Zero value.')
-        : 'Your starting value, before it is wrapped.';
+        : level.id === 'curried-application' ? 'Zero holding a function and three arguments.'
+        : `Your starting value of type ${typeToString(type)}.`;
       labels[name] = details[name] = info;
       map[name] = renderType(fixedType(type), `${name}: ${info} Type: ${typeToString(type)}`, [], null, true);
     });

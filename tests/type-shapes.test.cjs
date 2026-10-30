@@ -6,7 +6,7 @@ const atoms = svg => [...svg.matchAll(/data-type="([^"]+)"/g)].map(match => matc
 
 test('generic types are dotted, concrete types are hollow, and values are filled', () => {
   const app = game();
-  const palette = app.run('FUNCTION_CARD_ICONS[16].pair');
+  const palette = app.run('FUNCTION_CARD_ICONS[19].pair');
   assert.deepEqual(markers(palette), ['1', '2', '1', '2']);
   assert.match(palette, /class="generic-outline" fill="none"/);
   assert.match(palette, /<ellipse /);

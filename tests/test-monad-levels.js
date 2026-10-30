@@ -20,7 +20,7 @@ const path = require('path');
   // Select by the current lesson group and validate the complete puzzle rules,
   // including unary steps, exact supplies and the final use of z.
   const results = await p.evaluate(() => {
-    return LEVELS.filter(level => level.level >= 12).map(level => {
+    return LEVELS.filter(level => ['flatten-wrappers', 'bind', 'map-wrapper', 'chain-wrapped', 'shared-input'].includes(level.id)).map(level => {
       const result = checkSolution(level, level.solution);
       const inferred = liveInfer(level, level.solution);
       return {
@@ -45,7 +45,7 @@ const path = require('path');
   // Open the flattening puzzle directly in the test fixture.
   console.log('\n--- UI test: flattening puzzle ---');
   await p.evaluate(() => {
-    currentLevel = LEVELS.findIndex(level => level.name === 'Flat is justice');
+    currentLevel = LEVELS.findIndex(level => level.id === 'flatten-wrappers');
     iconMode = false; showIntro = false; render();
   });
   {

@@ -13,7 +13,7 @@ test('named generic types have the same shape in every palette regardless of enc
   }))`);
   assert.deepEqual(failures, []);
   assert.deepEqual(markers(app.run("FUNCTION_CARD_ICONS[3]['(.)']")), [2, 3, 1, 2, 1, 3]);
-  assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[9].fmap')), [3, 4, 1, 2, 3, 1, 2, 4]);
+  assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[15].fmap')), [3, 4, 1, 2, 3, 1, 2, 4]);
 });
 
 test('a placed function keeps its shapes and its result carries them through later uses', () => {
@@ -58,8 +58,8 @@ test('distinct unresolved types never share a shape within a result in any level
 
 test('actual swaps and rotations remain visible while unrelated type positions stay stable', () => {
   const app = game();
-  assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[14].swap')), [1, 2, 2, 1]);
-  assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[9].f1')), [1, 2, 3, 3, 1, 2]);
+  assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[11].swap')), [1, 2, 2, 1]);
+  assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[15].f1')), [1, 2, 3, 3, 1, 2]);
   app.run('currentLevel = 7; setEditorContent(LEVELS[7].solution); diagnoseRows();');
   for (const index of [2, 4, 6, 8]) {
     // The input to each progressively composed transformation stays circle,

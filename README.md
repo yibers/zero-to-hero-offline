@@ -19,7 +19,7 @@ The original game also features **GeckoGraph**, a visual notation for polymorphi
 This reimplements the game with no server dependencies:
 
 - **Client-side type checker** — Hindley-Milner type inference engine written in JavaScript, replacing the original's server-side GHC calls
-- **16 puzzles** — a wrapping introduction, the introductory composition puzzle, and increasingly complex transformations built before applying the starting value
+- **25 puzzles** — one new concept at a time, followed by practice and combinations of familiar operations
 - **GeckoGraph rendering** — SVG-based gecko graph visualization running entirely in the browser
 - **Self-hosted fonts** — Fira Code, Exo, and Orbitron in `fonts/` (OFL licensed)
 - **Offline-capable** — Works by opening `index.html` directly, no web server needed
@@ -30,7 +30,7 @@ This reimplements the game with no server dependencies:
 index.html      — Main app and type checker
 update-check.js — Automatic release checks and progress-preserving reloads
 version.json    — Generated release marker
-levels.js       — 16 puzzle definitions
+levels.js       — 25 puzzle definitions
 semantic-icons.js — SVG type patterns and per-level action descriptions
 row-program.js  — Expression parsing, row validation and migration
 puzzle-rules.js — Target checking and required-function dependency checks
@@ -54,7 +54,7 @@ tests/          — Playwright + unit tests
 
 ### Additional features
 
-- **Fixed row slots** — a level with N supplied function copies has N slots from the start: N − 1 construction steps and one automatic final application. Clearing, replacing, undoing or completing steps never creates, removes or renumbers a slot. Levels 1 and 2 have one slot that applies the supplied transformation directly to the starting value.
+- **Fixed row slots** — a level with N supplied function copies has N slots from the start: N − 1 construction steps and one automatic final application. Clearing, replacing, undoing or completing steps never creates, removes or renumbers a slot. Single-card introductory levels have one slot that applies the supplied transformation directly to the starting value.
 - **One function argument per construction step** — each editable row applies one function to exactly one function and returns a function. A type `a -> b -> c` appears as one input `a` leading to a boxed function `b -> c`. The same boxes appear in the palette, function inputs and outputs. Apply returned functions in later rows. Operators use parenthesized prefix names. Text mode uses one `let` binding per application and the final `in` expression.
 - **Automatic carry-forward** — Generated functions continue directly into the next row and never become palette cards. A combinator becomes the next head; a transformation becomes the next fixed input. Mixed lessons leave a plus button for choosing the receiving combinator. Initial combinator cards support dragging or tapping; initial transformations are supplied by tapping an empty input. Construction rows show only the function/input area, without a repeated output diagram. Palette cards support Enter/Space selection. Text mode supports tapping to insert at the caret.
 - **Exact function supplies** — every initial function copy and every generated function must be used exactly once in the solution. Multiple initial copies have a remaining-count badge. Exhausted cards disappear. The same rules apply to text mode, including rejecting discarded or reused generated functions. There is no conciseness score.
@@ -112,46 +112,47 @@ named unary rows when entering icon mode; saved text drafts remain available.
 
 Background: [the stricter LNF convention in resource-analysis research](https://www.cambridge.org/core/journals/mathematical-structures-in-computer-science/article/two-decades-of-automatic-amortized-resource-analysis/9A47A8663CD8A7147E2F17865C368094).
 
-## Required functions by level
+## Learning progression
 
-Every supplied copy is required; each function has an exact usage count. The palette follows the learning goal, including higher-order functions even when manual steps could reach the same target. Every level has one starting value, reserved for its final application. All supplied transformations belong to the function palette.
+Each level introduces one idea or gives a harder use of familiar operations. Short introductions precede the longer synthesis puzzles. Level titles describe the concept or practice goal; the learning objective is also recorded in each puzzle definition.
 
-| Level | Functions |
-| --- | --- |
-| 1 | `wrap` |
-| 2 | `f` |
-| 3 | `runZero`, `mkHero`, `(.)` |
-| 4 | `f1`, `f3`, `(.)` |
-| 5 | `f2`, `f4`, `(.)` |
-| 6 | `snd`, `f1`, `f3`, `(.)` |
-| 7 | `f1`, `f2`, `f3`, `(.)` |
-| 8 | `f1`, `f2`, `f3`, `(<**>)` ×2 |
-| 9 | `bd`, `fmap`, `f1` ×3, `f2`, `(.)`, `(>>>)` ×3 |
-| 10 | `f1`, `f2`, `f3`, `(.)` |
-| 11 | `f1`, `f2`, `f3`, `(.)` |
-| 12 | `wrap`, `join`, `(.)` |
-| 13 | `f`, `dup`, `(>>=)`, `flip`, `(.)` |
-| 14 | `f`, `swap`, `(<$>)`, `(.)` |
-| 15 | `f`, `dup`, `nest`, `(>=>)` ×2 |
-| 16 | `f`, `g`, `pair`, `(<$>)`, `(<*>)` |
+Every supplied copy is required exactly once. Every construction step uses functions only, every generated function continues immediately into the next row, and the one starting value is applied only at the end. These rules hold for all 25 reference solutions.
 
-Level 1 starts with a plain value and supplies `wrap :: a -> Zero a`. Its goal is that same value inside Zero. In `Zero a`, `Zero` is a type constructor and `a` is the type of the contained value; the game displays type shapes rather than concrete contents such as numbers.
+| Level | Title | Learning focus | Required functions |
+| --- | --- | --- | --- |
+| 1 | Wrap a value | Put a value inside a wrapper without changing its type. | `wrap` |
+| 2 | Change a wrapper | Replace Zero with Hero while keeping the contained type. | `f` |
+| 3 | Compose two functions | Connect two transformations by matching the intermediate type. | `runZero`, `mkHero`, `(.)` |
+| 4 | Make a pair | Duplicate a value into a pair inside Hero. | `f1`, `f3`, `(.)` |
+| 5 | Match repeated types | Make repeated generic slots agree before changing the wrapper. | `f2`, `f4`, `(.)` |
+| 6 | Compose three functions | Extend a familiar two-function composition by one more transformation. | `runZero`, `mkHero`, `dup`, `(.)` ×2 |
+| 7 | Rearrange slots | Reorder and duplicate slots to meet a transformation’s input. | `f1`, `f2`, `f3`, `(.)` ×2 |
+| 8 | Build a longer composition | Plan a longer chain using repeated duplication and rearrangement. | `f1` ×2, `f2`, `f3`, `(.)` ×3 |
+| 9 | Select from a pair | Use snd to keep the second component of a pair. | `snd` |
+| 10 | Work with nested pairs | Select a component after building and splitting a nested pair. | `snd`, `f1`, `f3`, `(.)` ×2 |
+| 11 | Map inside a wrapper | Use fmap to change the contents of Hero without removing its wrapper. | `f`, `swap`, `fmap`, `(.)` |
+| 12 | Convert a concrete type | Convert the fixed type B to D; fixed types are not interchangeable generic slots. | `bd` |
+| 13 | Compose left to right | Use >>> to supply transformations in their execution order. | `runZero`, `mkHero`, `(>>>)` |
+| 14 | Map one of several slots | Use fmap on the last slot of Zero while its earlier slots stay unchanged. | `bd`, `fmap` |
+| 15 | Map the middle slot | Combine mapping, rotations and both composition directions to change the middle slot. | `bd`, `fmap`, `f1` ×3, `f2`, `(.)`, `(>>>)` ×3 |
+| 16 | Apply a stored function | Apply the function stored beside its argument; () marks the emptied slot. | `apply`, `finish`, `(.)` |
+| 17 | Apply a curried function | Apply a stored function one argument at a time, rotating between applications. | `f1` ×3, `f2` ×4, `f3`, `(.)` ×7 |
+| 18 | Map a function’s output | Use fmap on functions to transform their output, keeping the same input. | `runZero`, `mkHero`, `fmap` |
+| 19 | Share an input with &lt;*&gt; | Combine two functions that receive the same final input. | `f`, `g`, `pair`, `fmap`, `(<*>)` |
+| 20 | Reverse applicative application | Use <**> to take the value-producing function before the function-producing one. | `f1`, `f2`, `f3`, `(<**>)` ×2 |
+| 21 | Flatten nested wrappers | Use join to remove one layer of a nested Hero wrapper. | `wrap`, `join`, `(.)` |
+| 22 | Reverse argument order | Use flip to reverse the two function arguments of familiar composition. | `runZero`, `mkHero`, `(.)`, `flip` |
+| 23 | Bind a wrapped result | Use >>= to feed a wrapped value into a function that returns a wrapper. | `f`, `dup`, `(>>=)`, `flip`, `(.)` |
+| 24 | Compose wrapped results | Use >=> to connect two transformations that each return Hero. | `f`, `dup`, `(>=>)` |
+| 25 | Chain wrapped results | Extend Kleisli composition to three transformations that return Hero. | `f`, `dup`, `nest`, `(>=>)` ×2 |
 
-The former level 3, Assembly required, has been removed. Assembly by composition is now level 3, and every later level moves down by one number. Saved drafts, programs and completions move with their puzzles. A player on the removed level continues at composition; its old answer and solved mark do not transfer. The older pre-composition save format is still supported.
+The nine new introductions are levels 6, 9, 12, 13, 14, 16, 18, 22 and 24. All 16 existing puzzles remain. The former middle-slot puzzle (old level 9) is now level 15, after separate introductions to mapping, concrete conversion, forward composition and mapping the last slot. Bind is now level 23, after an introduction to `flip`. Shared-input application follows mapping a function’s output.
 
-Every reference solution now builds functions in its intermediate rows and applies the single starting value in its final row. Every generated function is used exactly once, enforced in both editor modes. Every level enforces function-only intermediate applications and the final-input rule, in addition to exact supplies. Icon mode creates the final application automatically; text mode exposes the equivalent explicit Haskell expression.
+Mapping consistently uses `fmap`; Haskell’s `(<$>)` is another spelling of the same operation. The game specializes mapping to Hero, Zero’s last slot, or function output as appropriate. `(<*>)` and `(<**>)` retain their Applicative constraints and support Hero and shared-input functions. The latter takes the value-producing function first; it is not a general claim that their effect ordering is interchangeable. `(>=>)` composes Hero-returning transformations. `($)` stays removed because rows already provide application.
 
-Level 8 (TIE fighter) uses two copies of standard `(<**>) :: Applicative f => f a -> f (a -> b) -> f b`, specialized to functions sharing the same input. `f3` extracts the first component; `f1` produces the next transformation; `f2` produces the final transformation into Hero. The chain carries every result forward and creates the Hero wrapper only at the end. The checker retains both Hero and function Applicative instances and rejects unsupported contexts.
+Level 1 starts with a plain value and supplies `wrap :: a -> Zero a`. In `Zero a`, `Zero` is a type constructor and `a` is the type of the contained value. The shapes describe types and indicate where values occur; they do not display concrete contents such as numbers. The pair-selection and concrete-conversion introductions also use direct final applications, without an unnecessary construction step.
 
-Level 9 (The middle man) keeps `Zero a B c -> Hero a D c`, `bd`, `fmap`, three rotations and the Hero conversion. One `(.)` puts the initial rotation before the mapped transformation; three forward compositions `(>>>)` append the remaining rotations and conversion. The standard function specialization is `(a -> b) -> (b -> c) -> a -> c`. Its reference rows carry every result immediately.
-
-Level 15 (Double bind) uses two copies of standard Kleisli composition `(>=>)`, specialized to Hero: `(a -> Hero b) -> (b -> Hero c) -> a -> Hero c`. It chains `f`, `dup`, and `nest` before the automatic final application. Level 13 still introduces bind through `flip (>>=)`; level 12 teaches `join`, and level 14 maps inside Hero with `(<$>)`.
-
-Level 16 (Applicative hero) has plain projections `f :: Zero a b -> a` and `g :: Zero a b -> b`, with `pair :: a -> b -> Hero (a, b)`. One `(<$>)`, specialized to the function Functor, and one standard `(<*>)` build the transformation into `Hero (b, a)`. Both projections share the one final input internally; the player supplies it only once. Nested Applicative layers are left for a future lesson.
-
-All sixteen reference solutions follow immediate continuation. The existing functions and goals of levels 6, 7, 10 and 11 are unchanged; their composition reference rows are associated in a continuous order. Saved drafts survive these changes, including full legacy sources that exceed a redesigned level's slot count. Changed or deferred solutions lose their outdated completion mark once. Use Clear level to restart with the new supplies.
-
-`($)` stays removed because rows already provide application and intermediate results.
+Saved progress stays attached to the same puzzle: array positions are persistent save identities, new puzzles are appended, and displayed numbers determine navigation. Stable puzzle IDs identify descriptions and old migrations independently of titles. Existing drafts, achievements, display preferences and the current puzzle survive the reorder. The two renamed mapping palettes migrate `(<$>)` to `fmap` in saved code and rows once; new lessons start unsolved. Finishing the last level returns to the first unsolved lesson, including any new introductions. Older ordering and continuation migrations are still supported.
 
 ## Running
 

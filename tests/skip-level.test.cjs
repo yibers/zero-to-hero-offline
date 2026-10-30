@@ -25,13 +25,13 @@ for (const icons of [true, false]) {
 
 test('skip follows displayed order, never solves a level, and stops at the final puzzle', () => {
   const app = game();
-  for (let number = 2; number <= 16; number++) {
+  for (let number = 2; number <= 25; number++) {
     app.run('skipLevel();');
     assert.equal(app.run('LEVELS[currentLevel].level'), number);
     assert.equal(app.run('completedLevels.size'), 0);
   }
   app.run('skipLevel();');
-  assert.equal(app.run('LEVELS[currentLevel].level'), 16);
+  assert.equal(app.run('LEVELS[currentLevel].level'), 25);
   assert.equal(app.run('showComplete'), false);
   assert.match(app.nodes.app.innerHTML, /id="skip-level"[^>]*disabled/);
 });
