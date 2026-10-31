@@ -121,7 +121,7 @@ function callVariables(head, actuals, subst, generatedHead = false) {
     }
   }
   // Generic input templates can retain aliases of the same unified variable.
-  // A slot assigned a whole compound type needs its own distinct outer shape.
+  // Keep their original markers available while unresolved.
   for (const diagram of [head, ...actuals.filter(Boolean)]) {
     for (const [name, marker] of diagram.variables) {
       const resolved = applySubst(subst, { tag: 'var', name });

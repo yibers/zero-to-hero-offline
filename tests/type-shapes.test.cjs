@@ -70,12 +70,13 @@ test('automatic starting values replace generic slots and completed results stay
   assert.deepEqual(markers(reused), []);
 });
 
-test('a generic slot can hold a whole compound type without losing its structure', () => {
+test('a resolved compound type replaces its generic slot without an enclosing dotted shape', () => {
   const app = game();
   const svg = app.run(`renderSemanticType(fixedSemanticType('Hero (a, b)'), 'Compound binding', ['x'], parseType('x'))`);
-  assert.deepEqual(markers(svg), ['1']);
+  assert.deepEqual(markers(svg), []);
   assert.deepEqual(atoms(svg), ['a', 'b']);
-  assert.match(svg, /class="type-binding"/);
+  assert.doesNotMatch(svg, /type-binding|generic-outline/);
+  assert.match(svg, /fill="none" stroke="#d97706"/);
   assert.match(svg, /data-diagram-type="Hero \(SKOLEMa, SKOLEMb\)"/);
   assert.match(svg, /data-diagram-template="x"/);
   const value = app.run(`renderSemanticType(fixedSemanticType('Hero (a, b)'), 'Compound value', ['x'], parseType('x'), true)`);
@@ -84,6 +85,22 @@ test('a generic slot can hold a whole compound type without losing its structure
   assert.doesNotMatch(value, /class="type-binding"/);
   assert.match(value, /fill="#d97706"/);
   assert.match(value, /fill="#0284c7"/);
+});
+
+test('resolved types inside returned functions lose their template outlines while unknown types keep their shapes', () => {
+  const app = game();
+  const signature = 'B -> Hero (D, pending)';
+  const svg = app.run(`renderSemanticType(parseType(${JSON.stringify(signature)}), 'Returned function',
+    [['input', 0], ['result', 1], ['pending', 2]], parseType('input -> result'))`);
+  assert.deepEqual(atoms(svg), ['b', 'd']);
+  assert.deepEqual(markers(svg), ['3']);
+  assert.doesNotMatch(svg, /type-binding/);
+  assert.match(svg, /class="function-value"/);
+  assert.doesNotMatch(svg, /fill="#[^"]+"/);
+  const resolved = app.run(`renderSemanticType(parseType('B -> Hero (D, B)'), 'Returned function',
+    ['input', 'result'], parseType('input -> result'))`);
+  assert.deepEqual(markers(resolved), []);
+  assert.doesNotMatch(resolved, /generic-outline|type-binding/);
 });
 
 test('function values retain their generic signature without the receiving slot frame', () => {

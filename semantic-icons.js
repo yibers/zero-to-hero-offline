@@ -55,17 +55,11 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     if (type.tag === 'app') return { ...type, con: fixedType(type.con), arg: fixedType(type.arg) };
     return type;
   }
-  function genericSlot(name, variables, type = null, maxWidth = Infinity, isValue = false) {
+  function genericSlot(name, variables) {
     if (!variables.has(name)) variables.set(name, Math.max(-1, ...variables.values()) + 1);
     const index = variables.get(name), count = index + 1;
-    const factor = index === 0 ? 1.6 : index === 1 ? 1 : 2;
-    const padding = index === 0 ? 10 : 16;
-    const content = type ? layout(type, Math.max(24, (maxWidth - padding) / factor), variables, null, isValue)
-      : { width: 24, height: 24, body: '' };
-    // Empty placeholders match the 24-unit footprint of concrete types/values.
-    // Only an explicitly nested specialization needs a larger enclosing shape.
-    const width = type ? content.width * factor + padding : 24;
-    const height = type ? content.height * factor + padding : 24;
+    // Only unresolved types have placeholders, at the same size as values.
+    const width = 24, height = 24;
     let shape;
     if (index === 0) shape = `<ellipse cx="${width / 2}" cy="${height / 2}" rx="${width / 2 - 2}" ry="${height / 2 - 2}"/>`;
     else if (index === 1) shape = `<rect x="2" y="2" width="${width - 4}" height="${height - 4}" rx="3"/>`;
@@ -79,11 +73,9 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       }).join(' ');
       shape = `<polygon points="${points}"/>`;
     }
-    const label = type ? `Type slot ${count}: assigned ${typeToString(type).replace(/SKOLEM/g, '')}`
-      : `Type placeholder ${count}: any type; matching gray shapes use the same type`;
-    return { width, height, body: `<g class="${type ? 'type-binding' : 'type-placeholder'}" data-variable="${escape(name)}" data-marker="${count}"><title>${escape(label)}</title>` +
-      `<g class="generic-outline" fill="none" stroke="#7c8797" stroke-width="1.8" stroke-dasharray="0.1 3.4" stroke-linecap="round" stroke-linejoin="round">${shape}</g>` +
-      move(content.body, (width - content.width) / 2, index === 3 ? height / 2 : (height - content.height) / 2) + '</g>' };
+    const label = `Type placeholder ${count}: any type; matching gray shapes use the same type`;
+    return { width, height, body: `<g class="type-placeholder" data-variable="${escape(name)}" data-marker="${count}"><title>${escape(label)}</title>` +
+      `<g class="generic-outline" fill="none" stroke="#7c8797" stroke-width="1.8" stroke-dasharray="0.1 3.4" stroke-linecap="round" stroke-linejoin="round">${shape}</g></g>` };
   }
   const arrow = y => outline(`<path d="M4 ${y}H20m-5-5 5 5-5 5"/>`, 1.8);
   function parts(type, limit = Infinity) {
@@ -145,8 +137,9 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
   function layout(type, maxWidth = Infinity, variables = new Map(), template = null, isValue = false, liveFlow = false) {
     // A placed value carries its own structure, not the generic slot it filled.
     if (isValue) template = null;
-    if (template?.tag === 'var') return genericSlot(template.name, variables, type.tag === 'var' ? null : type, maxWidth, isValue);
-    if (type.tag === 'var') return genericSlot(type.name, variables);
+    // A template preserves an unresolved variable's shape, but must never
+    // enclose a resolved type (including a pair, wrapper or returned function).
+    if (type.tag === 'var') return genericSlot(template?.tag === 'var' ? template.name : type.name, variables);
     if (type.tag === 'con' && (type.name.startsWith('SKOLEM') || /^(B|D)$/.test(type.name))) {
       const name = type.name.startsWith('SKOLEM') ? type.name.slice(6) : type.name.toLowerCase();
       let mark = marks[name] || outline('<circle cx="12" cy="12" r="10"/>');
