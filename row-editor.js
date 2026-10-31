@@ -47,8 +47,8 @@ function rowSymbol(name, width, diagram = null, inputsOnly = false) {
   if (iconMode && diagram) {
     const label = name + ': ' + rowTypeSignatures([diagram.type], diagram.variables)[0];
     const picture = diagram.arity === undefined
-      ? renderSemanticType(diagram.type, label, diagram.variables, diagram.template, diagram.isValue)
-      : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables, inputsOnly, diagram.template);
+      ? renderSemanticType(diagram.type, label, diagram.variables, diagram.template, diagram.isValue, diagram.liveFlow)
+      : renderSemanticTransformation(diagram.type, label, diagram.arity, diagram.variables, inputsOnly, diagram.template, diagram.liveFlow);
     const reference = /^r\d+$/.test(name) ? ' row-ref rendered-ref' : '';
     return `<span class="icon-sym semantic-icon${reference}" title="${escHtml(label)}">${picture}</span>`;
   }
@@ -202,6 +202,70 @@ function diagnoseRows() {
       return { error: errors[index] || normalizeTypeError(e.message), expected: call?.expected, call };
     }
   });
+  const previews = sourceRowPreviews(level, rows, rowDiagnostics);
+  rowDiagnostics.forEach((diagnostic, index) => { if (previews[index]) diagnostic.preview = previews[index]; });
+}
+
+// Display-only specialization of the connected construction prefix. Generated
+// bindings share their type with the next use; supplied card copies remain
+// independently polymorphic. The goal is never a source of preview constraints.
+function sourceRowPreviews(level, rows, diagnostics) {
+  const { input, params } = functionProgramContext(level), source = params[input];
+  const previews = [], byName = new Map(rows.map((row, index) => [row.id, index]));
+  let graph = {}, lastComplete = -1;
+  function anchor(type, bindings) {
+    type = applySubst(bindings, type);
+    // A partially built combinator still needs function arguments before the
+    // source can flow through it. Leave an ambiguous curried input unresolved.
+    while (type.tag === 'fun' && type.from.tag === 'fun') type = type.to;
+    if (type.tag !== 'fun' || type.from.tag === 'var' && type.to.tag === 'fun') return null;
+    return unify(type.from, source, bindings);
+  }
+  function project(diagnostic, bindings) {
+    function diagram(value, liveFlow = false) {
+      if (!value) return value;
+      const variables = new Map();
+      for (const [name, marker] of value.variables || []) {
+        const resolved = applySubst(bindings, { tag: 'var', name });
+        if (resolved.tag === 'var' && !variables.has(resolved.name)) variables.set(resolved.name, marker);
+      }
+      return { ...value, type: applySubst(bindings, value.type), variables: [...variables], template: null, liveFlow };
+    }
+    const call = diagnostic.call;
+    return {
+      diagram: diagram(diagnostic.diagram, true),
+      call: { ...call, diagram: diagram(call.diagram),
+        inputDiagrams: call.inputDiagrams.map(value => diagram(value)),
+        arguments: call.arguments.map(value => diagram(value, true)),
+        result: diagram(call.result, true), expected: diagram(call.expected) }
+    };
+  }
+  if (!source) return previews;
+  for (const [index, row] of rows.entries()) {
+    const diagnostic = diagnostics[index], call = diagnostic.call;
+    if (row.automatic || row.automaticInput || !call || call.name === '_') break;
+    if (index && (lastComplete !== index - 1 || !rowDependencySource(rows, index))) break;
+    const complete = !diagnostic.error && call.args.length === 1;
+    if (!complete && call.args.length) break;
+    let next = graph;
+    for (const [name, type] of [[call.name, call.diagram.type], ...call.args.map((name, i) => [name, call.arguments[i]?.type])]) {
+      const producer = byName.get(name);
+      if (producer === undefined) continue;
+      if (producer >= index || !type || !diagnostics[producer].diagram) { next = null; break; }
+      next = unify(diagnostics[producer].diagram.type, type, next);
+      if (!next) break;
+    }
+    if (!next) break;
+    graph = next;
+    if (complete) lastComplete = index;
+    if (lastComplete < 0) break;
+    const bindings = anchor(diagnostics[lastComplete].diagram.type, graph);
+    if (bindings) {
+      for (let i = 0; i <= index; i++) previews[i] = project(diagnostics[i], bindings);
+    }
+    if (!complete) break;
+  }
+  return previews;
 }
 
 function availableGeneratedFunctions() {
@@ -379,7 +443,7 @@ function mountRowEditor() {
     diagnoseRows();
     const rows = getRows(), solved = checkSolution(level, RowProgram.source(rows)).ok;
     sections().forEach((section, index) => {
-      const row = rows[index], diagnostic = rowDiagnostics[index], call = diagnostic.call;
+      const row = rows[index], diagnostic = rowDiagnostics[index], call = (diagnostic.preview || diagnostic).call;
       const linked = !!continuationSource(rows, index);
       const carried = continuationArgument(rows, index), pendingHead = RowProgram.call(row.expr)?.name === '_';
       const defaultHead = !!automaticCombinator(level) && automaticCombinator(level).replace(/^\(|\)$/g, '') === call?.name;
@@ -410,7 +474,7 @@ function mountRowEditor() {
         // The starting value has its own source row above construction.
         holder.replaceChildren();
       } else if (pendingHead && carried) {
-        const diagram = rowDiagnostics[index - 1]?.diagram;
+        const previous = rowDiagnostics[index - 1], diagram = (previous?.preview || previous)?.diagram;
         holder.setAttribute('aria-label', `Choose a combinator for row ${index + 1}`);
         holder.innerHTML = `<button type="button" class="pending-head-choice" aria-label="Function for row ${index + 1}"><span aria-hidden="true">＋</span></button><span class="carried-input" role="img" aria-label="Input ${escHtml(carried)} from the previous row is fixed">${rowSymbol(carried, null, diagram && { ...diagram, isValue: true })}</span>`;
       } else if (call) {

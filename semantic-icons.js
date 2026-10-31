@@ -121,13 +121,13 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
     return { width, height, body: outline(shape(width, height)) + move(content.body, padding.x, padding.y) };
   }
   const rectangle = (w, h) => `<rect x="1" y="1" width="${w - 2}" height="${h - 2}" rx="4"/>`;
-  function flow(args, result, maxWidth = Infinity, variables = new Map(), inputsOnly = false, template = null) {
+  function flow(args, result, maxWidth = Infinity, variables = new Map(), inputsOnly = false, template = null, liveFlow = false) {
     const pattern = template ? parts(template, args.length) : null;
-    const inputs = row(args.map((type, i) => layout(type, maxWidth, variables, pattern?.args[i])), 6, maxWidth);
+    const inputs = row(args.map((type, i) => layout(type, maxWidth, variables, pattern?.args[i], liveFlow)), 6, maxWidth);
     // Row heads share their output with the separate result card. Preserve
     // complete diagrams within inputs that are themselves functions.
     if (inputsOnly) return { ...inputs, body: `<g class="icon-inputs">${inputs.body}</g>` };
-    const output = layout(result, maxWidth, variables, pattern?.result);
+    const output = layout(result, maxWidth, variables, pattern?.result, liveFlow);
     if (inputs.width + 28 + output.width > maxWidth) {
       const width = Math.max(inputs.width, output.width);
       const center = width / 2, arrowTop = inputs.height + 4;
@@ -142,7 +142,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         move(arrow(height / 2), inputs.width + 2, 0) +
         `<g class="icon-output">${move(output.body, inputs.width + 28, (height - output.height) / 2)}</g>` };
   }
-  function layout(type, maxWidth = Infinity, variables = new Map(), template = null, isValue = false) {
+  function layout(type, maxWidth = Infinity, variables = new Map(), template = null, isValue = false, liveFlow = false) {
     // A placed value carries its own structure, not the generic slot it filled.
     if (isValue) template = null;
     if (template?.tag === 'var') return genericSlot(template.name, variables, type.tag === 'var' ? null : type, maxWidth, isValue);
@@ -154,11 +154,12 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       return { width: 24, height: 24, body: `<g class="type-atom" data-type="${escape(name)}">${mark}</g>` };
     }
     if (type.tag === 'fun') {
-      // A function value is pictured by its signature: these inner shapes
-      // describe input/output types, not values that have already been supplied.
+      // Definitions and stored function values show type outlines. Only an
+      // explicit source preview fills the data flowing through this function;
+      // nested function values retain their own unfilled signatures.
       const pattern = template?.tag === 'fun' ? template : null;
       const { args, result } = parts(type, 1);
-      const boxed = frame(flow(args, result, Math.max(24, maxWidth - 12), variables, false, pattern), { x: 6, y: 6 }, rectangle);
+      const boxed = frame(flow(args, result, Math.max(24, maxWidth - 12), variables, false, pattern, liveFlow), { x: 6, y: 6 }, rectangle);
       return { ...boxed, body: `<g class="function-value">${boxed.body}</g>` };
     }
     const { head, args } = type.tag === 'app' ? flattenApp(type) : { head: type, args: [] };
@@ -184,16 +185,16 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       `<path d="M${w - 16} 2l4 7q6 4 5 11l5 2v4l-5 1q-2 ${h - 35} -14 ${h - 35}L8 ${h - 2}l3-8-9 3L8 ${h / 2 + 7} 1 ${h / 2 + 2} 9 ${h / 2 - 6} 4 10H${w - 24}q5-5 9-1Z"/>`);
     throw new Error('No pictogram for type constructor ' + head.name);
   }
-  function picture(label, diagram, className = '', type = null, arity = null, variables = new Map(), inputsOnly = false, template = null, isValue = false) {
+  function picture(label, diagram, className = '', type = null, arity = null, variables = new Map(), inputsOnly = false, template = null, isValue = false, liveFlow = false) {
     const attributes = type ? ` data-diagram-type="${escape(typeToString(type))}" data-diagram-variables="${escape(JSON.stringify([...variables]))}"${arity === null ? '' : ` data-diagram-arity="${arity}"`}${template ? ` data-diagram-template="${escape(typeToString(template))}"` : ''}` : '';
     return svg(label, `<g${className ? ` class="${className}"` : ''}>${move(diagram.body, 2, 2)}</g>`, diagram.width + 4, diagram.height + 4)
-      .replace('<svg ', `<svg${attributes}${isValue ? ' data-diagram-value="true"' : ''}${inputsOnly ? ' data-diagram-inputs-only="true"' : ''} `);
+      .replace('<svg ', `<svg${attributes}${isValue ? ' data-diagram-value="true"' : ''}${liveFlow ? ' data-diagram-preview="true"' : ''}${inputsOnly ? ' data-diagram-inputs-only="true"' : ''} `);
   }
-  function transformation(signature, label, arity = 1, variableNames = [], inputsOnly = false, template = null) {
+  function transformation(signature, label, arity = 1, variableNames = [], inputsOnly = false, template = null, liveFlow = false) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
     arity = 1;
     const { args, result } = parts(type, arity), variables = variableMap(semanticVariables(type, variableNames));
-    return picture(label, flow(args, result, Infinity, variables, inputsOnly, template), '', type, arity, variables, inputsOnly, template);
+    return picture(label, flow(args, result, Infinity, variables, inputsOnly, template, liveFlow), '', type, arity, variables, inputsOnly, template, false, liveFlow);
   }
   const parsedTypes = new Map();
   function fit(root = document) {
@@ -214,6 +215,7 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
         if (choice) reserve += choice.getBoundingClientRect().width + (parseFloat(style.columnGap) || 0);
       }
       else if (node.closest('.row-result, .row-result-preview, .goal-picture')) { holder = node.closest('.row-flow'); reserve = 36; }
+      else if (node.closest('.program-source')) { holder = node.closest('.program-source'); reserve = 8; }
       else if (node.closest('.parameter-icon')) {
         holder = node.closest('.parameter-prefix');
         const badge = node.closest('.parameter-icon').querySelector('.function-stock');
@@ -245,8 +247,8 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       const template = pattern ? parsedTypes.get(pattern) : null;
       const { args, result } = arity === null ? {} : parts(type, Number(arity));
       const variables = variableMap(JSON.parse(node.dataset.diagramVariables));
-      const diagram = arity === null ? layout(type, budget, variables, template, node.dataset.diagramValue === 'true')
-        : flow(args, result, budget, variables, node.dataset.diagramInputsOnly === 'true', template);
+      const diagram = arity === null ? layout(type, budget, variables, template, node.dataset.diagramValue === 'true', node.dataset.diagramPreview === 'true')
+        : flow(args, result, budget, variables, node.dataset.diagramInputsOnly === 'true', template, node.dataset.diagramPreview === 'true');
       const width = diagram.width + 4, height = diagram.height + 4;
       const className = node.querySelector('.result-shape') ? 'result-shape' : '';
       node.innerHTML = `<title>${escape(node.getAttribute('aria-label'))}</title><g class="${className}">${move(diagram.body, 2, 2)}</g>`;
@@ -400,10 +402,10 @@ function createSemanticIcons(levels, parseType, flattenApp, typeToString) {
       map[name] = renderType(fixedType(type), `${name}: ${info} Type: ${typeToString(type)}`, [], null, true);
     });
   }
-  function renderType(signature, label = signature, variableNames = [], template = null, isValue = false) {
+  function renderType(signature, label = signature, variableNames = [], template = null, isValue = false, liveFlow = false) {
     const type = typeof signature === 'string' ? parseType(signature) : signature;
     const variables = variableMap(semanticVariables(type, variableNames));
-    return picture(label, layout(type, Infinity, variables, template, isValue), 'result-shape', type, null, variables, false, template, isValue);
+    return picture(label, layout(type, Infinity, variables, template, isValue, liveFlow), 'result-shape', type, null, variables, false, template, isValue, liveFlow);
   }
   return {icons, cardIcons, captions, descriptions, renderType, transformation, fixedType, fit};
 }
