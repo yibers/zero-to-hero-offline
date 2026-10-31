@@ -4,12 +4,15 @@ const path = require('node:path');
 const vm = require('node:vm');
 const root = path.resolve(__dirname, '../..');
 
-function game(saved) {
+function game(saved, search = '') {
+  const events = {};
+  let reloads = 0;
   const storage = new Map(saved ? [['zth_progress', JSON.stringify(saved)]] : []);
   const nodes = Object.fromEntries(['app', 'status-bar', 'status-output', 'next-level', 'skip-level', 'level-badge']
     .map(id => [id, { innerHTML: '', textContent: '', hidden: true }]));
   const context = {
-    console, setTimeout, clearTimeout, addEventListener() {},
+    console, setTimeout, clearTimeout, addEventListener(name, handler) { events[name] = handler; },
+    URLSearchParams, location: { search, reload() { reloads++; } },
     localStorage: { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) },
     document: { getElementById: id => nodes[id] || null }
   };
@@ -24,7 +27,8 @@ function game(saved) {
   vm.runInContext('mountRowEditor = () => {}; mountTextEditor = () => {};', context);
   const run = source => vm.runInContext(source, context);
   const read = source => JSON.parse(run(`JSON.stringify(${source})`));
-  return { run, read, nodes, saved: () => JSON.parse(storage.get('zth_progress')) };
+  return { run, read, nodes, events, reloads: () => reloads,
+    saved: () => JSON.parse(storage.get('zth_progress') || 'null') };
 }
 
 module.exports = { game };

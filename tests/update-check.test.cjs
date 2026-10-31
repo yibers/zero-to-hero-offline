@@ -45,20 +45,20 @@ async function updater(options = {}) {
 }
 
 test('new deployments save work and automatically replace obsolete page links', async () => {
-  const app = await updater({ latest: newVersion, url: 'https://example.com/game/?v=old&test=keep#puzzle' });
+  const app = await updater({ latest: newVersion, url: 'https://example.com/game/?v=old&test=1#puzzle' });
   assert.equal(app.calls[0].init.cache, 'no-store');
   const manifest = new URL(app.calls[0].url);
   assert.equal(manifest.pathname, '/game/version.json');
   assert.match(manifest.searchParams.get('check'), /^\d+$/);
   assert.deepEqual(app.order, ['save', 'reload']);
-  assert.deepEqual(app.redirects, [`https://example.com/game/?test=keep&__update=${newVersion}#puzzle`]);
+  assert.deepEqual(app.redirects, [`https://example.com/game/?test=1&__update=${newVersion}#puzzle`]);
   assert.equal(app.timers.size, 0);
 });
 
 test('current pages keep a clean stable link, preserving unrelated parameters and history state', async () => {
-  const app = await updater({ url: `https://example.com/game/?v=old&__update=${oldVersion}&test=keep#puzzle` });
+  const app = await updater({ url: `https://example.com/game/?v=old&__update=${oldVersion}&test=1#puzzle` });
   assert.equal(app.redirects.length, 0);
-  assert.deepEqual(app.cleanups, [{ state: { preserved: true }, url: 'https://example.com/game/?test=keep#puzzle' }]);
+  assert.deepEqual(app.cleanups, [{ state: { preserved: true }, url: 'https://example.com/game/?test=1#puzzle' }]);
 });
 
 test('back navigation, returning to a tab, and reconnecting check for updates', async () => {

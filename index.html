@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="59dcf37c4a35">
+<meta name="app-version" content="8bf190ae53dc">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -907,6 +907,9 @@ function inferExpr(code, env, paramTypes) {
 
 // ─── UI Rendering ───
 
+// Test links start fresh on every load and never read or write normal progress.
+const testMode = new URLSearchParams(window.location.search).get('test') === '1';
+
 let currentLevel = LEVEL_ORDER[0];
 let showComplete = false;
 let showAbout = false;
@@ -920,7 +923,7 @@ let iconMode = true;
 
 // Load progress from localStorage
 try {
-  const saved = localStorage.getItem('zth_progress');
+  const saved = testMode ? null : localStorage.getItem('zth_progress');
   if (saved) {
     const parsed = JSON.parse(saved);
     // Version 1 inserts the composition introduction after the old level 2.
@@ -1130,6 +1133,7 @@ try {
 } catch(e) {}
 
 function saveProgress() {
+  if (testMode) return;
   localStorage.setItem('zth_progress', JSON.stringify({
     completed: [...completedLevels],
     editorContents,
@@ -1990,6 +1994,11 @@ window.prevLevel = function() {
 
 // Save progress on editor blur and page unload instead of every keystroke
 window.addEventListener('beforeunload', saveProgress);
+
+// Back/forward cache restoration must also reopen a clean test session.
+if (testMode) window.addEventListener('pageshow', event => {
+  if (event.persisted) window.location.reload();
+});
 
 // Initial render
 render();

@@ -167,6 +167,10 @@ Before publishing HTML, JavaScript or CSS changes, run `npm run version:assets` 
 
 ## Testing
 
+**[Open a clean test session](https://yibers.github.io/zero-to-hero-offline/?test=1)**
+
+Append `?test=1` to the game URL to start at level 1 with every level cleared and default display settings. Test progress stays in memory: reopening, refreshing, or returning through browser history starts fresh. Your normal saved progress and preferences remain untouched, including when a normal game is open in another tab. Remove `?test=1` to resume normal play. This also works with a local `index.html?test=1`.
+
 ```bash
 node --test tests/*.test.cjs
 npx playwright test
