@@ -3,17 +3,32 @@ const assert = require('node:assert/strict');
 const { game } = require('./helpers/game-harness.cjs');
 const markers = svg => [...svg.matchAll(/data-marker="(\d+)"/g)].map(match => Number(match[1]));
 
-test('named generic types have the same shape in every palette regardless of encounter order', () => {
+test('conventional generic types keep the same shape in every palette regardless of encounter order', () => {
   const app = game();
   const failures = app.read(`LEVELS.flatMap(level => level.funcs.flatMap(func => {
     const svg = FUNCTION_CARD_ICONS[level.level][func.name];
-    return [...svg.matchAll(/data-variable="([a-z])" data-marker="(\\d+)"/g)]
+    return [...svg.matchAll(/data-variable="([a-d])" data-marker="(\\d+)"/g)]
       .filter(match => Number(match[2]) !== match[1].charCodeAt(0) - 96)
       .map(match => [level.level, func.name, match[1], match[2]]);
   }))`);
   assert.deepEqual(failures, []);
   assert.deepEqual(markers(app.run("FUNCTION_CARD_ICONS[3]['(>>>)']")), [1, 2, 2, 3, 1, 3]);
   assert.deepEqual(markers(app.run('FUNCTION_CARD_ICONS[15].fmap')), [3, 4, 1, 2, 3, 1, 2, 4]);
+});
+
+test('function fmap uses three distinct simple shapes in every lesson', () => {
+  const app = game();
+  for (const level of [18, 19]) {
+    const svg = app.run(`FUNCTION_CARD_ICONS[${level}].fmap`);
+    assert.deepEqual(markers(svg), [1, 2, 3, 1, 3, 2]);
+    assert.doesNotMatch(svg, /<polygon/);
+  }
+  // The same fix applies to all later letters, independent of argument order.
+  for (const name of 'efghijklmnopqrstuvwxyz') {
+    const svg = app.run(`renderSemanticTransformation('(${name} -> a) -> (a -> b) -> ${name} -> b', 'test')`);
+    assert.deepEqual(markers(svg), [3, 1, 1, 2, 3, 2]);
+    assert.doesNotMatch(svg, /<polygon/);
+  }
 });
 
 test('a placed function keeps its shapes and its result carries them through later uses', () => {

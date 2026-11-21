@@ -12,8 +12,9 @@ function semanticVariables(type, preferred = []) {
   }
   visit(type);
   const used = new Set(variables.values());
-  // Reserve the conventional shapes before assigning any anonymous variables.
-  for (const name of names.filter(name => /^[a-z]$/.test(name))) {
+  // Only a/b/c/d have conventional shapes. Assign other names to free shapes,
+  // rather than their alphabet positions (which made r an almost-round 18-gon).
+  for (const name of names.filter(name => /^[a-d]$/.test(name))) {
     const marker = name.charCodeAt(0) - 97;
     if (!variables.has(name) && !used.has(marker)) { variables.set(name, marker); used.add(marker); }
   }
