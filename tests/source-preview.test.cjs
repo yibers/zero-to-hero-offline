@@ -86,10 +86,12 @@ test('combinators retain unresolved arguments while their known types specialize
   assert.ok(app.run('findVars(rowDiagnostics[0].preview.diagram.type).size')>0);
   place(app,1,'dup',true);
   assert.equal(signature(app,'rowDiagnostics[1].preview.diagram.type'),'Hero a -> Hero (a, a)');
-  prepare(app,14,'fmap pair');
-  // The Reader input is still ambiguous until its first transformation is given.
-  assert.equal(app.run('rowDiagnostics[0].preview'),undefined);
-  place(app,1,'f',true);
+  prepare(app,14,'(>>>) f');
+  // Forward composition specializes the first transformation immediately,
+  // while the output remains unresolved until the next function is chosen.
+  assert.equal(signature(app,'rowDiagnostics[0].preview.call.arguments[0].type'),'Zero a b -> a');
+  assert.ok(app.run('findVars(rowDiagnostics[0].preview.diagram.type).size')>0);
+  place(app,1,'pair',true);
   // f selects a even though the goal begins with b: preview the chosen path.
   assert.match(signature(app,'rowDiagnostics[1].preview.diagram.type'),/^Zero a b -> _t\d+ -> Hero \(a, _t\d+\)$/);
 });

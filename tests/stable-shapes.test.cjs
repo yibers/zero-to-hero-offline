@@ -18,7 +18,7 @@ test('conventional generic types keep the same shape in every palette regardless
 
 test('function fmap uses three distinct simple shapes in every lesson', () => {
   const app = game();
-  for (const level of [18, 19]) {
+  for (const level of app.read("LEVELS.filter(l => l.funcs.some(f => f.name === 'fmap' && f.sig === '(a -> b) -> (r -> a) -> r -> b')).map(l => l.level)")) {
     const svg = app.run(`FUNCTION_CARD_ICONS[${level}].fmap`);
     assert.deepEqual(markers(svg), [1, 2, 3, 1, 3, 2]);
     assert.doesNotMatch(svg, /<polygon/);

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="dd8590e5d40e">
+<meta name="app-version" content="801b5d079032">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -236,10 +236,10 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 
 <div id="app"></div>
 
-<script src="levels.js?v=7f117f3a2a01"></script>
+<script src="levels.js?v=a75d06cfea33"></script>
 <script src="semantic-icons.js?v=6d3b78f348b1"></script>
 <script src="row-program.js?v=d60934769456"></script>
-<script src="puzzle-rules.js?v=d8fbef97a192"></script>
+<script src="puzzle-rules.js?v=656af16362f4"></script>
 <script src="row-editor.js?v=210c749b9de6"></script>
 <script src="text-editor.js?v=83bde12fbf5f"></script>
 <script>
@@ -1010,6 +1010,29 @@ try {
       for (const key of Object.keys(textDrafts)) textDrafts[key] = RowProgram.currySource(textDrafts[key]);
       for (const key of Object.keys(rowPrograms)) rowPrograms[key] = RowProgram.curryRows(rowPrograms[key]);
     }
+    // Level 19 now teaches <*> using familiar forward composition. Translate
+    // complete function-fmap solutions before older migrations recheck them.
+    // Preserve unfinished source as a text draft while restoring usable cards.
+    if (parsed.sharedInputVersion !== 1) {
+      const index = LEVELS.findIndex(level => level.id === 'shared-input'), level = LEVELS[index];
+      const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index])
+        : typeof editorContents[index] === 'string' ? getEditorContent(index) : '');
+      if (/\bfmap\b/.test(code) && !checkSolution(level, code).ok) {
+        const legacy = { ...level, funcs: level.funcs.map(f => f.name === '(>>>)'
+          ? { ...f, name: 'fmap', sig: '(a -> b) -> (r -> a) -> r -> b' } : f) };
+        const converted = checkSolution(legacy, code).ok && forwardCompositionSource(code, 'fmap');
+        if (converted && checkSolution(level, converted).ok) {
+          editorContents[index] = level.lhs.trim() + ' ' + converted;
+          rowPrograms[index] = RowProgram.migrate(converted);
+          if (textDrafts[index] !== undefined) textDrafts[index] = converted;
+        } else {
+          textDrafts[index] = code;
+          rowPrograms[index] = automaticRows(level, [{ id: 'r1', expr: '' }]);
+          editorContents[index] = level.lhs.trim() + ' undefined';
+          completedLevels.delete(index);
+        }
+      }
+    }
     if (parsed.applicativeVersion !== 1) {
       const index = LEVELS.findIndex(level => level.id === 'reverse-applicative');
       const code = textDrafts[index] ?? (rowPrograms[index] ? RowProgram.source(rowPrograms[index])
@@ -1128,7 +1151,7 @@ try {
         }
       }
     }
-    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || parsed.continuationVersion !== 1 || parsed.carryVersion !== 1 || parsed.curriculumVersion !== 1 || parsed.automaticHeadVersion !== 1 || parsed.forwardVersion !== 1 || 'bypassCount' in parsed) saveProgress();
+    if (parsed.connectionVersion !== 1 || parsed.completionVersion !== 5 || parsed.levelOrderVersion !== 2 || parsed.curryingVersion !== 1 || parsed.applicativeVersion !== 1 || parsed.transformationsVersion !== 1 || parsed.middleManVersion !== 1 || parsed.fixedRowsVersion !== 1 || parsed.continuationVersion !== 1 || parsed.carryVersion !== 1 || parsed.curriculumVersion !== 1 || parsed.automaticHeadVersion !== 1 || parsed.forwardVersion !== 1 || parsed.sharedInputVersion !== 1 || 'bypassCount' in parsed) saveProgress();
   }
 } catch(e) {}
 
@@ -1150,6 +1173,7 @@ function saveProgress() {
     curriculumVersion: 1,
     automaticHeadVersion: 1,
     forwardVersion: 1,
+    sharedInputVersion: 1,
     currentLevel,
     geckoOn,
     iconMode,

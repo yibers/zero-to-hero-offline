@@ -74,7 +74,7 @@ test('the text checker rejects deferred transformations even when Haskell types 
 
 test('redesigned lessons recheck achievements once while retaining every old draft and preference',()=>{
   const source=game();source.run('saveProgress();');const saved=source.saved();
-  delete saved.carryVersion;delete saved.forwardVersion;saved.currentLevel=6;saved.completed=[0,4,6,7,12,13,14];
+  delete saved.carryVersion;delete saved.forwardVersion;delete saved.sharedInputVersion;saved.currentLevel=6;saved.completed=[0,4,6,7,12,13,14];
   for(const level of oldLevels){
     const index=level.level-2;
     saved.editorContents[index]=level.lhs+' '+level.solution;

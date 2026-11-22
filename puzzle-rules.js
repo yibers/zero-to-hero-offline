@@ -57,7 +57,8 @@ function automaticCombinator(level) {
 // Reassociate a complete old program without changing what its functions do.
 // Expanding the named calls lets us reverse each fully applied (.) as a whole;
 // swapping tokens in individual unary rows would reverse the wrong arguments.
-function forwardCompositionSource(code) {
+// Function fmap can use the same conversion when its palette changes to >>>.
+function forwardCompositionSource(code, backwardOperator = '.') {
   try {
     const definitions = new Map(), program = RowProgram.parseLet(code);
     const apply = (fn, args) => fn.kind === 'app'
@@ -79,14 +80,14 @@ function forwardCompositionSource(code) {
     for (const row of program?.bindings || []) definitions.set(row.id, expand(RowProgram.parse(row.expr)));
     function forward(tree) {
       if (tree.kind === 'name') {
-        if (tree.name === '.') throw Error('Partially applied composition needs manual rebuilding.');
+        if (tree.name === backwardOperator) throw Error('Partially applied composition needs manual rebuilding.');
         return tree;
       }
-      if (tree.fn.name === '.' && tree.args.length >= 2) {
+      if (tree.fn.name === backwardOperator && tree.args.length >= 2) {
         const [last, first, ...rest] = tree.args;
         return apply(compose(forward(first), forward(last)), rest.map(forward));
       }
-      if (tree.fn.name === 'flip' && tree.args[0]?.name === '.' && tree.args.length >= 3) {
+      if (tree.fn.name === 'flip' && tree.args[0]?.name === backwardOperator && tree.args.length >= 3) {
         const [, first, last, ...rest] = tree.args;
         return apply(name('flip'), [name('>>>'), ...[last, first, ...rest].map(forward)]);
       }

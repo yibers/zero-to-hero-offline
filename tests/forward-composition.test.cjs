@@ -6,7 +6,7 @@ const redesigned=[11,13,15,23];
 
 function legacySave(icons=true) {
   const seed=game();seed.run('saveProgress();');const saved=seed.saved();
-  delete saved.forwardVersion;saved.iconMode=icons;saved.geckoOn=false;
+  delete saved.forwardVersion;delete saved.sharedInputVersion;saved.iconMode=icons;saved.geckoOn=false;
   saved.currentLevel=7;saved.completed=before.map((_,i)=>i);
   before.forEach((level,i)=>{
     saved.editorContents[i]=level.lhs+' '+level.solution;
@@ -69,7 +69,7 @@ for(const icons of [true,false])test(`all old completed saves migrate once, pres
       assert.equal(app.run('getRows().every(r=>!r.expr)'),true);
     }else{
       assert.equal(app.run('checkSolution(LEVELS[currentLevel],getCodeFromEditor()).ok'),true,`level ${old.level}`);
-      if(!old.funcs.some(f=>f.name==='(.)'))assert.deepEqual(app.saved().rowPrograms[i],saved.rowPrograms[i]);
+      if(old.id!=='shared-input'&&!old.funcs.some(f=>f.name==='(.)'))assert.deepEqual(app.saved().rowPrograms[i],saved.rowPrograms[i]);
     }
   }
   assert.equal(app.saved().forwardVersion,1);

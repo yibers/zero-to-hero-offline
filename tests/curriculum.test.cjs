@@ -22,13 +22,13 @@ test('introductions precede synthesis, titles identify the lesson, and old puzzl
     assert.equal(app.run(`checkSolution(LEVELS[${index}],LEVELS[${index}].solution).ok`),true);
   });
   // The first mapping lesson uses the same name as both later contexts.
-  assert.deepEqual(app.read('LEVEL_ORDER.map(i=>LEVELS[i]).filter(l=>l.funcs.some(f=>f.name==="fmap")).map(l=>l.level)'),[11,13,14,15,18,19]);
+  assert.deepEqual(app.read('LEVEL_ORDER.map(i=>LEVELS[i]).filter(l=>l.funcs.some(f=>f.name==="fmap")).map(l=>l.level)'),[11,13,14,15,18]);
   assert.equal(app.run('LEVELS.some(l=>l.funcs.some(f=>f.name==="(<$>)"))'),false);
 });
 
 for(const icons of [true,false])test(`curriculum migration keeps all solved work with its puzzle in ${icons?'icon':'text'} mode`,()=>{
   const source=game();source.run('saveProgress();');
-  const saved=source.saved();delete saved.curriculumVersion;delete saved.forwardVersion;
+  const saved=source.saved();delete saved.curriculumVersion;delete saved.forwardVersion;delete saved.sharedInputVersion;
   saved.currentLevel=7;saved.iconMode=icons;saved.completed=oldLevels.map((_,i)=>i);
   oldLevels.forEach((old,i)=>{
     saved.editorContents[i]=old.lhs+' '+old.solution;
@@ -47,7 +47,7 @@ for(const icons of [true,false])test(`curriculum migration keeps all solved work
       assert.equal(app.run('getRows().every(r=>!r.expr)'),true);
     } else {
       assert.equal(app.run('checkSolution(LEVELS[currentLevel],getCodeFromEditor()).ok'),true);
-      if (!old.solution.includes('(.)')) assert.equal(app.saved().textDrafts[i],rename(old.solution));
+      if (i !== 14 && !old.solution.includes('(.)')) assert.equal(app.saved().textDrafts[i],rename(old.solution));
       else assert.doesNotMatch(app.run('getCodeFromEditor()'),/\(\.\)/);
     }
   });
@@ -62,7 +62,7 @@ for(const icons of [true,false])test(`curriculum migration keeps all solved work
 });
 
 test('renaming map retains unfinished text when the redesigned wrapper lesson starts clean',()=>{
-  const seed=game();seed.run('saveProgress();');const saved=seed.saved();delete saved.curriculumVersion;delete saved.forwardVersion;
+  const seed=game();seed.run('saveProgress();');const saved=seed.saved();delete saved.curriculumVersion;delete saved.forwardVersion;delete saved.sharedInputVersion;
   saved.currentLevel=12;saved.iconMode=false;
   saved.editorContents={12:'zeroToHero z = let\n  r1 = (<$>) swap\n  r2 = (.) r1\nin\n  _',0:'zeroToHero z = f'};
   saved.textDrafts={12:'let\n  r1 = (<$>) swap\n  r2 = (.) r1\nin\n  _',14:'let\n  r1 = (<$>)\nin\n  _',0:'f'};

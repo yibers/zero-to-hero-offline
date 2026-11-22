@@ -235,10 +235,10 @@ const LEVELS = [
       { name: "f", sig: "Zero a b -> a", uses: 1 },
       { name: "g", sig: "Zero a b -> b", uses: 1 },
       { name: "pair", sig: "a -> b -> Hero (a, b)", uses: 1 },
-      { name: "fmap", sig: "(a -> b) -> (r -> a) -> r -> b", uses: 1 },
+      { name: "(>>>)", sig: "(a -> b) -> (b -> c) -> a -> c", uses: 1 },
       { name: "(<*>)", sig: "Applicative f => f (a -> b) -> f a -> f b", uses: 1 }
     ],
-    solution: "let\n  r1 = fmap pair\n  r2 = r1 g\n  r3 = (<*>) r2\n  r4 = r3 f\nin\n  r4 z"
+    solution: "let\n  r1 = (>>>) g\n  r2 = r1 pair\n  r3 = (<*>) r2\n  r4 = r3 f\nin\n  r4 z"
   },
   {
     id: "wrap-value", level: 1, name: "Wrap a value",
