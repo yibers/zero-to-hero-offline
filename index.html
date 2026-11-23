@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>Zero to Hero | A Haskell Puzzle</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="app-version" content="801b5d079032">
+<meta name="app-version" content="c08cd594cd7a">
 <script src="update-check.js?v=8e4b7c073304" defer></script>
 <style>
 @font-face {
@@ -44,19 +44,24 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { height: 100%; font-family: 'Exo', sans-serif; background: #1E293B; color: white; }
+:root { --page-blue: #1454b0; --canvas-blue: #2468c9; --nav-blue: #103677; --panel-blue: #e8f2ff; --border-blue: #b9d3f6; --ink-blue: #173c70; }
+html, body { height: 100%; font-family: 'Exo', sans-serif; background: var(--page-blue); color: white; }
+#app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
 .code { font-family: 'Fira Code', monospace; }
 
-/* Nav — matches original: bg-slate-500 */
-nav { display: flex; background: #64748b; padding: 4px 8px; justify-content: space-between; align-items: center; }
-nav button { background: #1e293b; color: white; border: none; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: 14px; clip-path: polygon(4px 0, 100% 0, 100% calc(100% - 4px), calc(100% - 4px) 100%, 0 100%, 0 4px); }
-nav button:hover:not(:disabled) { background: #334155; }
+/* Deep blue navigation frames the brighter puzzle canvas. */
+nav { display: flex; flex-shrink: 0; gap: 12px; background: var(--nav-blue); border-bottom: 1px solid #477bc2; padding: 8px 12px; justify-content: space-between; align-items: center; }
+nav button { background: #1b4f9a; color: white; border: 1px solid #5888cc; border-radius: 7px; min-height: 32px; padding: 4px 10px; cursor: pointer; font-family: inherit; font-size: 14px; }
+nav button:hover:not(:disabled) { background: #2869c2; }
+nav button:focus-visible { outline: 3px solid #bfdbfe; outline-offset: 2px; }
+nav .level-title { font-weight: bold; font-size: 18px; color: white; font-family: 'Orbitron', sans-serif; }
+nav .about-button { width: 32px; padding: 0; border-radius: 50%; font-weight: bold; }
 nav button:disabled { opacity: 0.35; cursor: default; }
-nav .level-badge { background: #9ca3af; color: #374151; padding: 2px 12px; border-radius: 9999px; font-weight: bold; font-size: 14px; }
+nav .level-badge { background: #dbeafe; color: var(--ink-blue); padding: 2px 12px; border-radius: 9999px; font-weight: bold; font-size: 14px; }
 
 /* A wrapping function palette above the full-width puzzle. */
-main { display: flex; flex-direction: column; height: calc(100vh - 36px); }
-.grid-h { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100%; padding: 8px; gap: 8px; overflow: hidden; }
+main { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.grid-h { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); height: 100%; min-height: 0; padding: 12px; gap: 12px; overflow: hidden; }
 .left-panel { grid-row: 2; min-width: 0; min-height: 0; }
 .right-panel { grid-row: 1; min-width: 0; max-height: 35dvh; overscroll-behavior: contain; }
 .right-panel:not(:has(.func-card)) { display: none; }
@@ -65,20 +70,20 @@ main { display: flex; flex-direction: column; height: calc(100vh - 36px); }
    ToImpl and YourSol = auto; CodeEd and Status share remaining via 1fr each */
 .left-panel { display: grid; grid-template-rows: auto auto 10px auto auto 10px auto 1fr 10px 1fr; overflow: auto; }
 .gutter-row { grid-column: 1/-1; display: flex; align-items: center; justify-content: center; cursor: row-resize; }
-.gutter-row::after { content: ''; height: 4px; width: 64px; background: #9ca3af; border-radius: 2px; }
+.gutter-row::after { content: ''; height: 4px; width: 64px; background: #a8ceff; border-radius: 2px; }
 
-/* Section headers — original: bg-gray-300 text-gray-700 */
-.section-header { background: #d1d5db; color: #374151; font-weight: bold; padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+/* Light surfaces keep code and semantic shape colors readable. */
+.section-header { background: #dbeafe; color: var(--ink-blue); border-radius: 8px 8px 0 0; font-weight: bold; padding: 6px 8px; font-size: 14px; display: flex; align-items: center; gap: 6px; }
 .section-header svg { width: 18px; height: 18px; flex-shrink: 0; }
 
 /* Code blocks */
-.code-block { background: white; color: black; padding: 8px; overflow: auto; font-size: 1rem; }
+.code-block { background: white; color: #0f172a; border-radius: 0 0 8px 8px; padding: 8px; overflow: auto; font-size: 1rem; }
 
 /* Editor — original uses CodeMirror with white bg */
 .editor-wrap { display: flex; flex-direction: column; min-height: 145px; overflow: hidden; }
 .editor-container { display: flex; flex-shrink: 0; position: relative; padding-left: 28px; background: white; overflow: hidden; }
 .editor-container > .line-numbers { position: absolute; left: 0; top: 0; bottom: 0; width: 28px; overflow: hidden; }
-.editor-prefix-row { display: flex; flex-shrink: 0; background: #f3f4f6; border-bottom: 1px solid #d1d5db; }
+.editor-prefix-row { display: flex; flex-shrink: 0; background: var(--panel-blue); border-bottom: 1px solid var(--border-blue); }
 .editor-prefix-row .line-numbers { background: transparent; }
 .editor-prefix { flex: 1; min-width: 0; padding: 4px 8px; font-family: 'Fira Code', monospace; font-size: 1rem; line-height: 1.5; color: #6b7280; white-space: pre; overflow-x: auto; }
 .line-numbers { background: white; color: #9ca3af; font-family: 'Fira Code', monospace; font-size: 1rem; padding: 4px 0; text-align: right; user-select: none; min-width: 28px; padding-right: 8px; line-height: 1.5; }
@@ -121,10 +126,10 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .editor-slot-func { color: #1e40af; }
 
 /* Icon mode toggle */
-.gecko-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #d1d5db; cursor: pointer; user-select: none; }
+.gecko-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #e0edff; cursor: pointer; user-select: none; }
 .gecko-toggle-track { width: 36px; height: 20px; border-radius: 10px; position: relative; transition: background 0.2s; }
 .gecko-toggle-track.on { background: #22c55e; }
-.gecko-toggle-track.off { background: #475569; }
+.gecko-toggle-track.off { background: #527bb6; }
 .gecko-toggle-knob { width: 16px; height: 16px; border-radius: 50%; background: white; position: absolute; top: 2px; transition: left 0.2s; }
 .gecko-toggle-track.on .gecko-toggle-knob { left: 18px; }
 .gecko-toggle-track.off .gecko-toggle-knob { left: 2px; }
@@ -136,23 +141,23 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-body .icon-sym svg { height:12px; width:12px; }
 .editor-slot-label .icon-sym svg { height:9px; width:9px; }
 
-/* Status — original: bg-gray-400 / bg-green-500 / bg-red-500 */
+/* Status colors retain their meaning against the blue theme. */
 .status-bar { padding: 8px; font-size: 13px; font-weight: bold; }
-.status-bar.checking { background: #9ca3af; color: white; }
+.status-bar.checking { background: #dbeafe; color: var(--ink-blue); }
 .status-bar.success { background: #22c55e; color: white; }
 .status-bar.error { background: #ef4444; color: white; }
-.status-output { background: #374151; color: white; padding: 8px; font-family: 'Fira Code', monospace; font-size: 12px; overflow: auto; min-height: 40px; white-space: pre-wrap; }
+.status-output { background: var(--nav-blue); color: white; padding: 8px; font-family: 'Fira Code', monospace; font-size: 12px; overflow: auto; min-height: 40px; white-space: pre-wrap; }
 
 /* Available functions wrap across the top. */
-.right-panel { background: #f3f4f6; color: black; padding: 12px; overflow: auto; }
+.right-panel { background: var(--panel-blue); color: var(--ink-blue); padding: 12px; overflow: auto; border: 1px solid var(--border-blue); border-radius: 12px; box-shadow: 0 3px 10px #082b641f; }
 .right-panel h2 { font-size: 16px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
 .right-panel h2 svg { width: 18px; height: 18px; }
 #function-palette, #parameter-palette { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 #parameter-palette h2 { flex-basis: 100%; }
 #function-palette { align-items: stretch; gap: 12px; }
-.palette-group { flex: 1 1 300px; min-width: 0; padding: 10px; border: 1px solid #cbd5e1; border-radius: 10px; }
-.palette-group.combinators { background: #eaf2ff; border-color: #b4ccef; }
-.palette-group.transformations { background: #f1f5f9; }
+.palette-group { flex: 1 1 300px; min-width: 0; padding: 10px; border: 1px solid var(--border-blue); border-radius: 10px; }
+.palette-group.combinators { background: #dceaff; border-color: #a9c9f4; }
+.palette-group.transformations { background: #f4f8ff; }
 .palette-group-header { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin-bottom: 8px; }
 .right-panel .palette-group-header h2 { font-size: 14px; margin: 0; }
 .palette-group-header span { font-size: 12px; color: #475569; }
@@ -162,7 +167,8 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .right-panel .func-card { flex: 0 1 auto; min-width: 0; max-width: 100%; min-height: 48px; margin-bottom: 0; }
 .right-panel .palette-gecko { max-width: 100%; overflow-x: auto; }
 .icon-palette .type-name, .icon-palette .semantic-icon { max-width: 100%; min-width: 0; }
-.func-card { background: white; padding: 8px 10px; border-radius: 6px; margin-bottom: 6px; font-size: 13px; cursor: grab; }
+.func-card { background: white; border: 1px solid var(--border-blue); box-shadow: 0 2px 4px #1036770d; padding: 8px 10px; border-radius: 8px; margin-bottom: 6px; font-size: 13px; cursor: grab; }
+.func-card:hover { border-color: #679ee8; }
 .func-card { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: none; }
 .touch-dragging { outline: 2px solid #60a5fa; outline-offset: -2px; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .touch-drag-ghost { position: fixed; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 12px; background: #2563eb; color: white; border: 2px solid white; border-radius: 10px; box-shadow: 0 4px 16px #0f172a55; font: 14px "Fira Code", monospace; pointer-events: none; z-index: 10000; white-space: nowrap; }
@@ -173,7 +179,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .touch-drag-ghost.removing .drag-action { display: block; }
 .function-card-content { flex: 1; min-width: 0; }
 #function-palette .func-card { display: flex; align-items: center; gap: 8px; }
-.function-stock { flex: none; padding: 2px 5px; border-radius: 5px; background: #e2e8f0; color: #334155; font-size: 12px; font-weight: bold; }
+.function-stock { flex: none; padding: 2px 5px; border-radius: 5px; background: #dbeafe; color: var(--ink-blue); font-size: 12px; font-weight: bold; }
 .func-card.dragging { opacity: 0.4; cursor: grabbing; }
 .editor-wrap.drag-over { outline: 2px solid #60a5fa; }
 .editor-wrap.drag-over textarea { cursor: copy; }
@@ -207,9 +213,9 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .syntax-hint { padding: 6px 8px; font-size: 12px; background: #bbf7d0; color: #374151; font-style: italic; }
 .syntax-hint.invalid { background: #fecaca; color: #374151; font-style: normal; }
 
-/* Dialog — original: bg-indigo-800 */
+/* Dialogs use the same blue frame as the game. */
 .dialog-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.dialog { background: #3730a3; color: white; padding: 32px; max-width: 600px; margin: 16px; clip-path: polygon(1rem 0, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 1rem); }
+.dialog { background: var(--nav-blue); color: white; padding: 32px; max-width: 600px; margin: 16px; clip-path: polygon(1rem 0, 100% 0, 100% calc(100% - 1rem), calc(100% - 1rem) 100%, 0 100%, 0 1rem); }
 .dialog h2 { font-family: 'Orbitron', sans-serif; }
 .dialog p { margin: 8px 0; line-height: 1.6; }
 .dialog button, .dialog a.btn { background: #bbf7d0; color: black; border: none; padding: 6px 16px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 500; clip-path: polygon(0.5rem 0, 100% 0, 100% calc(100% - 0.5rem), calc(100% - 0.5rem) 100%, 0 100%, 0 0.5rem); text-decoration: none; display: inline-block; }
@@ -230,7 +236,7 @@ textarea.editor::selection { background: rgba(59, 130, 246, 0.3); }
 .gecko-arrow-header svg { height: 10px; }
 .gecko-arrow-body { display: flex; }
 </style>
-<link rel="stylesheet" href="row-editor.css?v=94516492f769">
+<link rel="stylesheet" href="row-editor.css?v=0aae143654be">
 </head>
 <body>
 
@@ -1227,7 +1233,7 @@ function render() {
           <li><strong>Prof. Tim Dwyer</strong> &mdash; Dept. of Human Centred Computing</li>
           <li><strong>Prof. Peter J. Stuckey</strong> &mdash; Dept. of Data Science and AI</li>
         </ul>
-        <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
+        <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#dbeafe">
           See their paper:
           <a href="https://arxiv.org/abs/2405.12699" target="_blank" rel="noopener noreferrer" style="color:#93c5fd">GeckoGraph: A Visual Language for Polymorphic Types</a> (2024).
           The original game is at
@@ -1236,7 +1242,7 @@ function render() {
         <p style="font-size:14px;line-height:1.7;margin:0 0 6px">
           <strong>What&rsquo;s different in this version:</strong>
         </p>
-        <ul style="font-size:13px;line-height:1.7;margin:0 0 12px;padding-left:20px;color:#c4b5fd">
+        <ul style="font-size:13px;line-height:1.7;margin:0 0 12px;padding-left:20px;color:#dbeafe">
           <li>Type checking runs entirely in-browser via a Hindley&ndash;Milner inference engine written in JavaScript &mdash; the original sends code to a GHC server</li>
           <li>5 additional monad levels (Functor, Applicative, Monad, MonadFish, MonadJoin)</li>
           <li>Fully self-contained &mdash; works offline, no server needed</li>
@@ -1244,7 +1250,7 @@ function render() {
           <li>Fixed row slots, one use per generated function, and a generated Haskell let definition</li>
           <li>Automatic completion: reach the target and use exactly the supplied copies of each function</li>
         </ul>
-        <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#c4b5fd">
+        <p style="font-size:13px;line-height:1.6;margin:0 0 16px;color:#dbeafe">
           All credit for the game design, puzzles, and GeckoGraph notation belongs to the original authors.
         </p>
         <button onclick="dismissAbout()">Close</button>
@@ -1258,7 +1264,7 @@ function render() {
         <button id="skip-level" onclick="skipLevel()" title="Go to the next level without solving this one" ${completedLevels.has(currentLevel) ? 'hidden' : ''} ${currentLevel === LEVEL_ORDER.at(-1) ? 'disabled' : ''}>Skip level</button>
         <button id="clear-level" onclick="clearLevel()" title="Start this level again">Clear level</button>
       </div>
-      <div style="font-weight:bold;font-size:18px;color:#d1d5db;font-family:'Orbitron',sans-serif">${escHtml(level.name)}</div>
+      <div class="level-title">${escHtml(level.name)}</div>
       <div style="display:flex;align-items:center;gap:12px">
         <div class="gecko-toggle" onclick="toggleIconMode()">
           Icons
@@ -1267,7 +1273,7 @@ function render() {
           </div>
         </div>
         <span class="level-badge" id="level-badge">${completedLevels.has(currentLevel) ? '<span title="Solved" style="color:#22c55e">&#10003; </span>' : ''}${levelProgressLabel(level)}</span>
-        <button onclick="showAboutDialog()" title="About" style="background:#475569;color:#d1d5db;border:none;width:24px;height:24px;border-radius:50%;cursor:pointer;font-size:13px;font-weight:bold;display:flex;align-items:center;justify-content:center;padding:0">?</button>
+        <button class="about-button" onclick="showAboutDialog()" title="About">?</button>
       </div>
     </nav>
 

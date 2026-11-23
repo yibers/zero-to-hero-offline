@@ -1,5 +1,5 @@
 /* Rows have stable result names; their position defines dependency order. */
-.editor-wrap { min-height: 300px; background: #f1f5f9; color: #0f172a; }
+.editor-wrap { min-height: 300px; background: var(--canvas-blue); color: #0f172a; border: 1px solid #80b4f5; border-radius: 12px; box-shadow: 0 3px 10px #082b641f; }
 .editor-icons.editor-wrap { min-height: 320px; }
 .text-editor-shell { position: relative; flex: 1; min-height: 160px; background: white; overflow: hidden; }
 .text-source-editor, .text-source-highlight { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 10px 12px 10px 32px; border: 0; font: 16px/26px 'Fira Code', monospace; tab-size: 2; white-space: pre; text-align: left; }
@@ -8,18 +8,18 @@
 .source-keyword { color: #7c3aed; font-weight: 600; }
 .source-function { color: #1d4ed8; }
 .source-param { color: #047857; }
-#program-rows { overflow: auto; flex: 1; min-height: 120px; padding: 8px; overscroll-behavior: contain; }
+#program-rows { overflow: auto; flex: 1; min-height: 120px; padding: 10px; overscroll-behavior: contain; }
 .parameter-prefix { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px; }
 .parameter-icon { max-width: 100%; display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 4px; min-width: 56px; min-height: 56px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #065f46; cursor: grab; }
 .editor-prefix-row[hidden] { display: none; }
 .parameter-icon:hover { background: #d1fae5; border-color: #6ee7b7; }
 .parameter-icon:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
-.program-row, .program-source { border: 1px solid #cbd5e1; border-radius: 8px; background: white; margin-bottom: 10px; overflow-x: auto; }
+.program-row, .program-source { border: 1px solid var(--border-blue); border-radius: 10px; background: white; box-shadow: 0 2px 6px #1036771a; margin-bottom: 10px; overflow-x: auto; }
 .program-source { display: flex; align-items: center; min-height: 64px; padding: 6px; }
-.empty-row-drop { display: block; width: 100%; min-height: 64px; margin: 0; padding: 8px; border: 2px dashed #cbd5e1; border-radius: 6px; background: #f8fafc; color: #64748b; font: inherit; font-size: 12px; cursor: pointer; }
+.empty-row-drop { display: block; width: 100%; min-height: 64px; margin: 0; padding: 8px; border: 2px dashed #93b9eb; border-radius: 6px; background: #f3f8ff; color: #305c95; font: inherit; font-size: 12px; cursor: pointer; }
 .empty-row-drop:hover, .ready-row.drag-over .empty-row-drop { border-color: #3b82f6; background: #dbeafe; color: #2563eb; }
 .empty-row-drop:focus-visible { outline: 2px solid #2563eb; outline-offset: -4px; }
-.program-row.active-row { border-color: #3b82f6; box-shadow: 0 0 0 1px #3b82f6; }
+.program-row.active-row { border-color: #bfdbfe; box-shadow: 0 0 0 2px #bfdbfe; }
 .program-row.final-row { border-bottom: 3px solid #10b981; }
 .row-heading { display: none; }
 .row-number { font-size: 11px; color: #64748b; }
@@ -46,7 +46,7 @@
 .row-toolbar button:first-child { background: #1d4ed8; color: white; border-color: #1d4ed8; margin-right: auto; }
 .row-toolbar button:disabled { opacity: .4; cursor: default; }
 #row-notice { font-size: 12px; color: #b91c1c; padding: 0 8px; }
-#row-notice:not(:empty) { padding-bottom: 6px; }
+#row-notice:not(:empty) { margin: 0 10px 10px; padding: 8px; background: #fff1f2; border-radius: 6px; }
 .token-ref { color: #5b21b6; background: #ede9fe; border-radius: 7px; }
 .editor-icons .editor-overlay > .token-ref { display: inline-block; height: 48px; line-height: 48px; padding: 0 13px; margin: 0 -13px; vertical-align: middle; }
 .row-ref > span { display: inline-flex; align-items: center; justify-content: center; border: 2px solid #a78bfa; border-radius: 10px; min-width: 38px; height: 38px; background: #ede9fe; color: #5b21b6; font: bold 16px 'Fira Code',monospace; }
@@ -74,7 +74,7 @@
   nav > div:last-child { width:100%; justify-content:space-between; gap:6px !important; }
   nav .level-badge { padding:2px 6px; font-size:11px; }
   .row-role { flex-basis:auto; }
-  main { height:calc(100dvh - 80px); }
+  .grid-h { padding: 8px; gap: 8px; }
   .left-panel { overflow-y:auto; }
 }
 
